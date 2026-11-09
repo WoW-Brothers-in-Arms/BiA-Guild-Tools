@@ -3,7 +3,7 @@
 ## Notes: Sammlung kleiner Tools für die Gilde BIA. Übersicht: /bia
 ## Notes-deDE: Sammlung kleiner Tools für die Gilde BIA. Übersicht: /bia
 ## Author: Paul
-## Version: 1.4.0
+## Version: 1.4.1
 ## SavedVariables: BiaGuildDB
 ## IconTexture: Interface\Icons\INV_Misc_Tabard_Generic
 

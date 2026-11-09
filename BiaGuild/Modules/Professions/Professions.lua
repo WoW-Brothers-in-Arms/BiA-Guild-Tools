@@ -293,18 +293,38 @@ local function OnRefreshLayout(list)
     RefreshRoster()
 end
 
+local DROPDOWN_LABEL = "BiA: " .. COLUMN_TITLE
+
+-- Makes the roster's column dropdown show the current choice again.
+local function UpdateDropdown()
+    local dropdown = CommunitiesFrame and CommunitiesFrame.GuildMemberListDropdown
+    if dropdown and dropdown.GetMenuDescription and dropdown:GetMenuDescription() then
+        dropdown:SignalUpdate()
+    end
+end
+
+-- Takes the slot for our column if it is wanted and Blizzard put its default column there.
+local function ClaimSlot()
+    local list = MemberList()
+    if list and ColumnWanted() and list:GetGuildColumnIndex() ~= nil then
+        list:SetGuildColumnIndex(nil)        -- triggers RefreshLayout -> OnRefreshLayout
+    end
+    UpdateDropdown()
+end
+
 -- Puts the column into the slot (or gives the slot back to Blizzard's default).
 local function ApplyColumn()
     local list = MemberList()
     if not list then return end
     if ColumnWanted() and list:GetGuildColumnIndex() ~= nil then
-        list:SetGuildColumnIndex(nil)        -- triggers RefreshLayout -> OnRefreshLayout
+        list:SetGuildColumnIndex(nil)
     elseif not ColumnWanted() and CommunitiesFrame.GuildMemberListDropdown then
         CommunitiesFrame.GuildMemberListDropdown:ResetGuildColumnIndex()
         list:RefreshLayout()
     else
         list:RefreshLayout()
     end
+    UpdateDropdown()
 end
 
 local function HookCommunities()
@@ -327,25 +347,28 @@ local function HookCommunities()
         hooksecurefunc(list, "RefreshLayout", OnRefreshLayout)
     end
 
-    -- Blizzard resets the slot to its default (e.g. achievement points) when the roster is opened;
-    -- take it back if the column is wanted.
+    -- When the roster opens, Blizzard puts its default column (e.g. achievement points) into the
+    -- slot: in ResetGuildColumnIndex and again at the end of the dropdown's OnShow. Take it back
+    -- afterwards if our column is wanted.
     local dropdown = CommunitiesFrame.GuildMemberListDropdown
-    if dropdown and type(dropdown.ResetGuildColumnIndex) == "function" then
-        hooksecurefunc(dropdown, "ResetGuildColumnIndex", function()
-            if ColumnWanted() and list:GetGuildColumnIndex() ~= nil then list:SetGuildColumnIndex(nil) end
-        end)
+    if dropdown then
+        if type(dropdown.ResetGuildColumnIndex) == "function" then
+            hooksecurefunc(dropdown, "ResetGuildColumnIndex", ClaimSlot)
+        end
+        dropdown:HookScript("OnShow", ClaimSlot)
     end
 
-    -- Entry "Berufe (BIA)" in the roster's column dropdown. Picking a Blizzard entry hides the
+    -- Entry "BiA: Berufe" in the roster's column dropdown. Picking a Blizzard entry hides the
     -- column until the roster is opened again. (Blizzard hides that dropdown when it has fewer than
     -- two entries of its own; then /bia-berufe spalte is the switch.)
     if Menu and Menu.ModifyMenu then
         Menu.ModifyMenu("MENU_COMMUNITIES_GUILD_MEMBER_LIST", function(_, root)
             if not M:IsEnabled() then return end
-            root:CreateRadio(COLUMN_TITLE .. " (BIA)", ColumnActive, function()
+            -- The dropdown shows the picked entry's data.dropdownText, so the entry needs it too.
+            root:CreateRadio(DROPDOWN_LABEL, ColumnActive, function()
                 M.db.column = true
                 ApplyColumn()
-            end)
+            end, { dropdownText = DROPDOWN_LABEL })
         end)
     end
 end
