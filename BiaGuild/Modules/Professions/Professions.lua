@@ -144,13 +144,14 @@ local function MemberProfessions(info)
     local entry = guid and M.db.members[guid]
     if entry and entry.profs and #entry.profs > 0 then return entry.profs, entry.t end
 
-    -- If the server fills Blizzard's own profession fields, use them as a fallback.
+    -- Members without BiaGuild: the server fills Blizzard's own profession fields. The professions
+    -- there are right, but the ranks are not (Forever sends e.g. 1 or 784), so only the professions
+    -- are used and the rank stays unknown (nil).
     local list = {}
     for i = 1, 2 do
         local id = info["profession" .. i .. "ID"]
         if Readable(id) and D.PROFESSIONS[id] then
-            local rank = info["profession" .. i .. "Rank"]
-            list[#list + 1] = { id = id, rank = Readable(rank) and rank or 0, max = 0 }
+            list[#list + 1] = { id = id }
         end
     end
     if #list > 0 then return list, nil end
@@ -204,7 +205,8 @@ local function ColumnText(info)
     local parts = {}
     for i, p in ipairs(shown) do
         if i > 3 then break end
-        parts[#parts + 1] = "|T" .. D.ProfessionIcon(p.id) .. ":14:14:0:0:64:64:5:59:5:59|t " .. (p.rank or "?")
+        local icon = "|T" .. D.ProfessionIcon(p.id) .. ":14:14:0:0:64:64:5:59:5:59|t"
+        parts[#parts + 1] = p.rank and (icon .. " " .. p.rank) or icon
     end
     return table.concat(parts, "  ")
 end
@@ -252,13 +254,18 @@ local function AddTooltipLines(row)
     tooltip:AddLine("Berufe", 0.4, 0.8, 1)
     for _, p in ipairs(shown) do
         local icon = "|T" .. D.ProfessionIcon(p.id) .. ":14:14:0:0:64:64:5:59:5:59|t "
-        local rank = (p.max and p.max > 0) and (p.rank .. " / " .. p.max) or tostring(p.rank or "?")
+        local rank = ""
+        if p.rank then
+            rank = (p.max and p.max > 0) and (p.rank .. " / " .. p.max) or tostring(p.rank)
+        end
         local r, g, b = 1, 1, 1
         if D.IsSecondary(p.id) then r, g, b = 0.75, 0.75, 0.75 end
         tooltip:AddDoubleLine(icon .. D.ProfessionName(p.id), rank, r, g, b, 1, 0.82, 0)
     end
     if updated then
         tooltip:AddLine("Stand: " .. date("%d.%m.%Y %H:%M", updated), 0.5, 0.5, 0.5)
+    else
+        tooltip:AddLine("Stufen nur sichtbar, wenn der Spieler BiaGuild nutzt", 0.5, 0.5, 0.5)
     end
     tooltip:Show()
 end
