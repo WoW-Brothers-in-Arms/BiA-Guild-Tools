@@ -3,7 +3,7 @@
 ## Notes: Sammlung kleiner Tools für die Gilde Brothers in Arms. Übersicht: /bia
 ## Notes-deDE: Sammlung kleiner Tools für die Gilde Brothers in Arms. Übersicht: /bia
 ## Author: Paul
-## Version: 1.6.0
+## Version: 1.0.0
 ## SavedVariables: BiaGuildDB
 ## IconTexture: Interface\AddOns\BiaGuild\Media\Icon
 
