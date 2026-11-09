@@ -189,11 +189,18 @@ local function ShowOverview()
         DEFAULT_CHAT_FRAME:AddMessage(("  %s%s|r %s – %s"):format(COLOR, m.title, state, m.desc or ""))
         if #cmds > 0 then DEFAULT_CHAT_FRAME:AddMessage("     " .. table.concat(cmds, ", ")) end
     end
-    DEFAULT_CHAT_FRAME:AddMessage("  Ein-/Ausschalten: /bia-<tool> an | aus")
+    DEFAULT_CHAT_FRAME:AddMessage("  Ein-/Ausschalten: /bia-<tool> an | aus  ·  Einstellungen: /bia optionen")
 end
 
 SLASH_BIAGUILD1 = "/bia"
-SlashCmdList.BIAGUILD = ShowOverview
+SlashCmdList.BIAGUILD = function(msg)
+    local cmd = strtrim(msg or ""):lower()
+    if cmd == "optionen" or cmd == "einstellungen" then
+        ns.OpenSettings()
+    else
+        ShowOverview()
+    end
+end
 
 ---------------------------------------------------------------------------
 -- Saved data and event dispatch
@@ -230,6 +237,7 @@ local function InitModules()
     for _, m in ipairs(ns.moduleOrder) do
         if m:IsEnabled() then StartModule(m) end
     end
+    if ns.CreateSettingsPanel then ns.CreateSettingsPanel() end
 end
 
 frame:RegisterEvent("PLAYER_LOGIN")

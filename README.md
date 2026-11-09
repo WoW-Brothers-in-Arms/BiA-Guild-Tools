@@ -24,6 +24,9 @@ ln -s "$PWD/BiaGuild" "/Applications/World of Warcraft/_retail_/Interface/AddOns
 | `/bia` | Übersicht über alle Tools, ob sie an oder aus sind, und ihre Befehle |
 | `/bia-<tool> an` / `aus` | Tool sofort ein- oder ausschalten |
 | `/bia-<tool> hilfe` | Befehle des Tools anzeigen |
+| `/bia optionen` | Einstellungsseite öffnen |
+
+In den WoW-Einstellungen (Esc → Optionen → AddOns → BiA Gilden Tools) stehen Version und Beschreibung, und jedes Tool lässt sich dort ein- und ausschalten.
 
 ## Tools
 
@@ -46,6 +49,7 @@ In Retail ist dieses Tool standardmäßig aus.
 BiaGuild/
 ├── BiaGuild.toc          ← lädt den Kern und alle Module
 ├── Core.lua              ← Modul-System, Events, Addon-Nachrichten, Befehle, gespeicherte Daten
+├── Settings.lua          ← Seite in den WoW-Einstellungen
 ├── Media/Icon.tga        ← Icon in der Addon-Übersicht (Gildenwappen aus dem Portal bia-2, 64×64)
 └── Modules/
     └── Professions/      ← Modul „berufe“
