@@ -46,6 +46,7 @@ In Retail ist dieses Tool standardmäßig aus.
 BiaGuild/
 ├── BiaGuild.toc          ← lädt den Kern und alle Module
 ├── Core.lua              ← Modul-System, Events, Addon-Nachrichten, Befehle, gespeicherte Daten
+├── Media/Icon.tga        ← Icon in der Addon-Übersicht (Gildenwappen aus dem Portal bia-2, 64×64)
 └── Modules/
     └── Professions/      ← Modul „berufe“
 ```
