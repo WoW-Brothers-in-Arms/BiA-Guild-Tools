@@ -240,6 +240,40 @@ local function PaintRow(row)
     PaintColumn(row)
 end
 
+local function Value(v)
+    if Readable(v) and v ~= "" then return v end
+end
+
+-- The same member lines Blizzard's own roster tooltip shows (CommunitiesMemberListEntryMixin:OnEnter),
+-- so a tooltip looks the same whether or not Blizzard showed one.
+local function AddMemberLines(tooltip, row)
+    local info = row.memberInfo
+    local hr, hg, hb = HIGHLIGHT_FONT_COLOR:GetRGB()
+    local nr, ng, nb = NORMAL_FONT_COLOR:GetRGB()
+    tooltip:SetOwner(row)
+    tooltip:AddLine(Value(info.name) or "?")
+    tooltip:AddLine(Value(info.guildRank) or "")
+
+    local level, race, classID = Value(info.level), Value(info.race), Value(info.classID)
+    if level and race and classID then
+        local raceInfo = C_CreatureInfo.GetRaceInfo(race)
+        local classInfo = C_CreatureInfo.GetClassInfo(classID)
+        if raceInfo and classInfo then
+            tooltip:AddLine(COMMUNITY_MEMBER_CHARACTER_INFO_FORMAT:format(level, raceInfo.raceName, classInfo.className), hr, hg, hb, true)
+        end
+    end
+
+    if Value(info.presence) == Enum.ClubMemberPresence.OnlineMobile then
+        tooltip:AddLine(COMMUNITIES_PRESENCE_MOBILE_CHAT, hr, hg, hb, true)
+    elseif Value(info.zone) then
+        tooltip:AddLine(info.zone, hr, hg, hb, true)
+    end
+
+    if Value(info.memberNote) then
+        tooltip:AddLine(COMMUNITY_MEMBER_NOTE_FORMAT:format(info.memberNote), nr, ng, nb, true)
+    end
+end
+
 local function AddTooltipLines(row)
     local tooltip = GameTooltip
     if not M:IsEnabled() or not M.db.showInTooltip or tooltip:IsForbidden() then return end
@@ -247,8 +281,9 @@ local function AddTooltipLines(row)
     local shown = SortedForDisplay(profs, true)
     if #shown == 0 then return end
 
+    -- In the full roster Blizzard only shows its tooltip when a column text is cut off.
     if not tooltip:IsOwned(row) or not tooltip:IsShown() then
-        tooltip:SetOwner(row, "ANCHOR_RIGHT")
+        AddMemberLines(tooltip, row)
     end
     tooltip:AddLine(" ")
     tooltip:AddLine("Berufe", 0.4, 0.8, 1)
