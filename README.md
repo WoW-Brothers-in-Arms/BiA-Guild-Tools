@@ -29,13 +29,12 @@ ln -s "$PWD/BiaGuild" "/Applications/World of Warcraft/_retail_/Interface/AddOns
 
 ### Gildenberufe (`/bia-berufe`)
 
-Zeigt die Berufe der Gildenmitglieder in der Gildenliste: als eigene Spalte **Berufe** in der großen Liste, als Icons neben dem Namen in der schmalen Mitgliederliste und mit Stufe im Tooltip.
+Zeigt die Berufe der Gildenmitglieder in der Gildenliste: als eigene Spalte **Berufe** in der großen Liste und mit Stufe im Tooltip.
 Das Spiel gibt die Berufe anderer Spieler nicht an Addons weiter. Deshalb schickt jedes Mitglied mit BiaGuild seine Berufe per Addon-Nachricht an die Gilde. **Angezeigt werden nur Mitglieder, die das Addon nutzen.**
 
 - `/bia-berufe <Beruf>`: wer in der Gilde den Beruf hat, z. B. `/bia-berufe Alchemie`
 - `/bia-berufe spalte`: Spalte in der Gildenliste ein/aus
-- `/bia-berufe liste`: Icons neben dem Namen ein/aus
-- `/bia-berufe sek`: Kochkunst, Angeln und Erste Hilfe mit anzeigen
+- `/bia-berufe sek`: Kochkunst, Angeln und Erste Hilfe auch in der Spalte anzeigen
 - `/bia-berufe tooltip`: Berufe im Tooltip ein/aus
 - `/bia-berufe sync`: Daten neu von der Gilde anfordern
 

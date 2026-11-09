@@ -9,19 +9,16 @@ local M = ns:NewModule("berufe", {
     desc = "Berufe der Mitglieder in der Gildenliste und im Tooltip",
     -- Retail shows guild professions natively, so the tool starts switched off there.
     enabledByDefault = function() return not ns.IsRetail end,
-    defaults = { members = {}, showInList = true, showInTooltip = true, showSecondary = false, column = true },
+    defaults = { members = {}, showInTooltip = true, showSecondary = false, column = true },
 })
 
 local PREFIX = "BiaGProf"        -- addon message prefix (max 16 chars)
 local PROTOCOL = "1"
-local ICON_SIZE = 14
-local MAX_ICONS = 6
 local STALE_SECONDS = 90 * 24 * 3600
 
 local lastSentPayload, lastSentAt = nil, 0
 local pendingBroadcast = false
 local hookedRows = setmetatable({}, { __mode = "k" })
-local rowIcons = setmetatable({}, { __mode = "k" })
 
 ---------------------------------------------------------------------------
 -- Reading your own professions
@@ -175,30 +172,6 @@ end
 
 ---------------------------------------------------------------------------
 -- Guild roster UI (Blizzard_Communities)
----------------------------------------------------------------------------
-local function IconsFor(row)
-    local holder = rowIcons[row]
-    if holder then return holder end
-    holder = CreateFrame("Frame", nil, row)
-    holder:SetSize(ICON_SIZE * MAX_ICONS, ICON_SIZE)
-    holder:SetFrameLevel(row:GetFrameLevel() + 5)
-    holder.icons = {}
-    for i = 1, MAX_ICONS do
-        local tex = holder:CreateTexture(nil, "OVERLAY")
-        tex:SetSize(ICON_SIZE, ICON_SIZE)
-        tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-        if i == 1 then
-            tex:SetPoint("LEFT", holder, "LEFT", 0, 0)
-        else
-            tex:SetPoint("LEFT", holder.icons[i - 1], "RIGHT", 1, 0)
-        end
-        holder.icons[i] = tex
-    end
-    rowIcons[row] = holder
-    return holder
-end
-
----------------------------------------------------------------------------
 -- Column "Berufe" in the full guild roster. It uses the roster's spare column slot on the right
 -- (the one Blizzard fills with e.g. achievement points) while no Blizzard column is picked there.
 ---------------------------------------------------------------------------
@@ -260,43 +233,9 @@ local function PaintColumn(row)
     end
 end
 
--- Icons next to the name: used in the narrow member list (chat view) and when the column is off.
-local function PaintNameIcons(row)
-    local holder = rowIcons[row]
-    local info = row.memberInfo
-    local nameText = row.NameFrame and row.NameFrame.Name
-    local profs = M:IsEnabled() and M.db.showInList and info and nameText
-        and not (row.expanded and ColumnActive()) and MemberProfessions(info)
-    local shown = SortedForDisplay(profs, M.db.showSecondary)
-
-    if #shown == 0 then
-        if holder then holder:Hide() end
-        return
-    end
-
-    holder = IconsFor(row)
-    local width = nameText:GetStringWidth() or 0
-    local maxWidth = nameText:GetWidth() or width
-    if maxWidth > 0 and width > maxWidth then width = maxWidth end
-    holder:ClearAllPoints()
-    holder:SetPoint("LEFT", nameText, "LEFT", width + 4, 0)
-
-    for i, tex in ipairs(holder.icons) do
-        local p = shown[i]
-        if p then
-            tex:SetTexture(D.ProfessionIcon(p.id))
-            tex:Show()
-        else
-            tex:Hide()
-        end
-    end
-    holder:Show()
-end
-
 local function PaintRow(row)
     if not row then return end
     PaintColumn(row)
-    PaintNameIcons(row)
 end
 
 local function AddTooltipLines(row)
@@ -466,10 +405,6 @@ M:RegisterSlash("berufe", function(msg, cmd)
         db.column = not db.column
         M:Print("Spalte „Berufe“ in der Gildenliste: " .. (db.column and "an" or "aus"))
         ApplyColumn()
-    elseif cmd == "liste" then
-        db.showInList = not db.showInList
-        M:Print("Icons neben dem Namen: " .. (db.showInList and "an" or "aus"))
-        RefreshRoster()
     elseif cmd == "tooltip" then
         db.showInTooltip = not db.showInTooltip
         M:Print("Berufe im Tooltip: " .. (db.showInTooltip and "an" or "aus"))
@@ -482,9 +417,8 @@ M:RegisterSlash("berufe", function(msg, cmd)
     end
 end, {
     "<Beruf> – wer in der Gilde den Beruf hat, z. B. Alchemie",
-    "sek – Kochen/Angeln/Erste Hilfe in Liste und Spalte ein/aus",
+    "sek – Kochen/Angeln/Erste Hilfe in der Spalte ein/aus",
     "spalte – Spalte „Berufe“ in der Gildenliste ein/aus",
-    "liste – Icons neben dem Namen ein/aus",
     "tooltip – Berufe im Tooltip ein/aus",
     "sync – Daten neu von der Gilde anfordern",
 })
@@ -493,6 +427,7 @@ end, {
 -- Lifecycle
 ---------------------------------------------------------------------------
 function M:OnLogin()
+    self.db.showInList = nil -- setting from 1.3.0 (icons next to the name were removed)
     local cutoff = time() - STALE_SECONDS
     for guid, entry in pairs(self.db.members) do
         if type(entry) ~= "table" or (entry.t or 0) < cutoff then self.db.members[guid] = nil end
