@@ -1,0 +1,36 @@
+# Builds BiaGuild-<version>.zip and publishes a GitHub release when a tag like v1.2.3 is pushed.
+# WowUp ("Install from URL") and other addon managers download the zip from the latest release.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that the TOC version matches the tag
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          toc=$(sed -n 's/^## Version: *//p' BiaGuild/BiaGuild.toc | tr -d '\r')
+          if [ "$tag" != "$toc" ]; then
+            echo "::error::Tag v$tag does not match '## Version: $toc' in BiaGuild.toc"
+            exit 1
+          fi
+          echo "VERSION=$tag" >> "$GITHUB_ENV"
+
+      - name: Build zip (contains only the BiaGuild folder)
+        run: git archive --format=zip -o "BiaGuild-$VERSION.zip" HEAD BiaGuild
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "BiaGuild-$VERSION.zip" \
+            --title "BiaGuild $VERSION" --generate-notes

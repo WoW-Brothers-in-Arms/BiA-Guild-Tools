@@ -5,7 +5,9 @@ Läuft in **WoW: Forever** (Interface 16001) und in **Retail** (12.x).
 
 ## Installation
 
-Den Ordner `BiaGuild` in den AddOns-Ordner des Spiels kopieren:
+**Mit WowUp:** „Install from URL“ → `https://github.com/mindstorm/bia-guild-addon`. Updates kommen dann automatisch.
+
+**Von Hand:** `BiaGuild-x.y.z.zip` von den [Releases](https://github.com/mindstorm/bia-guild-addon/releases/latest) laden, entpacken und den Ordner `BiaGuild` in den AddOns-Ordner des Spiels kopieren:
 
 - Forever: `World of Warcraft/_forever_/Interface/AddOns/BiaGuild`
 - Retail: `World of Warcraft/_retail_/Interface/AddOns/BiaGuild`
@@ -42,6 +44,13 @@ Das Spiel gibt die Berufe anderer Spieler nicht an Addons weiter. Deshalb schick
 - `/bia-berufe sync`: Daten neu von der Gilde anfordern
 
 In Retail ist dieses Tool standardmäßig aus.
+
+## Neue Version veröffentlichen
+
+1. `## Version:` in `BiaGuild/BiaGuild.toc` erhöhen und committen
+2. Tag setzen und pushen: `git tag v1.0.1 && git push origin main v1.0.1`
+
+Der Workflow `.github/workflows/release.yml` prüft, ob Tag und TOC-Version übereinstimmen, baut die ZIP-Datei und legt die GitHub-Release an.
 
 ## Aufbau
 
