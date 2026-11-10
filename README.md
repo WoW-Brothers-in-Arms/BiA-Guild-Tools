@@ -5,9 +5,9 @@ Läuft in **WoW: Forever** (Interface 16001) und in **Retail** (12.x).
 
 ## Installation
 
-**Mit WowUp:** „Install from URL“ → `https://github.com/mindstorm/bia-guild-addon`. Updates kommen dann automatisch.
+**Mit WowUp:** „Install from URL“ → `https://github.com/mindstorm/BiA-Gilden-Tools`. Updates kommen dann automatisch.
 
-**Von Hand:** `BiaGuild-x.y.z.zip` von den [Releases](https://github.com/mindstorm/bia-guild-addon/releases/latest) laden, entpacken und den Ordner `BiaGuild` in den AddOns-Ordner des Spiels kopieren:
+**Von Hand:** `BiaGuild-x.y.z.zip` von den [Releases](https://github.com/mindstorm/BiA-Gilden-Tools/releases/latest) laden, entpacken und den Ordner `BiaGuild` in den AddOns-Ordner des Spiels kopieren:
 
 - Forever: `World of Warcraft/_forever_/Interface/AddOns/BiaGuild`
 - Retail: `World of Warcraft/_retail_/Interface/AddOns/BiaGuild`
