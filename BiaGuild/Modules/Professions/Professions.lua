@@ -99,11 +99,12 @@ local function Broadcast(force)
 
     local payload = Encode(list)
     if not force and payload == lastSentPayload and GetTime() - lastSentAt < 300 then return end
-    if M:SendGuild("P|" .. PROTOCOL .. "|" .. guid .. "|" .. name .. "|" .. payload) then
+    local ok, reason = M:SendGuild("P|" .. PROTOCOL .. "|" .. guid .. "|" .. name .. "|" .. payload)
+    if ok then
         lastSentPayload, lastSentAt = payload, GetTime()
-    else
-        -- In a dungeon/raid or otherwise restricted: try again later.
-        QueueBroadcast(60, force)
+    elseif reason ~= "NotInGuild" then
+        -- In a dungeon/raid, throttled or otherwise refused: try again later.
+        QueueBroadcast(reason == "AddonMessageThrottle" and 15 or 60, force)
     end
 end
 
@@ -116,21 +117,40 @@ function QueueBroadcast(delay, force)
     end)
 end
 
+-- Character name without realm, for comparing names that may or may not carry one.
+-- Forever reports the addon message sender as "Name Realm" (space), UnitFullName gives "Name-Realm".
+local function ShortName(name)
+    if type(name) ~= "string" then return nil end
+    return (name:match("^([^%-%s]+)") or name):lower()
+end
+
 M:RegisterComm(PREFIX, function(text, channel, sender)
+    local from = Readable(sender) and tostring(sender) or "?"
     if channel ~= "GUILD" then return end
     local kind, version, rest = text:match("^(%a)|(%d+)|?(.*)$")
-    if version ~= PROTOCOL then return end
+    if version ~= PROTOCOL then
+        M:Debug(("von %s verworfen: unbekanntes Format/Version: %s"):format(from, text))
+        return
+    end
 
     if kind == "R" then
+        M:Debug("Anfrage von " .. from)
         -- Someone asked for everyone's data; answer with a random delay to spread the traffic.
         if GetTime() - lastSentAt > 30 then QueueBroadcast(math.random(2, 10), true) end
     elseif kind == "P" then
         local guid, name, profs = rest:match("^([^|]+)|([^|]+)|(.*)$")
-        if not guid or not guid:match("^Player%-") then return end
+        if not guid or not guid:match("^Player%-") then
+            M:Debug(("von %s verworfen: ungültige Daten: %s"):format(from, text))
+            return
+        end
         -- Only accept data a character sends about itself (when the client lets us read the sender).
-        if Readable(sender) and type(sender) == "string"
-            and Ambiguate(sender, "none") ~= Ambiguate(name, "none") then return end
+        -- Names are compared without realm, since sender and payload may spell the realm differently.
+        if Readable(sender) and type(sender) == "string" and ShortName(sender) ~= ShortName(name) then
+            M:Debug(("von %s verworfen: Name passt nicht (%s)"):format(from, name))
+            return
+        end
         Store(guid, name, Decode(profs))
+        M:Debug(("Berufe von %s gespeichert: %s"):format(name, profs))
         RefreshRoster()
     end
 end)
@@ -142,6 +162,13 @@ local function MemberProfessions(info)
     if not info then return nil end
     local guid = Readable(info.guid) and info.guid or nil
     local entry = guid and M.db.members[guid]
+    if not entry and Readable(info.name) then
+        -- No match by GUID (e.g. the roster gives none): fall back to the character name.
+        local short = ShortName(info.name)
+        for _, e in pairs(M.db.members) do
+            if ShortName(e.name) == short then entry = e break end
+        end
+    end
     if entry and entry.profs and #entry.profs > 0 then return entry.profs, entry.t end
 
     -- Members without BiaGuild: the server fills Blizzard's own profession fields. The professions
@@ -473,6 +500,19 @@ M:RegisterSlash("berufe", function(msg, cmd)
     elseif cmd == "tooltip" then
         db.showInTooltip = not db.showInTooltip
         M:Print("Berufe im Tooltip: " .. (db.showInTooltip and "an" or "aus"))
+    elseif cmd == "debug" then
+        db.debug = not db.debug
+        M:Print("Debug-Ausgabe: " .. (db.debug and "an" or "aus"))
+    elseif cmd == "status" then
+        local n = 0
+        for guid, e in pairs(db.members) do
+            n = n + 1
+            local profs = {}
+            for _, p in ipairs(e.profs or {}) do profs[#profs + 1] = D.ProfessionName(p.id) .. " " .. (p.rank or "?") end
+            DEFAULT_CHAT_FRAME:AddMessage(("  %s: %s  (%s)"):format(e.name or guid, table.concat(profs, ", "),
+                e.t and date("%d.%m. %H:%M", e.t) or "?"))
+        end
+        M:Print(n .. " Mitglieder mit BiaGuild-Daten gespeichert.")
     elseif cmd == "sync" then
         Broadcast(true)
         M:SendGuild("R|" .. PROTOCOL)
@@ -486,6 +526,8 @@ end, {
     "spalte – Spalte „Berufe“ in der Gildenliste ein/aus",
     "tooltip – Berufe im Tooltip ein/aus",
     "sync – Daten neu von der Gilde anfordern",
+    "status – gespeicherte Daten anderer Mitglieder anzeigen",
+    "debug – Addon-Nachrichten im Chat mitprotokollieren",
 })
 
 ---------------------------------------------------------------------------

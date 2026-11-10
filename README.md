@@ -42,6 +42,8 @@ Das Spiel gibt die Berufe anderer Spieler nicht an Addons weiter. Deshalb schick
 - `/bia-berufe sek`: Kochkunst, Angeln und Erste Hilfe auch in der Spalte anzeigen
 - `/bia-berufe tooltip`: Berufe im Tooltip ein/aus
 - `/bia-berufe sync`: Daten neu von der Gilde anfordern
+- `/bia-berufe status`: gespeicherte Daten anderer Mitglieder anzeigen
+- `/bia-berufe debug`: Addon-Nachrichten im Chat mitprotokollieren (zur Fehlersuche)
 
 In Retail ist dieses Tool standardmäßig aus.
 

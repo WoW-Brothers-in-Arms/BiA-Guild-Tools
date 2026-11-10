@@ -122,13 +122,34 @@ function Module:RegisterComm(prefix, fn)
     end
 end
 
--- Returns true if the message went out (false when not in a guild or chat is locked down, e.g. in a raid).
+-- Prints only while the module's debug output is on (/bia-<tool> debug).
+function Module:Debug(msg)
+    if self.db and self.db.debug then
+        -- "||" shows a literal "|" (otherwise the chat reads e.g. "|1" or "|R" in messages as codes).
+        DEFAULT_CHAT_FRAME:AddMessage("|cff909090BIA " .. self.title .. " [debug]:|r " .. msg:gsub("|", "||"))
+    end
+end
+
+-- Names for Enum.SendAddonMessageResult, for debug output.
+local SEND_RESULTS = {
+    [0] = "Success", "InvalidPrefix", "InvalidMessage", "AddonMessageThrottle", "InvalidChatType",
+    "NotInGroup", "TargetRequired", "InvalidChannel", "ChannelThrottle", "GeneralError",
+    "NotInGuild", "AddOnMessageLockdown", "TargetOffline",
+}
+
+-- Returns true if the message went out. Returns false plus a reason when not in a guild, when chat
+-- is locked down (e.g. in a raid) or when the server refused it (e.g. throttled).
 function Module:SendGuild(msg, prefix)
     prefix = prefix or self.commPrefix
-    if not IsInGuild() or not C_ChatInfo or not C_ChatInfo.SendAddonMessage then return false end
-    if ns.InChatLockdown() then return false end
-    C_ChatInfo.SendAddonMessage(prefix, msg, "GUILD")
-    return true
+    if not IsInGuild() then return false, "NotInGuild" end
+    if not C_ChatInfo or not C_ChatInfo.SendAddonMessage then return false, "NoAPI" end
+    if ns.InChatLockdown() then return false, "AddOnMessageLockdown" end
+    local result = C_ChatInfo.SendAddonMessage(prefix, msg, "GUILD")
+    -- Older clients return nothing or a boolean; newer ones an Enum.SendAddonMessageResult (0 = success).
+    local ok = result == nil or result == true or result == 0
+    local reason = type(result) == "number" and (SEND_RESULTS[result] or tostring(result)) or tostring(result)
+    self:Debug(("gesendet (%s): %s"):format(ok and "ok" or ("FEHLER " .. reason), msg))
+    return ok, reason
 end
 
 local function StartModule(m)
@@ -260,8 +281,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
         local prefix, text, channel, sender = ...
         if not ns.Readable(prefix) then return end
         local h = commHandlers[prefix]
-        if h and h[1]:IsEnabled() and ns.Readable(text) and type(text) == "string" then
-            h[2](text, channel, sender)
+        if h and h[1]:IsEnabled() then
+            if ns.Readable(text) and type(text) == "string" then
+                h[2](text, channel, sender)
+            else
+                h[1]:Debug("Nachricht nicht lesbar (geschützter Wert), verworfen")
+            end
         end
     end
 
