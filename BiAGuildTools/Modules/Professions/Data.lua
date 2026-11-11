@@ -3,7 +3,7 @@ local _, ns = ...
 local D = {}
 ns.ProfessionData = D
 
--- secondary = true: Cooking, Fishing, First Aid (shown only in the tooltip by default).
+-- secondary = true: Cooking, Fishing, First Aid (shown only in the tooltip, not in the column).
 D.PROFESSIONS = {
     [171] = { en = "Alchemy",        de = "Alchemie",          icon = "Interface\\Icons\\Trade_Alchemy" },
     [164] = { en = "Blacksmithing",  de = "Schmiedekunst",     icon = "Interface\\Icons\\Trade_BlackSmithing" },

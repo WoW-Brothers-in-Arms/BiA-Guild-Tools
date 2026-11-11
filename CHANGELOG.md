@@ -9,12 +9,13 @@ and CurseForge and stops if it is missing.
 - The addon is now called **BiA Guild Tools** and is available on CurseForge.
 - The addon folder is now `BiAGuildTools` (was `BiaGuild`). If the old folder is still installed, your settings and saved guild data are taken over on the next login, the old addon is turned off and you are reminded to delete it.
 - Texts follow the game client's language: English, or German in a German client.
-- Commands are now English only: `/bia-berufe` is now `/bia-prof`, and the German words (`an`, `aus`, `hilfe`, `spalte`, `sek`, `/bia optionen`) are gone. Use `on`, `off`, `help`, `column`, `secondary` and `/bia options`.
+- Commands are now English only: `/bia-berufe` is now `/bia-prof`, and the German words (`an`, `aus`, `hilfe`, `spalte`, `sek`, `/bia optionen`) are gone. Use `on`, `off`, `help`, `column` and `/bia options`.
 - New tool **Addon Versions**: `/bia-version` opens a window showing which members run which version, you get a hint in chat when someone has a newer one, and the guild roster tooltip shows the version of members who use the addon.
 - New tool **Deposit Reagents** (WoW: Forever): adds the "Deposit Reagents" button from Retail to your bank. Also available as `/bia-bank deposit` for bag addons that replace the bank window.
 - New tool **Reagent Bag** (WoW: Forever): the reagent bag now opens and closes together with your backpack. In Forever, B is bound to "Toggle Backpack", which leaves the reagent bag closed; your key bindings stay as they are. Turn it off with `/bia-bags off`.
 - `/bia-prof <profession>` (who in the guild has a profession) is gone. Use the Professions column in the guild roster instead.
-- The settings page has switches for secondary professions in the column and for professions in the tooltip (same as `/bia-prof secondary` and `/bia-prof tooltip`).
+- The settings page has a switch for professions in the tooltip (same as `/bia-prof tooltip`).
+- The Professions column now always shows main professions only; Cooking, Fishing and First Aid show in the tooltip. The switch for them in the column (`/bia-berufe sek`) is gone.
 - Fixed: members who asked for the guild's professions sometimes got no answer when a broadcast was already scheduled (e.g. right after a skill-up).
 
 ## 1.0.1 (2026-11-10)

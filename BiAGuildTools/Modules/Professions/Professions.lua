@@ -11,7 +11,7 @@ local M = ns:NewModule("professions", {
     formerKey = "berufe", -- key up to 1.0.x
     -- Retail shows guild professions natively, so the tool starts switched off there.
     enabledByDefault = function() return not ns.IsRetail end,
-    defaults = { members = {}, showInTooltip = true, showSecondary = false, column = true },
+    defaults = { members = {}, showInTooltip = true, column = true },
 })
 
 local PREFIX = "BiaGProf"        -- addon message prefix (max 16 chars)
@@ -226,7 +226,7 @@ local function ColumnActive()
 end
 
 local function ColumnText(info)
-    local shown = SortedForDisplay(MemberProfessions(info), M.db.showSecondary)
+    local shown = SortedForDisplay(MemberProfessions(info), false) -- column: main professions only
     if #shown == 0 then return "|cff707070–|r" end
     local parts = {}
     for i, p in ipairs(shown) do
@@ -406,11 +406,7 @@ end
 ---------------------------------------------------------------------------
 M:RegisterSlash("prof", function(msg, cmd)
     local db = M.db
-    if cmd == "secondary" then
-        db.showSecondary = not db.showSecondary
-        M:Print(L.PROF_SECONDARY_TOGGLED:format(ns.OnOff(db.showSecondary)))
-        RefreshRoster()
-    elseif cmd == "column" then
+    if cmd == "column" then
         db.column = not db.column
         M:Print(L.PROF_COLUMN_TOGGLED:format(ns.OnOff(db.column)))
         ApplyColumn()
@@ -438,7 +434,6 @@ M:RegisterSlash("prof", function(msg, cmd)
         M:Print(L.PROF_UNKNOWN_COMMAND:format("/bia-prof help"))
     end
 end, {
-    "secondary – " .. L.PROF_HELP_SECONDARY,
     "column – " .. L.PROF_HELP_COLUMN,
     "tooltip – " .. L.PROF_HELP_TOOLTIP,
     "sync – " .. L.PROF_HELP_SYNC,
@@ -446,9 +441,8 @@ end, {
     "debug – " .. L.PROF_HELP_DEBUG,
 })
 
--- Switches on the game's settings page (same as /bia-prof secondary and /bia-prof tooltip).
+-- Switches on the game's settings page (same as /bia-prof tooltip).
 M.options = {
-    { key = "showSecondary", label = L.PROF_OPT_SECONDARY, onChange = function() RefreshRoster() end },
     { key = "showInTooltip", label = L.PROF_OPT_TOOLTIP },
 }
 
@@ -457,6 +451,7 @@ M.options = {
 ---------------------------------------------------------------------------
 function M:OnLogin()
     self.db.showInList = nil -- setting from 1.3.0 (icons next to the name were removed)
+    self.db.showSecondary = nil -- setting up to 1.0.x (secondary professions in the column were removed)
     local cutoff = time() - STALE_SECONDS
     for guid, entry in pairs(self.db.members) do
         if type(entry) ~= "table" or (entry.t or 0) < cutoff then self.db.members[guid] = nil end

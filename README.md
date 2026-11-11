@@ -42,13 +42,12 @@ Shows guild members' professions in the guild roster: as its own **Professions**
 The game does not pass other players' professions to addons. So every member running BiA Guild Tools sends their professions to the guild via addon message. **Skill levels only show for members who use the addon.**
 
 - `/bia-prof column`: Professions column in the guild roster on/off
-- `/bia-prof secondary`: also show Cooking, Fishing and First Aid in the column
 - `/bia-prof tooltip`: professions in the tooltip on/off
 - `/bia-prof sync`: request fresh data from the guild
 - `/bia-prof status`: show stored data of other members
 - `/bia-prof debug`: log addon messages in chat (for troubleshooting)
 
-Secondary professions and the tooltip can also be switched on the settings page (Esc → Options → AddOns → BiA Guild Tools).
+The tooltip can also be switched on the settings page (Esc → Options → AddOns → BiA Guild Tools).
 
 This tool is off by default in Retail.
 
