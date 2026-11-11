@@ -184,9 +184,17 @@ local function CreateWindow()
     f:SetScript("OnShow", function()
         if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
         Refresh()
+        if M.OnWindowShownChanged then M.OnWindowShownChanged() end
+    end)
+    f:SetScript("OnHide", function()
+        if M.OnWindowShownChanged then M.OnWindowShownChanged() end
     end)
     f:Hide() -- frames are created shown; ToggleWindow shows it (and runs OnShow)
     return f
+end
+
+function M.IsWindowShown()
+    return window ~= nil and window:IsShown() and true or false
 end
 
 function M.ToggleWindow()

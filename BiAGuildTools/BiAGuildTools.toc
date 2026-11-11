@@ -24,6 +24,7 @@ Modules\Alts\Alts.lua
 Modules\Alts\MainPicker.lua
 Modules\Alts\Window.lua
 Modules\Alts\RosterMenu.lua
+Modules\Alts\RosterTab.lua
 Modules\Version\Version.lua
 Modules\Bank\Bank.lua
 Modules\Bags\Bags.lua

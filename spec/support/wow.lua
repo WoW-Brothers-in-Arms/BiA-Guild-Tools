@@ -37,8 +37,19 @@ local function TocMetadata(field)
 end
 
 -- A frame that remembers its events and scripts. Any other method is a no-op.
-local function NewFrame(game, name)
-    local frame = { name = name, events = {}, scripts = {} }
+local function NewFrame(game, name, template)
+    local frame = { name = name, events = {}, scripts = {}, shown = true }
+    function frame:Show() self.shown = true end
+    function frame:Hide() self.shown = false end
+    function frame:SetShown(on) self.shown = on and true or false end
+    function frame:IsShown() return self.shown end
+    function frame:SetChecked(on) self.checked = on and true or false end
+    function frame:GetChecked() return self.checked end
+    function frame:SetPoint(...) self.point = { ... } end
+    function frame:ClearAllPoints() self.point = nil end
+    if template == "RightSideTabTemplate" then -- the side tab template's icon texture
+        frame.Icon = { SetTexture = function(self, texture) self.texture = texture end }
+    end
     function frame:RegisterEvent(event) self.events[event] = true end
     function frame:UnregisterEvent(event) self.events[event] = nil end
     function frame:SetScript(kind, fn) self.scripts[kind] = fn end
@@ -114,7 +125,7 @@ function Wow.new(opts)
         },
 
         -- Frames and chat
-        CreateFrame = function(_, name) return NewFrame(game, name) end,
+        CreateFrame = function(_, name, _, template) return NewFrame(game, name, template) end,
         UIParent = {},
         UISpecialFrames = {},
         SlashCmdList = {},

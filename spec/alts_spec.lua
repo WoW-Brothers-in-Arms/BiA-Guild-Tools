@@ -108,6 +108,17 @@ describe("Alts", function()
             assert.same({}, game.errors)
         end)
 
+        it("clears your main and shares the group without one", function()
+            local game = ready()
+            game:slash("alts main")
+            game:slash("alts main clear")
+            assert.is_nil(db(game).own.guilds["BiA-Realm"].main)
+            local sent = game:sentWith("BiaAlts")
+            assert.matches("^G|1|1%-0000AAAA|0|", sent[#sent])
+            assert.is_nil(M(game).GroupOf(ME)) -- a lone character without a chosen main has no group
+            assert.matches("no main chosen", game:chatText())
+        end)
+
         it("refuses characters that aren't yours", function()
             local game = ready()
             local before = #game:sentWith("BiaAlts")
@@ -536,6 +547,60 @@ describe("Alts", function()
             assert.equal(OTHER_ALT, picked)
             sub.children[2].fn()
             assert.equal(OTHER_ALT, M(game).GroupOf(OTHER_ALT).main)
+        end)
+    end)
+
+    describe("guild window tab", function()
+        local function SideTab(shown)
+            local t = { shown = shown, scripts = {} }
+            function t:IsShown() return self.shown end
+            function t:HookScript(kind, fn) self.scripts[kind] = fn end
+            function t:GetFrameLevel() return 510 end
+            return t
+        end
+        local function tabGame()
+            local info, play = SideTab(true), SideTab(false)
+            local globals = Roster(guild())
+            globals.CommunitiesFrame = { GuildInfoTab = info, GuildPreferredPlaySettingsTab = play }
+            local game = Wow.new({ globals = globals })
+            game:login()
+            game:fire("ADDON_LOADED", "Blizzard_Communities")
+            for _, f in ipairs(game.frames) do
+                if f.name == "BiAGuildToolsAltsTab" then return game, f, info, play end
+            end
+            error("no tab")
+        end
+
+        it("adds a tab below the guild info tab, shown with it", function()
+            local _, tab, info = tabGame()
+            assert.is_true(tab.shown)
+            assert.equal(info, tab.point[2])
+            assert.equal("Interface\\Icons\\inv_misc_groupneedmore", tab.Icon.texture)
+            info.shown = false
+            info.scripts.OnHide()
+            assert.is_false(tab.shown)
+        end)
+
+        it("moves below the play settings tab when Blizzard shows it", function()
+            local _, tab, _, play = tabGame()
+            play.shown = true
+            play.scripts.OnShow()
+            assert.equal(play, tab.point[2])
+        end)
+
+        it("opens the alts window on click and stays unchecked while it is closed", function()
+            local game, tab = tabGame()
+            local toggled = 0
+            M(game).ToggleWindow = function() toggled = toggled + 1 end
+            tab.scripts.OnClick(tab)
+            assert.equal(1, toggled)
+            assert.is_false(tab.checked)
+        end)
+
+        it("hides while the Alts tool is off", function()
+            local game, tab = tabGame()
+            game:slash("alts off")
+            assert.is_false(tab.shown)
         end)
     end)
 end)
