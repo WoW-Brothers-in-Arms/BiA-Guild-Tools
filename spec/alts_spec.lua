@@ -645,5 +645,17 @@ describe("Alts", function()
             M(game).ToggleSection("guild")
             assert.same({ "header", "own", "hint", "header", "header" }, kinds(M(game).WindowRows()))
         end)
+
+        it("shades every other group of the guild", function()
+            local game = ready()
+            game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Other Realm")
+            game:receive("BiaAlts", "G|1|1-0000A2A2|1|1700000000|", "Twinky Realm")
+            db(game).onlyOnline = false
+            local bands = {}
+            for _, row in ipairs(M(game).WindowRows()) do
+                if row.kind == "main" or row.kind == "alt" then bands[#bands + 1] = row.kind .. ":" .. tostring(row.band) end
+            end
+            assert.same({ "main:true", "alt:true", "main:false" }, bands)
+        end)
     end)
 end)

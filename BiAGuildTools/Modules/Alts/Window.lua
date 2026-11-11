@@ -11,6 +11,7 @@ local CROWN = "Interface\\GroupFrame\\UI-Group-LeaderIcon"
 local ONLINE = "Interface\\FriendsFrame\\StatusIcon-Online"
 local window
 local GUILD_ROWS = { main = true, alt = true, nodata = true }
+local TREE_X = 10 -- x of the line joining a main and its alts (under the main's online dot)
 
 local function NameOf(guid)
     local member = M.Roster()[guid]
@@ -66,7 +67,16 @@ local function Rows()
     -- Members without the addon come last, in a section of their own.
     local guildRows, noData = {}, {}
     for _, row in ipairs(G.BuildList(M.Groups(), roster, M.db.onlyOnline)) do
-        if row.kind == "nodata" then noData[#noData + 1] = row else guildRows[#guildRows + 1] = row end
+        if row.kind == "nodata" then
+            noData[#noData + 1] = row
+        else
+            row.band = row.group % 2 == 1
+            local previous = guildRows[#guildRows]
+            local sameGroup = previous ~= nil and previous.group == row.group
+            if row.kind == "alt" and sameGroup and previous.kind == "main" then previous.hasAlts = true end
+            row.first = row.kind == "alt" and not sameGroup -- alt of a group whose main isn't listed
+            guildRows[#guildRows + 1] = row
+        end
     end
     AddSection(rows, "guild", L.ALTS_GUILD, guildRows)
     if #noData > 0 then
@@ -100,8 +110,30 @@ local function InitRow(row, data)
         row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         row:SetScript("OnClick", OnRowClick)
         row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+        -- Group look: every other group lightly shaded, a line from the main down to its alts.
+        row.Band = row:CreateTexture(nil, "BACKGROUND")
+        row.Band:SetAllPoints()
+        row.Band:SetColorTexture(1, 0.82, 0, 0.07)
+        row.TreeV = row:CreateTexture(nil, "BORDER") -- below the online dot
+        row.TreeV:SetColorTexture(0.55, 0.45, 0.27, 0.9)
+        row.TreeV:SetWidth(1)
+        row.TreeH = row:CreateTexture(nil, "BORDER")
+        row.TreeH:SetColorTexture(0.55, 0.45, 0.27, 0.9)
+        row.TreeH:SetSize(8, 1)
+        row.TreeH:SetPoint("LEFT", row, "LEFT", TREE_X, 0)
     end
     row.data = data
+    row.Band:SetShown(data.band == true)
+    -- Vertical line: main (with alts) from its middle down; alt from the top down to its middle (last
+    -- alt) or through (more alts follow). Alts also get the short branch to the right.
+    local isAlt, mainWithAlts = data.kind == "alt", data.kind == "main" and data.hasAlts
+    row.TreeV:SetShown(isAlt or mainWithAlts)
+    row.TreeH:SetShown(isAlt)
+    if isAlt or mainWithAlts then
+        row.TreeV:ClearAllPoints()
+        row.TreeV:SetPoint("TOPLEFT", row, (mainWithAlts or data.first) and "LEFT" or "TOPLEFT", TREE_X, 0)
+        row.TreeV:SetPoint("BOTTOMLEFT", row, (isAlt and data.last) and "LEFT" or "BOTTOMLEFT", TREE_X, 0)
+    end
     -- Only rows an officer can click (to assign) light up on hover.
     local clickable = data.section or (GUILD_ROWS[data.kind] and M.CanAssign())
     row:GetHighlightTexture():SetAlpha(clickable and 1 or 0)

@@ -228,10 +228,13 @@ function G.BuildList(groups, roster, onlyOnline)
     end
     table.sort(blocks, function(a, b) return a.key < b.key end)
 
+    -- group = the block's number (for shading every other group); last = the block's last alt.
     local rows = {}
-    for _, block in ipairs(blocks) do
-        if block.main then rows[#rows + 1] = { kind = "main", guid = block.main } end
-        for _, guid in ipairs(block.alts) do rows[#rows + 1] = { kind = "alt", guid = guid } end
+    for n, block in ipairs(blocks) do
+        if block.main then rows[#rows + 1] = { kind = "main", guid = block.main, group = n } end
+        for i, guid in ipairs(block.alts) do
+            rows[#rows + 1] = { kind = "alt", guid = guid, group = n, last = i == #block.alts }
+        end
     end
     local rest = {}
     for guid, member in pairs(roster) do

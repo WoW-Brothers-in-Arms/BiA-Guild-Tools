@@ -255,6 +255,13 @@ describe("AltGroups", function()
             }, kinds(G.BuildList(groups, r, false)))
         end)
 
+        it("numbers the groups and marks each group's last alt", function()
+            local rows = G.BuildList(groups, r, false)
+            local marks = {}
+            for i, row in ipairs(rows) do marks[i] = tostring(row.group) .. (row.last and " last" or "") end
+            assert.same({ "1 last", "2", "3", "3", "3 last", "nil" }, marks)
+        end)
+
         it("keeps groups with anyone online and drops fully offline members", function()
             assert.same({ "alt:Abe", "main:Dan", "main:Zed", "alt:Cat", "alt:Bob" }, kinds(G.BuildList(groups, r, true)))
         end)
