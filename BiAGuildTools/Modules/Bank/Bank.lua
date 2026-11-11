@@ -20,7 +20,8 @@ local TRADEGOODS = (Enum and Enum.ItemClass and Enum.ItemClass.Tradegoods) or 7
 local KEEP_SUBCLASSES = { [2] = true, [3] = true } -- Explosives, Devices
 local PASS_DELAY = 0.5 -- seconds between passes; moved items stay locked for a moment
 local MAX_PASSES = 10
-local BUTTON_X, BUTTON_Y = 10, 5 -- button offset from the bank panel's bottom left corner
+-- Button offset from the bank panel's bottom left corner: even gap to the grey strip on all sides.
+local BUTTON_X, BUTTON_Y = 6.5, 7
 
 local bankOpen, running = false, false
 local button
