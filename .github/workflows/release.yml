@@ -1,4 +1,4 @@
-# Builds BiaGuild-<version>.zip and publishes a GitHub release when a tag like v1.2.3 is pushed.
+# Builds BiAGuildTools-<version>.zip and publishes a GitHub release when a tag like v1.2.3 is pushed.
 # WowUp ("Install from URL") and other addon managers download the zip from the latest release.
 # release.json tells WowUp the zip is for both Retail ("mainline") and WoW: Forever ("forever");
 # without it WowUp only offers a zip to Forever when its name ends in -forever.zip.
@@ -20,22 +20,22 @@ jobs:
       - name: Check that the TOC version matches the tag
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          toc=$(sed -n 's/^## Version: *//p' BiaGuild/BiaGuild.toc | tr -d '\r')
+          toc=$(sed -n 's/^## Version: *//p' BiAGuildTools/BiAGuildTools.toc | tr -d '\r')
           if [ "$tag" != "$toc" ]; then
-            echo "::error::Tag v$tag does not match '## Version: $toc' in BiaGuild.toc"
+            echo "::error::Tag v$tag does not match '## Version: $toc' in BiAGuildTools.toc"
             exit 1
           fi
           echo "VERSION=$tag" >> "$GITHUB_ENV"
 
-      - name: Build zip (contains only the BiaGuild folder) and release.json
+      - name: Build zip (contains only the BiAGuildTools folder) and release.json
         run: |
-          git archive --format=zip -o "BiaGuild-$VERSION.zip" HEAD BiaGuild
-          .github/release-json.sh "$GITHUB_REF_NAME" "BiaGuild-$VERSION.zip" > release.json
+          git archive --format=zip -o "BiAGuildTools-$VERSION.zip" HEAD BiAGuildTools
+          .github/release-json.sh "$GITHUB_REF_NAME" "BiAGuildTools-$VERSION.zip" > release.json
           cat release.json
 
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "BiaGuild-$VERSION.zip" release.json \
-            --title "BiaGuild $VERSION" --generate-notes
+          gh release create "$GITHUB_REF_NAME" "BiAGuildTools-$VERSION.zip" release.json \
+            --title "BiA Guild Tools $VERSION" --generate-notes

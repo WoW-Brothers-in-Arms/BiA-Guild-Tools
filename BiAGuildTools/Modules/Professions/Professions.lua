@@ -1,4 +1,4 @@
--- Professions.lua: shares your professions with guild mates who use BiaGuild and shows everyone's
+-- Professions.lua: shares your professions with guild mates who use BiA Guild Tools and shows everyone's
 -- professions as icons in the guild roster (Guild & Communities) and in the member tooltip.
 local ADDON, ns = ...
 local D = ns.ProfessionData
@@ -176,7 +176,7 @@ local function MemberProfessions(info)
     end
     if entry and entry.profs and #entry.profs > 0 then return entry.profs, entry.t end
 
-    -- Members without BiaGuild: the server fills Blizzard's own profession fields. The professions
+    -- Members without BiA Guild Tools: the server fills Blizzard's own profession fields. The professions
     -- there are right, but the ranks are not (Forever sends e.g. 1 or 784), so only the professions
     -- are used and the rank stays unknown (nil).
     local list = {}
@@ -332,7 +332,7 @@ local function AddTooltipLines(row)
     if updated then
         tooltip:AddLine("Updated: " .. date("%Y-%m-%d %H:%M", updated), 0.5, 0.5, 0.5)
     else
-        tooltip:AddLine("Skill levels only show for players using BiaGuild", 0.5, 0.5, 0.5)
+        tooltip:AddLine("Skill levels only show for players using BiA Guild Tools", 0.5, 0.5, 0.5)
     end
     tooltip:Show()
 end
@@ -485,7 +485,7 @@ local function ListProfession(query)
     table.sort(rows, function(a, b) return a.rank > b.rank end)
 
     M:Print(D.ProfessionName(id) .. " (" .. #rows .. "):")
-    if #rows == 0 then DEFAULT_CHAT_FRAME:AddMessage("  Nobody known (only players using BiaGuild are tracked).") end
+    if #rows == 0 then DEFAULT_CHAT_FRAME:AddMessage("  Nobody known (only players using BiA Guild Tools are tracked).") end
     for _, r in ipairs(rows) do
         local color = r.on and "|cff40ff40" or "|cff909090"
         DEFAULT_CHAT_FRAME:AddMessage(("  %s%s|r  %d/%d"):format(color, r.name, r.rank, r.max))
@@ -521,7 +521,7 @@ M:RegisterSlash("prof", function(msg, cmd)
             DEFAULT_CHAT_FRAME:AddMessage(("  %s: %s  (%s)"):format(e.name or guid, table.concat(profs, ", "),
                 e.t and date("%Y-%m-%d %H:%M", e.t) or "?"))
         end
-        M:Print(n .. " members with BiaGuild data stored.")
+        M:Print(n .. " members with BiA Guild Tools data stored.")
     elseif cmd == "sync" then
         Broadcast(true)
         M:SendGuild("R|" .. PROTOCOL)

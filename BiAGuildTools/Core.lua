@@ -1,4 +1,4 @@
--- Core.lua: BiaGuild – a collection of small guild tools.
+-- Core.lua: BiA Guild Tools – a collection of small guild tools.
 -- Provides the module system, shared helpers, events, addon messages, slash commands and saved data.
 --
 -- A module looks like this:
@@ -10,7 +10,7 @@
 --   Optional: enabledByDefault = false | function() return not ns.IsRetail end
 --   Optional: formerKey = "old"   -- saved data and on/off choice are moved over from that key
 local ADDON, ns = ...
-_G.BiaGuild = ns
+_G.BiAGuildTools = ns
 
 ns.modules, ns.moduleOrder = {}, {}
 
@@ -86,7 +86,7 @@ local Module = {}
 Module.__index = Module
 
 function ns:NewModule(key, info)
-    assert(not ns.modules[key], "BiaGuild: module exists: " .. key)
+    assert(not ns.modules[key], "BiAGuildTools: module exists: " .. key)
     local m = setmetatable(info or {}, Module)
     m.key = key
     m.title = m.title or key
@@ -108,7 +108,7 @@ end
 
 -- An explicit /bia-<tool> on | off wins; otherwise the module's default for this client applies.
 function Module:IsEnabled()
-    local choice = BiaGuildDB and BiaGuildDB.enabled and BiaGuildDB.enabled[self.key]
+    local choice = BiAGuildToolsDB and BiAGuildToolsDB.enabled and BiAGuildToolsDB.enabled[self.key]
     if choice ~= nil then return choice end
     return self:IsEnabledByDefault()
 end
@@ -123,7 +123,7 @@ end
 
 -- Sends/receives addon messages with a module-specific prefix (max 16 characters).
 function Module:RegisterComm(prefix, fn)
-    assert(#prefix <= 16, "BiaGuild: prefix too long: " .. prefix)
+    assert(#prefix <= 16, "BiAGuildTools: prefix too long: " .. prefix)
     commHandlers[prefix] = { self, fn }
     self.commPrefix = self.commPrefix or prefix
     if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then C_ChatInfo.RegisterAddonMessagePrefix(prefix) end
@@ -172,7 +172,7 @@ end
 
 -- Switches a module on or off right away (no /reload needed).
 function Module:SetEnabled(on)
-    BiaGuildDB.enabled[self.key] = on and true or false
+    BiAGuildToolsDB.enabled[self.key] = on and true or false
     if on then StartModule(self) end
     if self.OnToggle then self:OnToggle(on) end
     self:Print(ns.OnOff(on))
@@ -214,7 +214,7 @@ local function ShowOverview()
     ns.Print("Tools (details: /bia-<tool> help):")
     for _, m in ipairs(ns.moduleOrder) do
         local state = ns.OnOff(m:IsEnabled())
-        if BiaGuildDB.enabled[m.key] == nil and not m:IsEnabledByDefault() then
+        if BiAGuildToolsDB.enabled[m.key] == nil and not m:IsEnabledByDefault() then
             state = state .. " (default in " .. ns.ClientName .. ")"
         end
         local cmds = {}
@@ -251,25 +251,45 @@ local function ApplyDefaults(target, defaults)
     end
 end
 
+-- Up to 1.0.x the addon folder was called "BiaGuild". WoW keeps saved data per folder, so the old
+-- data is only reachable while the old folder is still installed and loaded. Take it over once,
+-- turn the old addon off for the next login and ask the player to delete it.
+local OLD_ADDON, OLD_DB = "BiaGuild", "BiaGuildDB"
+
+local function MigrateFromOldAddon()
+    local getInfo = (C_AddOns and C_AddOns.GetAddOnInfo) or GetAddOnInfo
+    if not getInfo or not getInfo(OLD_ADDON) then return end -- old folder not installed
+    if BiAGuildToolsDB == nil and type(_G[OLD_DB]) == "table" then
+        BiAGuildToolsDB = _G[OLD_DB]
+    end
+    local disable = (C_AddOns and C_AddOns.DisableAddOn) or DisableAddOn
+    if disable then disable(OLD_ADDON) end
+    ns.After(5, function()
+        ns.Print("The old addon folder \"" .. OLD_ADDON .. "\" is still installed. Your settings were taken over "
+            .. "and it is turned off now – please delete Interface\\AddOns\\" .. OLD_ADDON .. ".")
+    end)
+end
+
 local function InitModules()
-    BiaGuildDB = BiaGuildDB or {}
-    BiaGuildDB.modules = BiaGuildDB.modules or {}
-    BiaGuildDB.enabled = BiaGuildDB.enabled or {}
-    if BiaGuildDB.disabled then -- older format (1.1.0)
-        for key, off in pairs(BiaGuildDB.disabled) do
-            if off then BiaGuildDB.enabled[key] = false end
+    MigrateFromOldAddon()
+    BiAGuildToolsDB = BiAGuildToolsDB or {}
+    BiAGuildToolsDB.modules = BiAGuildToolsDB.modules or {}
+    BiAGuildToolsDB.enabled = BiAGuildToolsDB.enabled or {}
+    if BiAGuildToolsDB.disabled then -- older format (1.1.0)
+        for key, off in pairs(BiAGuildToolsDB.disabled) do
+            if off then BiAGuildToolsDB.enabled[key] = false end
         end
-        BiaGuildDB.disabled = nil
+        BiAGuildToolsDB.disabled = nil
     end
     for _, m in ipairs(ns.moduleOrder) do
         local old = m.formerKey
-        if old and BiaGuildDB.modules[m.key] == nil then
-            BiaGuildDB.modules[m.key] = BiaGuildDB.modules[old]
-            if BiaGuildDB.enabled[m.key] == nil then BiaGuildDB.enabled[m.key] = BiaGuildDB.enabled[old] end
+        if old and BiAGuildToolsDB.modules[m.key] == nil then
+            BiAGuildToolsDB.modules[m.key] = BiAGuildToolsDB.modules[old]
+            if BiAGuildToolsDB.enabled[m.key] == nil then BiAGuildToolsDB.enabled[m.key] = BiAGuildToolsDB.enabled[old] end
         end
-        if old then BiaGuildDB.modules[old], BiaGuildDB.enabled[old] = nil, nil end
-        BiaGuildDB.modules[m.key] = BiaGuildDB.modules[m.key] or {}
-        m.db = BiaGuildDB.modules[m.key]
+        if old then BiAGuildToolsDB.modules[old], BiAGuildToolsDB.enabled[old] = nil, nil end
+        BiAGuildToolsDB.modules[m.key] = BiAGuildToolsDB.modules[m.key] or {}
+        m.db = BiAGuildToolsDB.modules[m.key]
         ApplyDefaults(m.db, m.defaults)
     end
     loggedIn = true
