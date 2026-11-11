@@ -20,6 +20,7 @@ local TRADEGOODS = (Enum and Enum.ItemClass and Enum.ItemClass.Tradegoods) or 7
 local KEEP_SUBCLASSES = { [2] = true, [3] = true } -- Explosives, Devices
 local PASS_DELAY = 0.5 -- seconds between passes; moved items stay locked for a moment
 local MAX_PASSES = 10
+local BUTTON_X, BUTTON_Y = 10, 5 -- button offset from the bank panel's bottom left corner
 
 local bankOpen, running = false, false
 local button
@@ -148,7 +149,7 @@ function M.Deposit()
 end
 
 ---------------------------------------------------------------------------
--- Button in the bank window, where Retail has it (bottom centre of the item panel). It shows
+-- Button in the bank window, bottom left next to the gold display. It shows
 -- only on the character bank tab. Bag addons that replace the bank window hide it: use
 -- /bia-bank deposit there.
 ---------------------------------------------------------------------------
@@ -174,7 +175,9 @@ local function CreateButton()
     button = CreateFrame("Button", "BiAGuildToolsDepositButton", panel, "UIPanelButtonTemplate")
     button:SetText(ButtonText())
     button:SetSize(math.max(140, button:GetFontString():GetStringWidth() + 30), 22)
-    button:SetPoint("BOTTOM", panel.NineSlice or panel, "BOTTOM", 0, 10)
+    -- Bottom left, on the strip with the gold display (MoneyFrame sits at the panel's bottom right).
+    -- Higher up, the bag slot row and the "Cost" line with the purchase button take the space.
+    button:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", BUTTON_X, BUTTON_Y)
     button:SetFrameLevel(panel:GetFrameLevel() + 10)
     button:SetScript("OnClick", function()
         if SOUNDKIT and PlaySound then PlaySound(SOUNDKIT.IG_MAINMENU_OPTION) end

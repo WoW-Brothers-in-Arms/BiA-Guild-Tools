@@ -62,7 +62,7 @@ Members still on 1.0.x show as "–" (no answer), since those versions don't ans
 
 ### Deposit Reagents (`/bia-bank`)
 
-Adds the **Deposit Reagents** button from Retail to your bank. WoW: Forever runs the modern bank window and the game function behind Retail's button, but leaves the button out. The button sits at the bottom of the character bank tab and calls that same function, so the game decides what to deposit, just like in Retail.
+Adds the **Deposit Reagents** button from Retail to your bank. WoW: Forever runs the modern bank window and the game function behind Retail's button, but leaves the button out. The button sits at the bottom left of the character bank tab, next to the gold display, and calls that same function, so the game decides what to deposit, just like in Retail.
 
 If the game doesn't offer auto deposit, the tool moves every trade good (cloth, herbs, ore and bars, leather, elementals, meat …) from your bags into the bank itself, onto existing stacks first. Grenades and devices stay in your bags. When the bank is full, the chat tells you how many stacks are left.
 
