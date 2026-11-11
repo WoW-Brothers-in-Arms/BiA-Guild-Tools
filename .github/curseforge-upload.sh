@@ -3,6 +3,7 @@
 # Game versions come from "## Interface:" in the TOC: 120105 -> "12.1.5", 16001 -> "1.60.1".
 # Each one is looked up by name in CurseForge's version list; versions CurseForge doesn't know are
 # skipped with a warning, and the upload fails if none is left.
+# The file is listed on CurseForge under the bare version (e.g. "1.2.0").
 # Usage: curseforge-upload.sh <tag> <zip filename> <changelog file>
 # Needs CF_API_KEY and CF_PROJECT_ID in the environment. CF_API_BASE can point to a test server.
 set -euo pipefail
@@ -35,7 +36,7 @@ if [ "$(jq length <<<"$ids")" -eq 0 ]; then
   exit 1
 fi
 
-metadata=$(jq -n --arg name "BiA Guild Tools ${tag#v}" --arg type "$release_type" \
+metadata=$(jq -n --arg name "${tag#v}" --arg type "$release_type" \
   --rawfile changelog "$changelog" --argjson ids "$ids" \
   '{displayName: $name, releaseType: $type, changelog: $changelog, changelogType: "markdown", gameVersions: $ids}')
 echo "Uploading $zip to CurseForge project $CF_PROJECT_ID: $(jq -c 'del(.changelog)' <<<"$metadata")"
