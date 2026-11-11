@@ -1,7 +1,7 @@
 ## Interface: 16001, 120105, 120107
 ## Title: |cff66ccffBiA|r Guild Tools
-## Notes: BiA Guild Tools – A small collection of quality-of-life tools for WoW Forever
-## Notes-deDE: BiA Guild Tools – Eine kleine Sammlung von Komfort-Tools für WoW Forever
+## Notes: BiA Guild Tools – A small collection of quality-of-life tools for World of Warcraft: Forever
+## Notes-deDE: BiA Guild Tools – Eine kleine Sammlung von Komfort-Tools für World of Warcraft: Forever
 ## Author: Paul
 ## Version: 1.1.0-DEV
 ## SavedVariables: BiAGuildToolsDB
