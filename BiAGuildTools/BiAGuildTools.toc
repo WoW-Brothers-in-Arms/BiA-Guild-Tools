@@ -14,6 +14,7 @@ Locales\deDE.lua
 Core.lua
 Settings.lua
 RosterTooltip.lua
+RosterColumn.lua
 
 # Modules
 Modules\Professions\Data.lua

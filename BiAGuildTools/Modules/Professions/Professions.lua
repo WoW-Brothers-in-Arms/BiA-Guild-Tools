@@ -1,6 +1,6 @@
 -- Professions.lua: shares your professions with guild mates who use BiA Guild Tools and shows everyone's
 -- professions as icons in the guild roster (Guild & Communities) and in the member tooltip.
-local ADDON, ns = ...
+local _, ns = ...
 local L = ns.L
 local D = ns.ProfessionData
 local Readable, After, ShortName = ns.Readable, ns.After, ns.ShortName
@@ -9,7 +9,7 @@ local M = ns:NewModule("professions", {
     title = L.PROF_TITLE,
     desc = L.PROF_DESC,
     formerKey = "berufe", -- key up to 1.0.x
-    defaults = { members = {}, showInTooltip = true, column = true },
+    defaults = { members = {}, showInTooltip = true },
 })
 
 local PREFIX = "BiaGProf"        -- addon message prefix (max 16 chars)
@@ -18,7 +18,6 @@ local STALE_SECONDS = 90 * 24 * 3600
 
 local lastSentPayload, lastSentAt = nil, 0
 local pendingBroadcast, pendingForce = false, false
-local hookedRows = setmetatable({}, { __mode = "k" })
 
 ---------------------------------------------------------------------------
 -- Reading your own professions
@@ -196,33 +195,8 @@ local function SortedForDisplay(list, includeSecondary)
 end
 
 ---------------------------------------------------------------------------
--- Guild roster UI (Blizzard_Communities)
--- Column "Professions" in the full guild roster. It uses the roster's spare column slot on the right
--- (the one Blizzard fills with e.g. achievement points) while no Blizzard column is picked there.
+-- Column "Professions" in the full guild roster (shared slot, see RosterColumn.lua)
 ---------------------------------------------------------------------------
-local COLUMN_TITLE = L.PROF_PROFESSIONS
-local COLUMN_INFO = { title = COLUMN_TITLE, width = 115 }
-local columnRows = setmetatable({}, { __mode = "k" })   -- rows whose Note/GuildInfo we changed
-
-local function MemberList()
-    return CommunitiesFrame and CommunitiesFrame.MemberList
-end
-
-local function ColumnWanted()
-    return M:IsEnabled() and M.db.column
-end
-
-local function IsGuildRoster(list)
-    if not list or not list.expandedDisplay or not list.GetSelectedClubInfo then return false end
-    local info = list:GetSelectedClubInfo()
-    return info ~= nil and info.clubType == Enum.ClubType.Guild
-end
-
-local function ColumnActive()
-    local list = MemberList()
-    return ColumnWanted() and IsGuildRoster(list) and list:GetGuildColumnIndex() == nil
-end
-
 local function ColumnText(info)
     local shown = SortedForDisplay(MemberProfessions(info), false) -- column: main professions only
     if #shown == 0 then return "|cff707070–|r" end
@@ -235,33 +209,16 @@ local function ColumnText(info)
     return table.concat(parts, "  ")
 end
 
-local function PaintColumn(row)
-    local note, extra = row.Note, row.GuildInfo
-    if not note or not extra or not row.Rank then return end
+ns.RosterColumn.Register({
+    key = "prof",
+    title = L.PROF_PROFESSIONS,
+    width = 115,
+    enabled = function() return M:IsEnabled() end,
+    text = ColumnText,
+})
 
-    if ColumnActive() and row.expanded and row.memberInfo and not row.isInvitation then
-        note:ClearAllPoints()
-        note:SetPoint("LEFT", row.Rank, "RIGHT", 8, 0)
-        note:SetWidth(93)
-        extra:SetText(ColumnText(row.memberInfo))
-        extra:Show()
-        columnRows[row] = true
-    elseif columnRows[row] then
-        columnRows[row] = nil
-        local list = MemberList()
-        -- Only undo our layout if no Blizzard column took the slot (Blizzard lays that out itself).
-        if not list or list:GetGuildColumnIndex() == nil then
-            note:ClearAllPoints()
-            note:SetPoint("LEFT", row.Rank, "RIGHT", 8, 0)
-            note:SetPoint("RIGHT", row, "RIGHT", -4, 0)
-            extra:Hide()
-        end
-    end
-end
-
-local function PaintRow(row)
-    if not row then return end
-    PaintColumn(row)
+function RefreshRoster()
+    ns.RosterColumn.Refresh()
 end
 
 -- Section "Professions" in the shared roster tooltip (RosterTooltip.lua).
@@ -290,124 +247,15 @@ ns.RosterTooltip.Register(function(info)
     end
 end)
 
-local function HookRow(row)
-    if hookedRows[row] then return end
-    hookedRows[row] = true
-    if type(row.SetMember) == "function" then
-        hooksecurefunc(row, "SetMember", PaintRow)
-    end
-    if type(row.RefreshExpandedColumns) == "function" then
-        hooksecurefunc(row, "RefreshExpandedColumns", PaintRow)
-    end
-end
-
-local function MemberScroll()
-    local list = MemberList()
-    return list and list.ScrollBox
-end
-
-function RefreshRoster()
-    local scroll = MemberScroll()
-    if scroll and scroll:IsVisible() then scroll:ForEachFrame(PaintRow) end
-end
-
--- Lays out the header with our column after Blizzard's own layout pass.
-local function OnRefreshLayout(list)
-    if ColumnActive() and list.ColumnDisplay and list.columnInfo then
-        list.ColumnDisplay:LayoutColumns(list.columnInfo, COLUMN_INFO)
-    end
-    RefreshRoster()
-end
-
-local DROPDOWN_LABEL = "BiA: " .. COLUMN_TITLE
-
--- Makes the roster's column dropdown show the current choice again.
-local function UpdateDropdown()
-    local dropdown = CommunitiesFrame and CommunitiesFrame.GuildMemberListDropdown
-    if dropdown and dropdown.GetMenuDescription and dropdown:GetMenuDescription() then
-        dropdown:SignalUpdate()
-    end
-end
-
--- Takes the slot for our column if it is wanted and Blizzard put its default column there.
-local function ClaimSlot()
-    local list = MemberList()
-    if list and ColumnWanted() and list:GetGuildColumnIndex() ~= nil then
-        list:SetGuildColumnIndex(nil)        -- triggers RefreshLayout -> OnRefreshLayout
-    end
-    UpdateDropdown()
-end
-
--- Puts the column into the slot (or gives the slot back to Blizzard's default).
-local function ApplyColumn()
-    local list = MemberList()
-    if not list then return end
-    if ColumnWanted() and list:GetGuildColumnIndex() ~= nil then
-        list:SetGuildColumnIndex(nil)
-    elseif not ColumnWanted() and CommunitiesFrame.GuildMemberListDropdown then
-        CommunitiesFrame.GuildMemberListDropdown:ResetGuildColumnIndex()
-        list:RefreshLayout()
-    else
-        list:RefreshLayout()
-    end
-    UpdateDropdown()
-end
-
-local function HookCommunities()
-    local list = MemberList()
-    local scroll = list and list.ScrollBox
-    if not scroll or not ScrollBoxListMixin then
-        M:Print(L.PROF_ROSTER_NOT_FOUND)
-        return
-    end
-    scroll:RegisterCallback(ScrollBoxListMixin.Event.OnInitializedFrame, function(_, row)
-        HookRow(row)
-        PaintRow(row)
-    end, ADDON)
-    scroll:ForEachFrame(function(row)
-        HookRow(row)
-        PaintRow(row)
-    end)
-
-    if type(list.RefreshLayout) == "function" then
-        hooksecurefunc(list, "RefreshLayout", OnRefreshLayout)
-    end
-
-    -- When the roster opens, Blizzard puts its default column (e.g. achievement points) into the
-    -- slot: in ResetGuildColumnIndex and again at the end of the dropdown's OnShow. Take it back
-    -- afterwards if our column is wanted.
-    local dropdown = CommunitiesFrame.GuildMemberListDropdown
-    if dropdown then
-        if type(dropdown.ResetGuildColumnIndex) == "function" then
-            hooksecurefunc(dropdown, "ResetGuildColumnIndex", ClaimSlot)
-        end
-        dropdown:HookScript("OnShow", ClaimSlot)
-    end
-
-    -- Entry "BiA: Professions" in the roster's column dropdown. Picking a Blizzard entry hides the
-    -- column until the roster is opened again. (Blizzard hides that dropdown when it has fewer than
-    -- two entries of its own; then /bia prof column is the switch.)
-    if Menu and Menu.ModifyMenu then
-        Menu.ModifyMenu("MENU_COMMUNITIES_GUILD_MEMBER_LIST", function(_, root)
-            if not M:IsEnabled() then return end
-            -- The dropdown shows the picked entry's data.dropdownText, so the entry needs it too.
-            root:CreateRadio(DROPDOWN_LABEL, ColumnActive, function()
-                M.db.column = true
-                ApplyColumn()
-            end, { dropdownText = DROPDOWN_LABEL })
-        end)
-    end
-end
-
 ---------------------------------------------------------------------------
 -- /bia prof
 ---------------------------------------------------------------------------
 M:RegisterSlash("prof", function(msg, cmd)
     local db = M.db
     if cmd == "column" then
-        db.column = not db.column
-        M:Print(L.PROF_COLUMN_TOGGLED:format(ns.OnOff(db.column)))
-        ApplyColumn()
+        local RC = ns.RosterColumn
+        RC.SetChoice(RC.Choice() ~= "prof" and "prof" or false)
+        M:Print(L.PROF_COLUMN_TOGGLED:format(ns.OnOff(RC.Choice() == "prof")))
     elseif cmd == "tooltip" then
         db.showInTooltip = not db.showInTooltip
         M:Print(L.PROF_TOOLTIP_TOGGLED:format(ns.OnOff(db.showInTooltip)))
@@ -454,7 +302,6 @@ function M:OnLogin()
     for guid, entry in pairs(self.db.members) do
         if type(entry) ~= "table" or (entry.t or 0) < cutoff then self.db.members[guid] = nil end
     end
-    ns.OnAddOnLoaded("Blizzard_Communities", HookCommunities)
     After(10, function()
         Broadcast(true)
         M:SendGuild("R|" .. PROTOCOL)
@@ -463,8 +310,7 @@ end
 
 -- Called by /bia prof on | off: show or hide the column right away.
 function M:OnToggle()
-    ApplyColumn()
-    RefreshRoster()
+    ns.RosterColumn.Update()
 end
 
 M:RegisterEvent("SKILL_LINES_CHANGED", function()
