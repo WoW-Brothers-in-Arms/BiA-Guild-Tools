@@ -9,7 +9,7 @@ and CurseForge and stops if it is missing.
 - The addon is now called **BiA Guild Tools** and is available on CurseForge.
 - The addon folder is now `BiAGuildTools` (was `BiaGuild`). If the old folder is still installed, your settings and saved guild data are taken over on the next login, the old addon is turned off and you are reminded to delete it.
 - Texts follow the game client's language: English, or German in a German client.
-- `/bia-berufe` is now `/bia-prof`. The German commands (`/bia-berufe`, `an`, `aus`, `hilfe`, `spalte`, `sek`) still work.
+- Commands are now English only: `/bia-berufe` is now `/bia-prof`, and the German words (`an`, `aus`, `hilfe`, `spalte`, `sek`, `/bia optionen`) are gone. Use `on`, `off`, `help`, `column`, `secondary` and `/bia options`.
 - Fixed: members who asked for the guild's professions sometimes got no answer when a broadcast was already scheduled (e.g. right after a skill-up).
 
 ## 1.0.1 (2026-11-10)
