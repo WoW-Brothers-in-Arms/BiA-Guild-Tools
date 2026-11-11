@@ -58,7 +58,14 @@ The German commands from 1.0.x (`/bia-berufe`, `an`, `aus`, `hilfe`, `spalte`, `
 1. Bump `## Version:` in `BiAGuildTools/BiAGuildTools.toc` and commit
 2. Create and push a tag: `git tag v1.0.1 && git push origin main v1.0.1`
 
-The workflow `.github/workflows/release.yml` checks that the tag matches the TOC version, builds the zip and creates the GitHub release.
+The workflow `.github/workflows/release.yml` checks that the tag matches the TOC version, builds the zip and creates the GitHub release. It then uploads the same zip to CurseForge with the generated release notes as changelog. Tags containing `beta` or `alpha` (e.g. `v1.2.0-beta1`) become beta or alpha files there.
+
+The CurseForge upload needs, under the repository's Settings → Secrets and variables → Actions:
+
+- secret `CF_API_KEY`: a token from curseforge.com → Account → API Tokens
+- variable `CF_PROJECT_ID`: the project ID from the CurseForge project page ("About Project")
+
+Without them the upload is skipped. The game versions come from `## Interface:` in the TOC (`120105` → `12.1.5`); versions CurseForge doesn't list are skipped with a warning.
 
 ## Structure
 

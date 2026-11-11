@@ -39,3 +39,18 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" "BiAGuildTools-$VERSION.zip" release.json \
             --title "BiA Guild Tools $VERSION" --generate-notes
+
+      # Needs the secret CF_API_KEY (curseforge.com → Account → API Tokens) and the repository
+      # variable CF_PROJECT_ID (CurseForge project page → "About Project"). Skipped while either is missing.
+      - name: Upload to CurseForge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          CF_PROJECT_ID: ${{ vars.CF_PROJECT_ID }}
+        run: |
+          if [ -z "$CF_API_KEY" ] || [ -z "$CF_PROJECT_ID" ]; then
+            echo "::notice::CF_API_KEY or CF_PROJECT_ID not set, skipping the CurseForge upload"
+            exit 0
+          fi
+          gh release view "$GITHUB_REF_NAME" --json body -q .body > changelog.md
+          .github/curseforge-upload.sh "$GITHUB_REF_NAME" "BiAGuildTools-$VERSION.zip" changelog.md
