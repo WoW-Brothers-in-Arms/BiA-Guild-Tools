@@ -199,6 +199,101 @@ M:RegisterEvent("GUILD_ROSTER_UPDATE", function()
 end)
 
 ---------------------------------------------------------------------------
+-- Roster column and tooltip
+---------------------------------------------------------------------------
+local GREY = "|cff707070"
+local CROWN = "|TInterface\\GroupFrame\\UI-Group-LeaderIcon:12:12|t"
+local MAX_TOOLTIP_CHARS = 6
+
+local function PlainName(name) return (name:match("^[^%-]+") or name) end
+
+-- The name in the class colour of its character (grey when the class is unknown).
+local function Colored(member)
+    local color = member.classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[member.classFile]
+    local code = color and color.colorStr and ("|c" .. color.colorStr) or "|cffffffff"
+    return code .. PlainName(member.name) .. "|r"
+end
+M.ColoredName = Colored
+
+local function MemberGuid(info)
+    if not info then return nil end
+    if Readable(info.guid) and info.guid then return info.guid end
+    if Readable(info.name) and info.name then return RosterGuidByName(info.name) end
+end
+
+function M.CellText(info)
+    local guid = MemberGuid(info)
+    local group = M.GroupOf(guid)
+    if not group then return GREY .. "–|r" end
+    if guid == group.main then
+        return group.chosen and (CROWN .. " " .. L.ALTS_MAIN) or (GREY .. L.ALTS_MAIN_GUESS .. "|r")
+    end
+    local main = M.Roster()[group.main]
+    return main and ("» " .. Colored(main)) or (GREY .. "» ?|r")
+end
+
+-- Lines for the roster tooltip: { left, right } each; nil when there is nothing to show.
+function M.TooltipLines(info)
+    if not M:IsEnabled() or not M.db.showInTooltip then return nil end
+    local guid = MemberGuid(info)
+    local group = M.GroupOf(guid)
+    if not group then return nil end
+    local r = M.Roster()
+
+    local lines = {}
+    if guid == group.main then
+        lines[1] = { left = group.chosen and L.ALTS_MAIN or L.ALTS_MAIN_GUESS }
+    else
+        local main = r[group.main]
+        lines[1] = { left = L.ALTS_ALT_OF:format(main and Colored(main) or "?") }
+    end
+
+    local others = {}
+    for _, g in ipairs({ group.main, unpack(group.alts) }) do
+        if g ~= guid and r[g] then others[#others + 1] = g end
+    end
+    table.sort(others, function(a, b)
+        if r[a].online ~= r[b].online then return r[a].online end
+        if r[a].level ~= r[b].level then return r[a].level > r[b].level end
+        return r[a].name < r[b].name
+    end)
+    for i, g in ipairs(others) do
+        if i > MAX_TOOLTIP_CHARS then
+            lines[#lines + 1] = { left = L.ALTS_MORE:format(#others - MAX_TOOLTIP_CHARS) }
+            break
+        end
+        local mark = (g == group.main and group.chosen) and (CROWN .. " ") or ""
+        lines[#lines + 1] = { left = mark .. Colored(r[g]), right = tostring(r[g].level), online = r[g].online }
+    end
+    return lines
+end
+
+ns.RosterColumn.Register({
+    key = "alts",
+    title = L.ALTS_COLUMN,
+    width = 115,
+    enabled = function() return M:IsEnabled() end,
+    text = M.CellText,
+})
+
+ns.RosterTooltip.Register(function(info)
+    local lines = M.TooltipLines(info)
+    if not lines then return nil end
+    return function(tooltip)
+        tooltip:AddLine(lines[1].left, 0.4, 0.8, 1)
+        for i = 2, #lines do
+            local line = lines[i]
+            local v = line.online and 1 or 0.6
+            if line.right then
+                tooltip:AddDoubleLine(line.left, line.right, v, v, v, v, v, v)
+            else
+                tooltip:AddLine(line.left, 0.5, 0.5, 0.5)
+            end
+        end
+    end
+end)
+
+---------------------------------------------------------------------------
 -- /bia alts
 ---------------------------------------------------------------------------
 M:RegisterSlash("alts", function(msg, cmd)

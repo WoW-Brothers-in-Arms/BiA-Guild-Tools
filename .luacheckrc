@@ -30,7 +30,7 @@ read_globals = {
     -- Frames, UI
     "CreateFrame", "UIParent", "UISpecialFrames", "DEFAULT_CHAT_FRAME", "GameTooltip", "GameTooltip_Hide",
     "Menu", "CreateDataProvider", "CreateScrollBoxListLinearView", "ScrollUtil", "ScrollBoxConstants",
-    "ScrollBoxListMixin", "HIGHLIGHT_FONT_COLOR", "NORMAL_FONT_COLOR",
+    "ScrollBoxListMixin", "HIGHLIGHT_FONT_COLOR", "NORMAL_FONT_COLOR", "RAID_CLASS_COLORS",
 
     -- Player, guild, chat
     "UnitFullName", "UnitGUID", "GetNormalizedRealmName", "IsInGuild", "Ambiguate", "C_ChatInfo",

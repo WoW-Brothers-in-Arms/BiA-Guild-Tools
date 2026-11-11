@@ -31,15 +31,15 @@ describe("RosterColumn", function()
 
     it("falls back to another enabled column when the chosen tool is off", function()
         local game = loggedIn()
-        RC(game).Register(Column("x"))
         RC(game).SetChoice("prof")
         game:slash("prof off")
-        assert.equal("x", RC(game).Choice())
+        assert.equal("alts", RC(game).Choice())
     end)
 
     it("is off when no registered column is enabled", function()
         local game = loggedIn()
         game:slash("prof off")
+        game:slash("alts off")
         assert.is_false(RC(game).Choice())
     end)
 
@@ -48,7 +48,7 @@ describe("RosterColumn", function()
         RC(game).Register(Column("x"))
         local keys = {}
         for _, def in ipairs(RC(game).Columns()) do keys[#keys + 1] = def.key end
-        assert.same({ "prof", "x" }, keys)
+        assert.same({ "prof", "alts", "x" }, keys)
     end)
 
     it("/bia prof column toggles between Professions and off", function()

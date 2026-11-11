@@ -12,6 +12,7 @@ local function Roster(members)
                 0, 0, false, false, 0, m[2]
         end,
         C_GuildInfo = { GuildRoster = function() end },
+        RAID_CLASS_COLORS = { MAGE = { colorStr = "ff3fc7eb" }, WARRIOR = { colorStr = "ffc69b6d" } },
     }
 end
 
@@ -146,5 +147,89 @@ describe("Alts", function()
         assert.equal(before + 2, #sent)
         assert.matches("^G|1|", sent[before + 1])
         assert.equal("R|1", sent[before + 2])
+    end)
+
+    describe("roster column", function()
+        local function plain(text) return (text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+        local function cell(game, guid, name) return M(game).CellText({ guid = guid, name = name }) end
+
+        it("shows a crown for a chosen main", function()
+            local game = ready()
+            game:slash("alts main")
+            local text = cell(game, ME, "Tester-Realm")
+            assert.matches("UI%-Group%-LeaderIcon", text)
+            assert.matches("Main", text)
+        end)
+
+        it("marks a main that was not chosen", function()
+            local game = ready(nil, { modules = { alts = { own = { chars = { [ALT] = true } } } } })
+            assert.equal("(Main?)", plain(cell(game, ME, "Tester-Realm")))
+        end)
+
+        it("shows the main of an alt in its class colour", function()
+            local game = ready()
+            game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Other Realm")
+            local text = cell(game, OTHER_ALT, "Otheralt-Realm")
+            assert.equal("» Other", plain(text))
+            assert.matches("|cff3fc7ebOther|r", text, 1, true)
+        end)
+
+        it("shows a question mark when the main is not in the guild", function()
+            local game = ready()
+            game:receive("BiaAlts", "G|1|1-0000DEAD|1|1700000000|1-0000CCCC", "Otheralt Realm")
+            assert.equal("» ?", plain(cell(game, OTHER_ALT, "Otheralt-Realm")))
+        end)
+
+        it("shows a dash for members without data", function()
+            assert.equal("–", plain(cell(ready(), OTHER, "Other-Realm")))
+        end)
+
+        it("finds the member by name when the roster gives no GUID", function()
+            local game = ready()
+            game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Other Realm")
+            assert.equal("» Other", plain(cell(game, nil, "Otheralt-Realm")))
+        end)
+    end)
+
+    describe("tooltip", function()
+        local function bigGuild()
+            local members = { { "Tester-Realm", ME }, { "Boss-Realm", "Player-1-00000B00", level = 60, online = false } }
+            local alts = {}
+            for i = 1, 8 do
+                local guid = ("Player-1-00000A%02d"):format(i)
+                members[#members + 1] = { "Alt" .. i .. "-Realm", guid, level = 10 + i, online = i == 1 }
+                alts[#alts + 1] = guid:gsub("^Player%-", "")
+            end
+            return members, "G|1|1-00000B00|1|1700000000|" .. table.concat(alts, ",")
+        end
+
+        it("names the main of an alt and lists the other characters, online first, at most 6", function()
+            local members, msg = bigGuild()
+            local game = ready(members)
+            game:receive("BiaAlts", msg, "Boss Realm")
+            local lines = M(game).TooltipLines({ guid = "Player-1-00000A08", name = "Alt8-Realm" })
+            assert.equal("Alt of Boss", lines[1].left:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
+            assert.equal(8, #lines)
+            assert.matches("Alt1", lines[2].left)  -- online first
+            assert.matches("Boss", lines[3].left)  -- then by level
+            assert.equal("+ 2 more", lines[8].left)
+        end)
+
+        it("says Main for the main", function()
+            local members, msg = bigGuild()
+            local game = ready(members)
+            game:receive("BiaAlts", msg, "Boss Realm")
+            local lines = M(game).TooltipLines({ guid = "Player-1-00000B00", name = "Boss-Realm" })
+            assert.equal("Main", lines[1].left)
+        end)
+
+        it("shows nothing without a group or with the tooltip turned off", function()
+            local members, msg = bigGuild()
+            local game = ready(members)
+            assert.is_nil(M(game).TooltipLines({ guid = "Player-1-00000B00", name = "Boss-Realm" }))
+            game:receive("BiaAlts", msg, "Boss Realm")
+            game:slash("alts tooltip")
+            assert.is_nil(M(game).TooltipLines({ guid = "Player-1-00000B00", name = "Boss-Realm" }))
+        end)
     end)
 end)
