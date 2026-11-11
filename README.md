@@ -48,6 +48,8 @@ The game does not pass other players' professions to addons. So every member run
 - `/bia-prof status`: show stored data of other members
 - `/bia-prof debug`: log addon messages in chat (for troubleshooting)
 
+Secondary professions and the tooltip can also be switched on the settings page (Esc → Options → AddOns → BiA Guild Tools).
+
 This tool is off by default in Retail.
 
 ### Addon Versions (`/bia-version`)

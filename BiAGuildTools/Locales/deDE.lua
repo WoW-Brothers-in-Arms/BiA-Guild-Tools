@@ -42,6 +42,8 @@ L.PROF_HELP_TOOLTIP = "Berufe im Tooltip ein/aus"
 L.PROF_HELP_SYNC = "Daten neu von der Gilde anfordern"
 L.PROF_HELP_STATUS = "gespeicherte Daten anderer Mitglieder anzeigen"
 L.PROF_HELP_DEBUG = "Addon-Nachrichten im Chat mitprotokollieren"
+L.PROF_OPT_SECONDARY = "Kochkunst, Angeln und Erste Hilfe in der Spalte anzeigen"
+L.PROF_OPT_TOOLTIP = "Berufe im Tooltip der Gildenliste anzeigen"
 
 -- Addon Versions
 L.VER_TITLE = "Addon-Versionen"

@@ -42,6 +42,8 @@ L.PROF_HELP_TOOLTIP = "professions in the tooltip on/off"
 L.PROF_HELP_SYNC = "request fresh data from the guild"
 L.PROF_HELP_STATUS = "show stored data of other members"
 L.PROF_HELP_DEBUG = "log addon messages in chat"
+L.PROF_OPT_SECONDARY = "Show Cooking, Fishing and First Aid in the column"
+L.PROF_OPT_TOOLTIP = "Show professions in the guild roster tooltip"
 
 -- Addon Versions
 L.VER_TITLE = "Addon Versions"

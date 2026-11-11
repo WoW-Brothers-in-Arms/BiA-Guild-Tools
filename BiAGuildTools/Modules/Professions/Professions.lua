@@ -446,6 +446,12 @@ end, {
     "debug – " .. L.PROF_HELP_DEBUG,
 })
 
+-- Switches on the game's settings page (same as /bia-prof secondary and /bia-prof tooltip).
+M.options = {
+    { key = "showSecondary", label = L.PROF_OPT_SECONDARY, onChange = function() RefreshRoster() end },
+    { key = "showInTooltip", label = L.PROF_OPT_TOOLTIP },
+}
+
 ---------------------------------------------------------------------------
 -- Lifecycle
 ---------------------------------------------------------------------------

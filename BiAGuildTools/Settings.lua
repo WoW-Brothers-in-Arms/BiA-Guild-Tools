@@ -1,5 +1,6 @@
 -- Settings.lua: BiA Guild Tools page in the game's settings (Esc → Options → AddOns).
--- Shows logo, title, version and description, and lets each tool be switched on or off.
+-- Shows logo, title, version and description, lets each tool be switched on or off and shows
+-- the tools' options (m.options).
 local ADDON, ns = ...
 local L = ns.L
 
@@ -40,13 +41,27 @@ function ns.CreateSettingsPanel()
     header:SetPoint("TOPLEFT", notes, "BOTTOMLEFT", 0, -24)
     header:SetText(L.SETTINGS_TOOLS)
 
-    -- One checkbox per tool, with its description and commands underneath.
-    local boxes = {}
+    -- One checkbox per tool, with its description and commands underneath, then the tool's options
+    -- (m.options) as smaller checkboxes. Options are greyed out while the tool is off.
+    local boxes, optionBoxes = {}, {}
+
+    local function RefreshOptions(m)
+        for _, ob in ipairs(optionBoxes[m] or {}) do
+            local on = m:IsEnabled()
+            ob:SetChecked(m.db and m.db[ob.option.key] and true or false)
+            ob:SetEnabled(on)
+            ob.label:SetFontObject(on and "GameFontHighlightSmall" or "GameFontDisableSmall")
+        end
+    end
+
     local anchor = header
     for _, m in ipairs(ns.moduleOrder) do
         local box = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
         box:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", anchor == header and -4 or 0, -10)
-        box:SetScript("OnClick", function(self) m:SetEnabled(self:GetChecked()) end)
+        box:SetScript("OnClick", function(self)
+            m:SetEnabled(self:GetChecked())
+            RefreshOptions(m)
+        end)
 
         local label = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
         label:SetPoint("LEFT", box, "RIGHT", 4, 1)
@@ -62,10 +77,28 @@ function ns.CreateSettingsPanel()
         if #cmds > 0 then text = text .. "\n|cff909090" .. L.SETTINGS_COMMANDS:format(table.concat(cmds, ", ")) .. "|r" end
         info:SetText(text)
 
+        local last = info
+        optionBoxes[m] = {}
+        for i, option in ipairs(m.options or {}) do
+            local ob = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
+            ob:SetSize(22, 22)
+            ob:SetPoint("TOPLEFT", last, "BOTTOMLEFT", i == 1 and -4 or 0, i == 1 and -4 or 0)
+            ob.option = option
+            ob.label = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+            ob.label:SetPoint("LEFT", ob, "RIGHT", 2, 1)
+            ob.label:SetText(option.label)
+            ob:SetScript("OnClick", function(self)
+                m.db[option.key] = self:GetChecked() and true or false
+                if option.onChange then option.onChange(m.db[option.key]) end
+            end)
+            table.insert(optionBoxes[m], ob)
+            last = ob
+        end
+
         boxes[m] = box
         -- The next checkbox lines up with this one, not with the indented text.
         local spacer = panel:CreateFontString(nil, "ARTWORK")
-        spacer:SetPoint("TOPLEFT", info, "BOTTOMLEFT", -30, 0)
+        spacer:SetPoint("TOPLEFT", last, "BOTTOMLEFT", last == info and -30 or -26, 0)
         anchor = spacer
     end
 
@@ -75,7 +108,10 @@ function ns.CreateSettingsPanel()
 
     -- Checkbox states can change through chat commands; refresh whenever the page opens.
     panel:SetScript("OnShow", function()
-        for m, box in pairs(boxes) do box:SetChecked(m:IsEnabled()) end
+        for m, box in pairs(boxes) do
+            box:SetChecked(m:IsEnabled())
+            RefreshOptions(m)
+        end
     end)
 
     local category = Settings.RegisterCanvasLayoutCategory(panel, Meta("Title") or ADDON)

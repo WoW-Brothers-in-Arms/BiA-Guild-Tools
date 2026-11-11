@@ -9,6 +9,8 @@
 --   function M:OnLogin() ... end                                     -- M.db is ready here
 --   Optional: enabledByDefault = false | function() return not ns.IsRetail end
 --   Optional: formerKey = "old"   -- saved data and on/off choice are moved over from that key
+--   Optional: M.options = { { key = "dbField", label = "...", onChange = fn }, ... }
+--             -- boolean settings in M.db, shown as checkboxes on the settings page
 local ADDON, ns = ...
 local L = ns.L
 _G.BiAGuildTools = ns
