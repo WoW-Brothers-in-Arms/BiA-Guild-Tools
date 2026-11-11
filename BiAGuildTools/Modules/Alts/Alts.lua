@@ -38,11 +38,13 @@ function M.Roster()
     if roster then return roster end
     local r = {}
     for i = 1, (GetNumGuildMembers and GetNumGuildMembers() or 0) do
-        local name, _, rank, level, _, _, _, _, online, _, classFile, _, _, _, _, _, guid = GetGuildRosterInfo(i)
+        local name, _, rank, level, _, _, note, officerNote, online, _, classFile, _, _, _, _, _, guid = GetGuildRosterInfo(i)
         if Readable(name) and Readable(guid) and type(guid) == "string" and name then
             r[guid] = { name = Ambiguate(name, "none"), level = Readable(level) and level or 0,
                 classFile = Readable(classFile) and classFile or nil, online = Readable(online) and online and true or false,
-                rank = Readable(rank) and tonumber(rank) or 99 }
+                rank = Readable(rank) and tonumber(rank) or 99,
+                note = Readable(note) and type(note) == "string" and note or "",
+                officerNote = Readable(officerNote) and type(officerNote) == "string" and officerNote or "" }
         end
     end
     roster = r

@@ -33,8 +33,19 @@ function M.AddAssignEntries(root, guid)
     end
 end
 
--- What a hit row shows on the right: level and the group the character is in.
-local function InfoText(guid, member)
+-- The search text the dialog starts with: char's note, else its officer note (guilds often write
+-- "Alt of <main>" there).
+function M.PickerPrefill(char)
+    local member = char and M.Roster()[char]
+    if not member then return "" end
+    local note = (member.note or ""):match("^%s*(.-)%s*$")
+    if note == "" then note = (member.officerNote or ""):match("^%s*(.-)%s*$") end
+    return note
+end
+
+-- What a hit row shows on the right: the note it was found by, else level and group.
+local function InfoText(guid, member, note)
+    if note then return GREY .. note .. "|r" end -- the font string cuts long notes off with "…"
     local group = M.GroupOf(guid)
     local info = ""
     if group and group.main == guid then
@@ -55,7 +66,8 @@ local function Update()
     if not dialog or not dialog.char then return end -- also runs while the dialog is set up or closed
     local roster = M.Roster()
     local text = dialog.Search:GetText()
-    dialog.hits = G.MatchNames(roster, text, dialog.char, MAX_HITS)
+    local notes
+    dialog.hits, notes = G.MatchNames(roster, text, dialog.char, MAX_HITS)
     if dialog.selected > #dialog.hits then dialog.selected = math.max(#dialog.hits, 1) end
     for i, row in ipairs(dialog.rows) do
         local guid = dialog.hits[i]
@@ -64,7 +76,7 @@ local function Update()
         row:SetShown(member ~= nil)
         if member then
             row.Name:SetText(member.online and M.ColoredName(member) or (GREY .. ShortName(member) .. "|r"))
-            row.Info:SetText(InfoText(guid, member))
+            row.Info:SetText(InfoText(guid, member, notes[guid]))
             if i == dialog.selected then row:LockHighlight() else row:UnlockHighlight() end
         end
     end
@@ -125,6 +137,9 @@ local function CreateDialog()
         row.Name:SetPoint("LEFT", 4, 0)
         row.Info = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         row.Info:SetPoint("RIGHT", -4, 0)
+        row.Info:SetWidth(130)
+        row.Info:SetJustifyH("RIGHT")
+        row.Info:SetWordWrap(false)
         row:SetScript("OnClick", function(self) Choose(self.guid) end)
         f.rows[i] = row
     end
@@ -148,9 +163,10 @@ function M.OpenMainPicker(char)
     dialog = dialog or CreateDialog()
     dialog.char, dialog.hits, dialog.selected = char, {}, 1
     dialog.Title:SetText(L.ALTS_PICKER_TITLE:format(ShortName(member)))
-    dialog.Search:SetText("")
     dialog:Show()
+    dialog.Search:SetText(M.PickerPrefill(char))
     dialog.Search:SetFocus()
+    dialog.Search:HighlightText() -- typing replaces the prefilled note
     Update()
 end
 

@@ -93,9 +93,11 @@ Result is cached and rebuilt on any change (groups, assignments, roster).
   (`MenuUtil.CreateContextMenu`). Right-click on a member in the guild roster shows a submenu
   "BiA Alts" ("BiA Twinks") in Blizzard's member menu (`Menu.ModifyMenu("MENU_UNIT_COMMUNITIES_GUILD_MEMBER")`,
   verified on the `forever` branch; it only appends). Both have the same entries:
-  - **"Alt of …"** – opens a small dialog: a search field and up to 8 matching guild members (names
-    starting with the text first, then names containing it; case ignored; the character itself left
-    out), each with level and group. Click or Enter picks, up/down or Tab move the selection, Esc
+  - **"Alt of …"** – opens a small dialog: a search field, prefilled (and selected) with the
+    character's note, else its officer note, and up to 8 matching guild members, best first: names
+    starting with the text, names containing it, names equal to a word of it ("Bob" for "Alt of Bob"),
+    then members whose note or officer note contains it (case ignored; the character itself left out).
+    Each row shows level and group, or the note it was found by. Click or Enter picks, up/down or Tab move the selection, Esc
     closes. Picking an alt puts the character with that alt's main; picking the character's own alt
     swaps them: that alt becomes the main.
   - **"Mark as main"**

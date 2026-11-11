@@ -366,23 +366,36 @@ function G.Effective(groups, assigned)
     return eff
 end
 
--- Roster GUIDs whose name (without realm) matches text, ignoring case: names starting with text first,
--- then names containing it, each sorted by name. Leaves out exclude; at most max (default 8).
+-- Roster GUIDs matching text, ignoring case, best first: names starting with text, names containing it,
+-- names equal to one word of text (finds "Bob" for the note "Twink von Bob"), then members whose note or
+-- officer note contains text. Each tier sorted by name. Leaves out exclude; at most max (default 8).
+-- Second result: { [guid] = note } for members found only by a note.
 function G.MatchNames(roster, text, exclude, max)
     local needle = (text or ""):lower()
-    if needle == "" then return {} end
-    local hits = {}
+    if needle == "" then return {}, {} end
+    local words = {}
+    for word in needle:gmatch("[^%s%p]+") do words[word] = true end
+    local hits, notes = {}, {}
     for guid, member in pairs(roster) do
         local short = (member.name:match("^[^%-]+") or member.name):lower()
-        local at = guid ~= exclude and short:find(needle, 1, true)
-        if at then hits[#hits + 1] = { guid = guid, short = short, prefix = at == 1 } end
+        local at, tier = short:find(needle, 1, true), nil
+        if at == 1 then tier = 1 elseif at then tier = 2 elseif words[short] then tier = 3 end
+        if not tier then
+            for _, note in ipairs({ member.note or "", member.officerNote or "" }) do
+                if not tier and note:lower():find(needle, 1, true) then tier, notes[guid] = 4, note end
+            end
+        end
+        if tier and guid ~= exclude then hits[#hits + 1] = { guid = guid, short = short, tier = tier } end
     end
     table.sort(hits, function(a, b)
-        if a.prefix ~= b.prefix then return a.prefix end
+        if a.tier ~= b.tier then return a.tier < b.tier end
         if a.short ~= b.short then return a.short < b.short end
         return a.guid < b.guid
     end)
-    local out = {}
-    for i = 1, math.min(#hits, max or 8) do out[i] = hits[i].guid end
-    return out
+    local out, found = {}, {}
+    for i = 1, math.min(#hits, max or 8) do
+        out[i] = hits[i].guid
+        found[out[i]] = notes[out[i]]
+    end
+    return out, found
 end

@@ -431,6 +431,21 @@ describe("AltGroups", function()
             assert.same({}, G.MatchNames(r, ""))
         end)
 
+        it("finds notes after names, and names that are a word of the text", function()
+            local r = {
+                ["Player-1-00000001"] = { name = "Bob-Realm" },
+                ["Player-1-00000002"] = { name = "Kira", note = "Twink von Bob" },
+                ["Player-1-00000003"] = { name = "Lu", officerNote = "TWINK VON BOB, Bank" },
+                ["Player-1-00000004"] = { name = "Twinkle", note = "" },
+            }
+            local list, notes = G.MatchNames(r, "twink von bob")
+            assert.same({ "Bob-Realm", "Kira", "Lu" }, names(r, list))
+            assert.is_nil(notes["Player-1-00000001"])
+            assert.equal("Twink von Bob", notes["Player-1-00000002"])
+            assert.equal("TWINK VON BOB, Bank", notes["Player-1-00000003"])
+            assert.same({ "Twinkle", "Kira", "Lu" }, names(r, (G.MatchNames(r, "twink"))))
+        end)
+
         it("treats magic characters in the text literally", function()
             local r = members({ "Anna" })
             assert.same({}, G.MatchNames(r, "a%"))

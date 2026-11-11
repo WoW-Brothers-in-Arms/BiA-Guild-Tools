@@ -8,7 +8,8 @@ local function Roster(members)
         GetNumGuildMembers = function() return #members end,
         GetGuildRosterInfo = function(i)
             local m = members[i]
-            return m[1], "Member", m.rank or 2, m.level or 60, "Mage", "Zone", "", "", m.online ~= false, 0, m.class or "MAGE",
+            return m[1], "Member", m.rank or 2, m.level or 60, "Mage", "Zone", m.note or "", m.officerNote or "", m.online ~= false, 0,
+                m.class or "MAGE",
                 0, 0, false, false, 0, m[2]
         end,
         C_GuildInfo = { GuildRoster = function() end },
@@ -514,6 +515,16 @@ describe("Alts", function()
             local sub = submenu(open(OTHER_ALT))
             assert.is_false(sub.children[1].enabled)
             assert.is_false(sub.children[2].enabled)
+        end)
+
+        it("prefills the picker with the character's note, else the officer note", function()
+            local members = guild()
+            members[2].note = " Twink von Tester "
+            members[4].officerNote = "Twink von Other"
+            local game = ready(members)
+            assert.equal("Twink von Tester", M(game).PickerPrefill(ALT))
+            assert.equal("Twink von Other", M(game).PickerPrefill(OTHER_ALT))
+            assert.equal("", M(game).PickerPrefill(OTHER))
         end)
 
         it("marks as main and opens the main picker", function()
