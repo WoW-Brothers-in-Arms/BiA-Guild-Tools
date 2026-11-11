@@ -35,5 +35,5 @@ end
 
 -- Only on/off and help; the tool has no other commands.
 M:RegisterSlash("bags", function()
-    M:Print(L.BAGS_UNKNOWN_COMMAND:format("/bia-bags help"))
+    M:Print(L.BAGS_UNKNOWN_COMMAND:format("/bia bags help"))
 end, {})

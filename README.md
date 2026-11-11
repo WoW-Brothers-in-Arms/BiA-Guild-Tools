@@ -26,49 +26,49 @@ ln -s "$PWD/BiAGuildTools" "/Applications/World of Warcraft/_forever_/Interface/
 | Command | What it does |
 |---|---|
 | `/bia` | Overview of all tools, whether they are on or off, and their commands |
-| `/bia-<tool> on` / `off` | Turn a tool on or off right away |
-| `/bia-<tool> help` | Show the tool's commands |
+| `/bia <tool> on` / `off` | Turn a tool on or off right away |
+| `/bia <tool> help` | Show the tool's commands |
 | `/bia options` | Open the settings page |
 
 The game's settings (Esc → Options → AddOns → BiA Guild Tools) show the version and description, and each tool can be turned on or off there.
 
 ## Tools
 
-### Guild Professions (`/bia-prof`)
+### Guild Professions (`/bia prof`)
 
 Shows guild members' professions in the guild roster: as its own **Professions** column in the full roster and with skill levels in the tooltip.
 The game does not pass other players' professions to addons. So every member running BiA Guild Tools sends their professions to the guild via addon message. **Skill levels only show for members who use the addon.**
 
-- `/bia-prof column`: Professions column in the guild roster on/off
-- `/bia-prof tooltip`: professions in the tooltip on/off
-- `/bia-prof sync`: request fresh data from the guild
-- `/bia-prof status`: show stored data of other members
-- `/bia-prof debug`: log addon messages in chat (for troubleshooting)
+- `/bia prof column`: Professions column in the guild roster on/off
+- `/bia prof tooltip`: professions in the tooltip on/off
+- `/bia prof sync`: request fresh data from the guild
+- `/bia prof status`: show stored data of other members
+- `/bia prof debug`: log addon messages in chat (for troubleshooting)
 
 The tooltip can also be switched on the settings page (Esc → Options → AddOns → BiA Guild Tools).
 
-### Addon Versions (`/bia-version`)
+### Addon Versions (`/bia version`)
 
 Shows which guild members run which version of BiA Guild Tools. When a member has a newer version than you, you get a hint in chat once per session. The guild roster tooltip shows the version of members who use the addon.
 
-- `/bia-version`: open the overview window (online members only, or everyone with the checkbox; green = newest, yellow = outdated, grey = no answer)
-- `/bia-version debug`: log addon messages in chat (for troubleshooting)
+- `/bia version`: open the overview window (online members only, or everyone with the checkbox; green = newest, yellow = outdated, grey = no answer)
+- `/bia version debug`: log addon messages in chat (for troubleshooting)
 
 Members still on 1.0.x show as "–" (no answer), since those versions don't answer yet.
 
-### Deposit Reagents (`/bia-bank`)
+### Deposit Reagents (`/bia bank`)
 
 Adds the **Deposit Reagents** button from Retail to your bank. WoW: Forever runs the modern bank window and the game function behind Retail's button, but leaves the button out. The button sits at the bottom left of the character bank tab, next to the gold display, and calls that same function, so the game decides what to deposit, just like in Retail.
 
 If the game doesn't offer auto deposit, the tool moves every trade good (cloth, herbs, ore and bars, leather, elementals, meat …) from your bags into the bank itself, onto existing stacks first. Grenades and devices stay in your bags. When the bank is full, the chat tells you how many stacks are left.
 
-- `/bia-bank deposit`: the same as the button, for bag addons that replace the bank window (the bank must be open)
+- `/bia bank deposit`: the same as the button, for bag addons that replace the bank window (the bank must be open)
 
-### Reagent Bag (`/bia-bags`)
+### Reagent Bag (`/bia bags`)
 
 Opens and closes the reagent bag together with your backpack. In WoW: Forever, **B** is bound to "Toggle Backpack" by default, which opens only the backpack (or the combined bags) but not the reagent bag; only "Open All Bags" (**Shift-B**) includes it. This tool adds the reagent bag to "Toggle Backpack", so **B**, **F12** and a click on the backpack button open it too. Your key bindings stay as they are.
 
-- `/bia-bags on` / `off`: turn it on or off
+- `/bia bags on` / `off`: turn it on or off
 
 ## Releasing a new version
 
@@ -104,7 +104,7 @@ BiAGuildTools/
 
 To add a tool, create a folder under `Modules/` and add its files to `BiAGuildTools.toc`.
 How a module is built is described at the top of `Core.lua`.
-`on`, `off` and `help` are reserved in every tool command.
+Each tool registers its command with `M:RegisterSlash("<name>", ...)` and is then reachable as `/bia <name>`. `on`, `off` and `help` are reserved in every tool command; `options`, `settings` and `help` can't be tool names.
 
 ## Translations
 

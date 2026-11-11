@@ -8,7 +8,7 @@ local M = ns:NewModule("version", {
     title = L.VER_TITLE,
     desc = L.VER_DESC,
     defaults = { members = {}, onlyOnline = true },
-    slashAllowsEmpty = true, -- /bia-version without argument opens the window
+    slashAllowsEmpty = true, -- /bia version without argument opens the window
 })
 
 local PREFIX = "BiaVer"           -- addon message prefix (max 16 chars)
@@ -149,7 +149,7 @@ ns.RosterTooltip.Register(function(info)
 end)
 
 ---------------------------------------------------------------------------
--- Window (/bia-version)
+-- Window (/bia version)
 ---------------------------------------------------------------------------
 local window
 
@@ -300,7 +300,7 @@ local function ToggleWindow()
 end
 
 ---------------------------------------------------------------------------
--- /bia-version
+-- /bia version
 ---------------------------------------------------------------------------
 M:RegisterSlash("version", function(msg, cmd)
     if cmd == "" then
@@ -309,7 +309,7 @@ M:RegisterSlash("version", function(msg, cmd)
         M.db.debug = not M.db.debug
         M:Print(L.DEBUG_TOGGLED:format(ns.OnOff(M.db.debug)))
     else
-        M:Print(L.VER_UNKNOWN_COMMAND:format("/bia-version help"))
+        M:Print(L.VER_UNKNOWN_COMMAND:format("/bia version help"))
     end
 end, {
     "– " .. L.VER_HELP_WINDOW,

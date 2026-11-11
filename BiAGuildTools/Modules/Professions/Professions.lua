@@ -386,7 +386,7 @@ local function HookCommunities()
 
     -- Entry "BiA: Professions" in the roster's column dropdown. Picking a Blizzard entry hides the
     -- column until the roster is opened again. (Blizzard hides that dropdown when it has fewer than
-    -- two entries of its own; then /bia-prof column is the switch.)
+    -- two entries of its own; then /bia prof column is the switch.)
     if Menu and Menu.ModifyMenu then
         Menu.ModifyMenu("MENU_COMMUNITIES_GUILD_MEMBER_LIST", function(_, root)
             if not M:IsEnabled() then return end
@@ -400,7 +400,7 @@ local function HookCommunities()
 end
 
 ---------------------------------------------------------------------------
--- /bia-prof
+-- /bia prof
 ---------------------------------------------------------------------------
 M:RegisterSlash("prof", function(msg, cmd)
     local db = M.db
@@ -429,7 +429,7 @@ M:RegisterSlash("prof", function(msg, cmd)
         M:SendGuild("R|" .. PROTOCOL)
         M:Print(L.PROF_SYNC_SENT)
     else
-        M:Print(L.PROF_UNKNOWN_COMMAND:format("/bia-prof help"))
+        M:Print(L.PROF_UNKNOWN_COMMAND:format("/bia prof help"))
     end
 end, {
     "column – " .. L.PROF_HELP_COLUMN,
@@ -439,7 +439,7 @@ end, {
     "debug – " .. L.PROF_HELP_DEBUG,
 })
 
--- Switches on the game's settings page (same as /bia-prof tooltip).
+-- Switches on the game's settings page (same as /bia prof tooltip).
 M.options = {
     { key = "showInTooltip", label = L.PROF_OPT_TOOLTIP },
 }
@@ -461,7 +461,7 @@ function M:OnLogin()
     end)
 end
 
--- Called by /bia-prof on | off: show or hide the column right away.
+-- Called by /bia prof on | off: show or hide the column right away.
 function M:OnToggle()
     ApplyColumn()
     RefreshRoster()

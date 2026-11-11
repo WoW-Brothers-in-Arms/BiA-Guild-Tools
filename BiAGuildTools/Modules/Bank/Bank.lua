@@ -150,7 +150,7 @@ end
 ---------------------------------------------------------------------------
 -- Button in the bank window, bottom left next to the gold display. It shows
 -- only on the character bank tab. Bag addons that replace the bank window hide it: use
--- /bia-bank deposit there.
+-- /bia bank deposit there.
 ---------------------------------------------------------------------------
 local function ButtonText()
     -- Blizzard's own (translated) label from Retail's button, if this client has it.
@@ -211,7 +211,7 @@ M:RegisterSlash("bank", function(msg, cmd)
     if cmd == "deposit" then
         M.Deposit()
     else
-        M:Print(L.BANK_UNKNOWN_COMMAND:format("/bia-bank help"))
+        M:Print(L.BANK_UNKNOWN_COMMAND:format("/bia bank help"))
     end
 end, {
     "deposit – " .. L.BANK_HELP_DEPOSIT,

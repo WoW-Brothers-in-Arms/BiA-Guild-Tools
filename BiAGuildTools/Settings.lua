@@ -68,7 +68,7 @@ function ns.CreateSettingsPanel()
         label:SetText(m.title)
 
         local cmds = {}
-        for _, c in ipairs(m.commands) do cmds[#cmds + 1] = "/bia-" .. c.name end
+        for _, c in ipairs(m.commands) do cmds[#cmds + 1] = c.cmd end
         local info = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         info:SetPoint("TOPLEFT", box, "BOTTOMLEFT", 30, 2)
         info:SetWidth(PAGE_WIDTH - 30)
