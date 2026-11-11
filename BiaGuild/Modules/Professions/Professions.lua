@@ -17,7 +17,7 @@ local PROTOCOL = "1"
 local STALE_SECONDS = 90 * 24 * 3600
 
 local lastSentPayload, lastSentAt = nil, 0
-local pendingBroadcast = false
+local pendingBroadcast, pendingForce = false, false
 local hookedRows = setmetatable({}, { __mode = "k" })
 
 ---------------------------------------------------------------------------
@@ -108,12 +108,16 @@ local function Broadcast(force)
     end
 end
 
+-- Only one broadcast is scheduled at a time. A forced request (e.g. answering "R") upgrades an
+-- already scheduled one, so it is not skipped as "unchanged since the last send".
 function QueueBroadcast(delay, force)
+    if force then pendingForce = true end
     if pendingBroadcast then return end
     pendingBroadcast = true
     After(delay or 5, function()
-        pendingBroadcast = false
-        Broadcast(force)
+        local forced = pendingForce
+        pendingBroadcast, pendingForce = false, false
+        Broadcast(forced)
     end)
 end
 
