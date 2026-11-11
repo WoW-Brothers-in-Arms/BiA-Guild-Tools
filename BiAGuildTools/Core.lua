@@ -5,21 +5,17 @@
 --   local M = ns:NewModule("professions", { title = "Guild Professions", desc = "...", defaults = { ... } })
 --   M:RegisterEvent("SOME_EVENT", function(...) end)
 --   M:RegisterComm("BiaXyz", function(text, channel, sender) end)
---   M:RegisterSlash("prof", handler, { "<arg> – help line", ... })   -- creates /bia-prof
+--   M:RegisterSlash("prof", handler, { "<arg> – help line", ... })   -- creates /bia prof
 --   function M:OnLogin() ... end                                     -- M.db is ready here
---   Optional: enabledByDefault = false | function() return not ns.IsRetail end
+--   Optional: enabledByDefault = false
 --   Optional: formerKey = "old"   -- saved data and on/off choice are moved over from that key
+--   Optional: M.options = { { key = "dbField", label = "...", onChange = fn }, ... }
+--             -- boolean settings in M.db, shown as checkboxes on the settings page
 local ADDON, ns = ...
 local L = ns.L
 _G.BiAGuildTools = ns
 
 ns.modules, ns.moduleOrder = {}, {}
-
--- Which game client is running: WoW: Forever (interface 16xxx) or Retail.
-local interface = select(4, GetBuildInfo()) or 0
-ns.IsForever = interface >= 16000 and interface < 17000
-ns.IsRetail = not ns.IsForever and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
-ns.ClientName = ns.IsForever and "Forever" or (ns.IsRetail and "Retail" or "Classic")
 
 -- This addon's version from the TOC ("## Version:").
 local getMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
@@ -107,12 +103,10 @@ function Module:Print(msg)
 end
 
 function Module:IsEnabledByDefault()
-    local d = self.enabledByDefault
-    if type(d) == "function" then return d() and true or false end
-    return d ~= false
+    return self.enabledByDefault ~= false
 end
 
--- An explicit /bia-<tool> on | off wins; otherwise the module's default for this client applies.
+-- An explicit /bia <tool> on | off wins; otherwise the module's default applies.
 function Module:IsEnabled()
     local choice = BiAGuildToolsDB and BiAGuildToolsDB.enabled and BiAGuildToolsDB.enabled[self.key]
     if choice ~= nil then return choice end
@@ -139,7 +133,7 @@ function Module:RegisterComm(prefix, fn)
     end
 end
 
--- Prints only while the module's debug output is on (/bia-<tool> debug).
+-- Prints only while the module's debug output is on (/bia <tool> debug).
 function Module:Debug(msg)
     if self.db and self.db.debug then
         -- "||" shows a literal "|" (otherwise the chat reads e.g. "|1" or "|R" in messages as codes).
@@ -184,13 +178,18 @@ function Module:SetEnabled(on)
     self:Print(ns.OnOff(on))
 end
 
--- Creates the chat command /bia-<name>.
--- help: list of lines shown by /bia-<name> help. "on", "off" and "help" are handled here for every module.
+-- Tools reachable as /bia <name>: name -> { name, cmd, help, run }.
+local slashTools = {}
+local RESERVED = { options = true, settings = true, help = true }
+
+-- Creates the chat command /bia <name> (one /bia command; the first word picks the tool).
+-- help: list of lines shown by /bia <name> help. "on", "off" and "help" are handled here for every module.
 function Module:RegisterSlash(name, handler, help)
-    local id = "BIAGUILD_" .. name:upper():gsub("[^%w]", "_")
-    local cmd = "/bia-" .. name
-    _G["SLASH_" .. id .. "1"] = cmd
-    SlashCmdList[id] = function(msg)
+    name = name:lower()
+    assert(not slashTools[name] and not RESERVED[name], "BiAGuildTools: command taken: " .. name)
+    local cmd = "/bia " .. name
+    local entry = { name = name, cmd = cmd, help = help }
+    entry.run = function(msg)
         msg = strtrim(msg or "")
         local lower = msg:lower()
         if lower == "on" or lower == "off" then
@@ -209,33 +208,35 @@ function Module:RegisterSlash(name, handler, help)
         end
         handler(msg, lower)
     end
-    table.insert(self.commands, { name = name, help = help })
+    slashTools[name] = entry
+    table.insert(self.commands, entry)
 end
 
 ---------------------------------------------------------------------------
 -- /bia – overview
 ---------------------------------------------------------------------------
 local function ShowOverview()
-    ns.Print(L.OVERVIEW_HEADER:format("/bia-<tool> help"))
+    ns.Print(L.OVERVIEW_HEADER:format("/bia <tool> help"))
     for _, m in ipairs(ns.moduleOrder) do
         local state = ns.OnOff(m:IsEnabled())
-        if BiAGuildToolsDB.enabled[m.key] == nil and not m:IsEnabledByDefault() then
-            state = state .. " " .. L.OVERVIEW_DEFAULT_IN:format(ns.ClientName)
-        end
         local cmds = {}
-        for _, c in ipairs(m.commands) do cmds[#cmds + 1] = "/bia-" .. c.name end
+        for _, c in ipairs(m.commands) do cmds[#cmds + 1] = c.cmd end
         DEFAULT_CHAT_FRAME:AddMessage(("  %s%s|r %s – %s"):format(COLOR, m.title, state, m.desc or ""))
         if #cmds > 0 then DEFAULT_CHAT_FRAME:AddMessage("     " .. table.concat(cmds, ", ")) end
     end
-    DEFAULT_CHAT_FRAME:AddMessage("  " .. L.OVERVIEW_FOOTER:format("/bia-<tool> on | off", "/bia options"))
+    DEFAULT_CHAT_FRAME:AddMessage("  " .. L.OVERVIEW_FOOTER:format("/bia <tool> on | off", "/bia options"))
 end
 
 SLASH_BIAGUILD1 = "/bia"
 SlashCmdList.BIAGUILD = function(msg)
-    local cmd = strtrim(msg or ""):lower()
-    if cmd == "options" or cmd == "settings" then
+    local word, rest = strtrim(msg or ""):match("^(%S*)%s*(.-)$")
+    word = (word or ""):lower()
+    if word == "options" or word == "settings" then
         ns.OpenSettings()
+    elseif slashTools[word] then
+        slashTools[word].run(rest)
     else
+        if word ~= "" and word ~= "help" then ns.Print(L.UNKNOWN_TOOL:format(word)) end
         ShowOverview()
     end
 end

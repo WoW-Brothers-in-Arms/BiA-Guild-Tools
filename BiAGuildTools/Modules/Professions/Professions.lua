@@ -9,9 +9,7 @@ local M = ns:NewModule("professions", {
     title = L.PROF_TITLE,
     desc = L.PROF_DESC,
     formerKey = "berufe", -- key up to 1.0.x
-    -- Retail shows guild professions natively, so the tool starts switched off there.
-    enabledByDefault = function() return not ns.IsRetail end,
-    defaults = { members = {}, showInTooltip = true, showSecondary = false, column = true },
+    defaults = { members = {}, showInTooltip = true, column = true },
 })
 
 local PREFIX = "BiaGProf"        -- addon message prefix (max 16 chars)
@@ -226,7 +224,7 @@ local function ColumnActive()
 end
 
 local function ColumnText(info)
-    local shown = SortedForDisplay(MemberProfessions(info), M.db.showSecondary)
+    local shown = SortedForDisplay(MemberProfessions(info), false) -- column: main professions only
     if #shown == 0 then return "|cff707070–|r" end
     local parts = {}
     for i, p in ipairs(shown) do
@@ -388,7 +386,7 @@ local function HookCommunities()
 
     -- Entry "BiA: Professions" in the roster's column dropdown. Picking a Blizzard entry hides the
     -- column until the roster is opened again. (Blizzard hides that dropdown when it has fewer than
-    -- two entries of its own; then /bia-prof column is the switch.)
+    -- two entries of its own; then /bia prof column is the switch.)
     if Menu and Menu.ModifyMenu then
         Menu.ModifyMenu("MENU_COMMUNITIES_GUILD_MEMBER_LIST", function(_, root)
             if not M:IsEnabled() then return end
@@ -402,57 +400,11 @@ local function HookCommunities()
 end
 
 ---------------------------------------------------------------------------
--- /bia-prof
+-- /bia prof
 ---------------------------------------------------------------------------
-local function OnlineNames()
-    local online = {}
-    if not GetNumGuildMembers then return online end
-    for i = 1, GetNumGuildMembers() do
-        local name, _, _, _, _, _, _, _, isOnline = GetGuildRosterInfo(i)
-        if Readable(name) and name then online[Ambiguate(name, "none")] = isOnline and true or false end
-    end
-    return online
-end
-
-local function ListProfession(query)
-    local id = D.BY_NAME[query:lower()]
-    if not id then
-        for name, pid in pairs(D.BY_NAME) do
-            if name:find(query:lower(), 1, true) then id = pid break end
-        end
-    end
-    if not id then
-        M:Print(L.PROF_UNKNOWN:format(query))
-        return
-    end
-
-    local online = OnlineNames()
-    local rows = {}
-    for _, entry in pairs(M.db.members) do
-        for _, p in ipairs(entry.profs or {}) do
-            if p.id == id then
-                local short = Ambiguate(entry.name or "?", "none")
-                if online[short] ~= nil then rows[#rows + 1] = { name = short, rank = p.rank, max = p.max, on = online[short] } end
-            end
-        end
-    end
-    table.sort(rows, function(a, b) return a.rank > b.rank end)
-
-    M:Print(D.ProfessionName(id) .. " (" .. #rows .. "):")
-    if #rows == 0 then DEFAULT_CHAT_FRAME:AddMessage("  " .. L.PROF_NOBODY_KNOWN) end
-    for _, r in ipairs(rows) do
-        local color = r.on and "|cff40ff40" or "|cff909090"
-        DEFAULT_CHAT_FRAME:AddMessage(("  %s%s|r  %d/%d"):format(color, r.name, r.rank, r.max))
-    end
-end
-
 M:RegisterSlash("prof", function(msg, cmd)
     local db = M.db
-    if cmd == "secondary" then
-        db.showSecondary = not db.showSecondary
-        M:Print(L.PROF_SECONDARY_TOGGLED:format(ns.OnOff(db.showSecondary)))
-        RefreshRoster()
-    elseif cmd == "column" then
+    if cmd == "column" then
         db.column = not db.column
         M:Print(L.PROF_COLUMN_TOGGLED:format(ns.OnOff(db.column)))
         ApplyColumn()
@@ -477,11 +429,9 @@ M:RegisterSlash("prof", function(msg, cmd)
         M:SendGuild("R|" .. PROTOCOL)
         M:Print(L.PROF_SYNC_SENT)
     else
-        ListProfession(msg)
+        M:Print(L.PROF_UNKNOWN_COMMAND:format("/bia prof help"))
     end
 end, {
-    L.PROF_HELP_ARG .. " – " .. L.PROF_HELP_QUERY:format(D.ProfessionName(171)),
-    "secondary – " .. L.PROF_HELP_SECONDARY,
     "column – " .. L.PROF_HELP_COLUMN,
     "tooltip – " .. L.PROF_HELP_TOOLTIP,
     "sync – " .. L.PROF_HELP_SYNC,
@@ -489,11 +439,17 @@ end, {
     "debug – " .. L.PROF_HELP_DEBUG,
 })
 
+-- Switches on the game's settings page (same as /bia prof tooltip).
+M.options = {
+    { key = "showInTooltip", label = L.PROF_OPT_TOOLTIP },
+}
+
 ---------------------------------------------------------------------------
 -- Lifecycle
 ---------------------------------------------------------------------------
 function M:OnLogin()
     self.db.showInList = nil -- setting from 1.3.0 (icons next to the name were removed)
+    self.db.showSecondary = nil -- setting up to 1.0.x (secondary professions in the column were removed)
     local cutoff = time() - STALE_SECONDS
     for guid, entry in pairs(self.db.members) do
         if type(entry) ~= "table" or (entry.t or 0) < cutoff then self.db.members[guid] = nil end
@@ -505,7 +461,7 @@ function M:OnLogin()
     end)
 end
 
--- Called by /bia-prof on | off: show or hide the column right away.
+-- Called by /bia prof on | off: show or hide the column right away.
 function M:OnToggle()
     ApplyColumn()
     RefreshRoster()

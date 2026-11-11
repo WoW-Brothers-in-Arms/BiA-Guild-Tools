@@ -1,7 +1,7 @@
 # BiA Guild Tools
 
 A collection of small World of Warcraft tools for the guild **Brothers in Arms (BiA)**.
-Runs in **WoW: Forever** (interface 16001) and in **Retail** (12.x).
+Runs in **World of Warcraft: Forever** (interface 16001) only.
 
 ## Installation
 
@@ -11,14 +11,12 @@ Runs in **WoW: Forever** (interface 16001) and in **Retail** (12.x).
 
 **Manually:** download `BiAGuildTools-x.y.z.zip` from the [releases](https://github.com/WoW-Brothers-in-Arms/BiA-Guild-Tools/releases/latest), unzip it and copy the `BiAGuildTools` folder into the game's AddOns folder:
 
-- Forever: `World of Warcraft/_forever_/Interface/AddOns/BiAGuildTools`
-- Retail: `World of Warcraft/_retail_/Interface/AddOns/BiAGuildTools`
+`World of Warcraft/_forever_/Interface/AddOns/BiAGuildTools`
 
 For development, a symlink to the folder in this repo is more convenient:
 
 ```bash
 ln -s "$PWD/BiAGuildTools" "/Applications/World of Warcraft/_forever_/Interface/AddOns/BiAGuildTools"
-ln -s "$PWD/BiAGuildTools" "/Applications/World of Warcraft/_retail_/Interface/AddOns/BiAGuildTools"
 ```
 
 **Upgrading from 1.0.x:** the addon folder used to be called `BiaGuild`. Delete `Interface/AddOns/BiaGuild` after installing. If it is still there on your next login, BiA Guild Tools takes over your settings from it, turns it off and reminds you to delete it.
@@ -28,37 +26,49 @@ ln -s "$PWD/BiAGuildTools" "/Applications/World of Warcraft/_retail_/Interface/A
 | Command | What it does |
 |---|---|
 | `/bia` | Overview of all tools, whether they are on or off, and their commands |
-| `/bia-<tool> on` / `off` | Turn a tool on or off right away |
-| `/bia-<tool> help` | Show the tool's commands |
+| `/bia <tool> on` / `off` | Turn a tool on or off right away |
+| `/bia <tool> help` | Show the tool's commands |
 | `/bia options` | Open the settings page |
 
 The game's settings (Esc → Options → AddOns → BiA Guild Tools) show the version and description, and each tool can be turned on or off there.
 
 ## Tools
 
-### Guild Professions (`/bia-prof`)
+### Guild Professions (`/bia prof`)
 
 Shows guild members' professions in the guild roster: as its own **Professions** column in the full roster and with skill levels in the tooltip.
 The game does not pass other players' professions to addons. So every member running BiA Guild Tools sends their professions to the guild via addon message. **Skill levels only show for members who use the addon.**
 
-- `/bia-prof <profession>`: who in the guild has that profession, e.g. `/bia-prof Alchemy`
-- `/bia-prof column`: Professions column in the guild roster on/off
-- `/bia-prof secondary`: also show Cooking, Fishing and First Aid in the column
-- `/bia-prof tooltip`: professions in the tooltip on/off
-- `/bia-prof sync`: request fresh data from the guild
-- `/bia-prof status`: show stored data of other members
-- `/bia-prof debug`: log addon messages in chat (for troubleshooting)
+- `/bia prof column`: Professions column in the guild roster on/off
+- `/bia prof tooltip`: professions in the tooltip on/off
+- `/bia prof sync`: request fresh data from the guild
+- `/bia prof status`: show stored data of other members
+- `/bia prof debug`: log addon messages in chat (for troubleshooting)
 
-This tool is off by default in Retail.
+The tooltip can also be switched on the settings page (Esc → Options → AddOns → BiA Guild Tools).
 
-### Addon Versions (`/bia-version`)
+### Addon Versions (`/bia version`)
 
 Shows which guild members run which version of BiA Guild Tools. When a member has a newer version than you, you get a hint in chat once per session. The guild roster tooltip shows the version of members who use the addon.
 
-- `/bia-version`: open the overview window (online members only, or everyone with the checkbox; green = newest, yellow = outdated, grey = no answer)
-- `/bia-version debug`: log addon messages in chat (for troubleshooting)
+- `/bia version`: open the overview window (online members only, or everyone with the checkbox; green = newest, yellow = outdated, grey = no answer)
+- `/bia version debug`: log addon messages in chat (for troubleshooting)
 
 Members still on 1.0.x show as "–" (no answer), since those versions don't answer yet.
+
+### Deposit Reagents (`/bia bank`)
+
+Adds the **Deposit Reagents** button from Retail to your bank. WoW: Forever runs the modern bank window and the game function behind Retail's button, but leaves the button out. The button sits at the bottom left of the character bank tab, next to the gold display, and calls that same function, so the game decides what to deposit, just like in Retail.
+
+If the game doesn't offer auto deposit, the tool moves every trade good (cloth, herbs, ore and bars, leather, elementals, meat …) from your bags into the bank itself, onto existing stacks first. Grenades and devices stay in your bags. When the bank is full, the chat tells you how many stacks are left.
+
+- `/bia bank deposit`: the same as the button, for bag addons that replace the bank window (the bank must be open)
+
+### Reagent Bag (`/bia bags`)
+
+Opens and closes the reagent bag together with your backpack. In WoW: Forever, **B** is bound to "Toggle Backpack" by default, which opens only the backpack (or the combined bags) but not the reagent bag; only "Open All Bags" (**Shift-B**) includes it. This tool adds the reagent bag to "Toggle Backpack", so **B**, **F12** and a click on the backpack button open it too. Your key bindings stay as they are.
+
+- `/bia bags on` / `off`: turn it on or off
 
 ## Releasing a new version
 
@@ -74,7 +84,7 @@ The CurseForge upload needs, under the repository's Settings → Secrets and var
 - secret `CF_API_KEY`: a token from curseforge.com → Account → API Tokens
 - variable `CF_PROJECT_ID`: the project ID from the CurseForge project page ("About Project")
 
-Without them the upload is skipped. The game versions come from `## Interface:` in the TOC (`120105` → `12.1.5`); versions CurseForge doesn't list are skipped with a warning.
+Without them the upload is skipped. The game versions come from `## Interface:` in the TOC (`16001` → `1.60.1`); versions CurseForge doesn't list are skipped with a warning.
 
 ## Structure
 
@@ -88,16 +98,17 @@ BiAGuildTools/
 ├── Media/Icon.tga        ← icon in the addon list (guild crest from the bia-2 portal, 64×64)
 └── Modules/
     ├── Professions/      ← module "professions"
-    └── Version/          ← module "version"
+    ├── Version/          ← module "version"
+    └── Bank/             ← module "bank"
 ```
 
 To add a tool, create a folder under `Modules/` and add its files to `BiAGuildTools.toc`.
 How a module is built is described at the top of `Core.lua`.
-`on`, `off` and `help` are reserved in every tool command.
+Each tool registers its command with `M:RegisterSlash("<name>", ...)` and is then reachable as `/bia <name>`. `on`, `off` and `help` are reserved in every tool command; `options`, `settings` and `help` can't be tool names.
 
 ## Translations
 
-Texts shown to players live in `Locales/` and are used by key, e.g. `L.PROF_UNKNOWN:format(name)`.
+Texts shown to players live in `Locales/` and are used by key, e.g. `L.PROF_STATUS_COUNT:format(n)`.
 
 - `enUS.lua` holds every key in English and is always loaded.
 - `deDE.lua` overwrites the keys it translates when the client runs in German. A key missing there shows in English.

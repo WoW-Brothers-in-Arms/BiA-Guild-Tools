@@ -1,9 +1,9 @@
-## Interface: 16001, 120105, 120107
+## Interface: 16001
 ## Title: |cff66ccffBiA|r Guild Tools
-## Notes: A collection of small tools for the guild Brothers in Arms. Overview: /bia
-## Notes-deDE: Sammlung kleiner Tools für die Gilde Brothers in Arms. Übersicht: /bia
+## Notes: BiA Guild Tools – A small collection of quality-of-life tools for World of Warcraft: Forever
+## Notes-deDE: BiA Guild Tools – Eine kleine Sammlung von Komfort-Tools für World of Warcraft: Forever
 ## Author: Paul
-## Version: 1.0.1
+## Version: 1.1.0-DEV
 ## SavedVariables: BiAGuildToolsDB
 ## IconTexture: Interface\AddOns\BiAGuildTools\Media\Icon
 
@@ -19,3 +19,5 @@ RosterTooltip.lua
 Modules\Professions\Data.lua
 Modules\Professions\Professions.lua
 Modules\Version\Version.lua
+Modules\Bank\Bank.lua
+Modules\Bags\Bags.lua
