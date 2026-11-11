@@ -404,48 +404,6 @@ end
 ---------------------------------------------------------------------------
 -- /bia-prof
 ---------------------------------------------------------------------------
-local function OnlineNames()
-    local online = {}
-    if not GetNumGuildMembers then return online end
-    for i = 1, GetNumGuildMembers() do
-        local name, _, _, _, _, _, _, _, isOnline = GetGuildRosterInfo(i)
-        if Readable(name) and name then online[Ambiguate(name, "none")] = isOnline and true or false end
-    end
-    return online
-end
-
-local function ListProfession(query)
-    local id = D.BY_NAME[query:lower()]
-    if not id then
-        for name, pid in pairs(D.BY_NAME) do
-            if name:find(query:lower(), 1, true) then id = pid break end
-        end
-    end
-    if not id then
-        M:Print(L.PROF_UNKNOWN:format(query))
-        return
-    end
-
-    local online = OnlineNames()
-    local rows = {}
-    for _, entry in pairs(M.db.members) do
-        for _, p in ipairs(entry.profs or {}) do
-            if p.id == id then
-                local short = Ambiguate(entry.name or "?", "none")
-                if online[short] ~= nil then rows[#rows + 1] = { name = short, rank = p.rank, max = p.max, on = online[short] } end
-            end
-        end
-    end
-    table.sort(rows, function(a, b) return a.rank > b.rank end)
-
-    M:Print(D.ProfessionName(id) .. " (" .. #rows .. "):")
-    if #rows == 0 then DEFAULT_CHAT_FRAME:AddMessage("  " .. L.PROF_NOBODY_KNOWN) end
-    for _, r in ipairs(rows) do
-        local color = r.on and "|cff40ff40" or "|cff909090"
-        DEFAULT_CHAT_FRAME:AddMessage(("  %s%s|r  %d/%d"):format(color, r.name, r.rank, r.max))
-    end
-end
-
 M:RegisterSlash("prof", function(msg, cmd)
     local db = M.db
     if cmd == "secondary" then
@@ -477,10 +435,9 @@ M:RegisterSlash("prof", function(msg, cmd)
         M:SendGuild("R|" .. PROTOCOL)
         M:Print(L.PROF_SYNC_SENT)
     else
-        ListProfession(msg)
+        M:Print(L.PROF_UNKNOWN_COMMAND:format("/bia-prof help"))
     end
 end, {
-    L.PROF_HELP_ARG .. " – " .. L.PROF_HELP_QUERY:format(D.ProfessionName(171)),
     "secondary – " .. L.PROF_HELP_SECONDARY,
     "column – " .. L.PROF_HELP_COLUMN,
     "tooltip – " .. L.PROF_HELP_TOOLTIP,

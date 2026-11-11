@@ -41,7 +41,6 @@ The game's settings (Esc → Options → AddOns → BiA Guild Tools) show the ve
 Shows guild members' professions in the guild roster: as its own **Professions** column in the full roster and with skill levels in the tooltip.
 The game does not pass other players' professions to addons. So every member running BiA Guild Tools sends their professions to the guild via addon message. **Skill levels only show for members who use the addon.**
 
-- `/bia-prof <profession>`: who in the guild has that profession, e.g. `/bia-prof Alchemy`
 - `/bia-prof column`: Professions column in the guild roster on/off
 - `/bia-prof secondary`: also show Cooking, Fishing and First Aid in the column
 - `/bia-prof tooltip`: professions in the tooltip on/off
@@ -116,7 +115,7 @@ How a module is built is described at the top of `Core.lua`.
 
 ## Translations
 
-Texts shown to players live in `Locales/` and are used by key, e.g. `L.PROF_UNKNOWN:format(name)`.
+Texts shown to players live in `Locales/` and are used by key, e.g. `L.PROF_STATUS_COUNT:format(n)`.
 
 - `enUS.lua` holds every key in English and is always loaded.
 - `deDE.lua` overwrites the keys it translates when the client runs in German. A key missing there shows in English.
