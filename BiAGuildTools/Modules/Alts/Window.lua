@@ -1,5 +1,6 @@
 -- Window.lua: the Alts overview (/bia alts). Your own characters on top (the crown picks your main),
--- below the guild grouped by player, members without BiA Guild Tools at the end.
+-- below the guild grouped by player, members without BiA Guild Tools at the end. Guild master and
+-- officers assign mains for others with a right-click on a guild row.
 local _, ns = ...
 local L = ns.L
 local G = ns.AltGroups
@@ -9,6 +10,64 @@ local ROW_HEIGHT = 18
 local CROWN = "Interface\\GroupFrame\\UI-Group-LeaderIcon"
 local ONLINE = "Interface\\FriendsFrame\\StatusIcon-Online"
 local window
+local pickGuid -- officer pick mode: the character whose main is picked with the next click
+local GUILD_ROWS = { main = true, alt = true, nodata = true }
+
+local function NameOf(guid)
+    local member = M.Roster()[guid]
+    return member and (member.name:match("^[^%-]+") or member.name) or "?"
+end
+
+local function EndPick()
+    pickGuid = nil
+    if not window then return end
+    window.PickText:Hide()
+    window.Online:Show()
+    window.OnlineLabel:Show()
+end
+
+local function StartPick(guid)
+    pickGuid = guid
+    window.Online:Hide()
+    window.OnlineLabel:Hide()
+    window.PickText:SetText(L.ALTS_ASSIGN_PICK:format(NameOf(guid)))
+    window.PickText:Show()
+end
+
+local function OpenAssignMenu(row, guid)
+    MenuUtil.CreateContextMenu(row, function(_, root)
+        root:CreateTitle(NameOf(guid))
+        local buttons = {
+            root:CreateButton(L.ALTS_ASSIGN_ALT_OF, function() StartPick(guid) end),
+            root:CreateButton(L.ALTS_ASSIGN_MAIN, function() M.Assign(guid, guid) end),
+        }
+        local entry = M.db.assigned[guid]
+        if entry and entry.main then
+            buttons[#buttons + 1] = root:CreateButton(L.ALTS_ASSIGN_REMOVE, function() M.Assign(guid, false) end)
+        end
+        if M.IsSelfReported(guid) then
+            for _, button in ipairs(buttons) do
+                button:SetEnabled(false)
+                button:SetTooltip(function(tooltip) tooltip:SetText(L.ALTS_ASSIGN_SELF) end)
+            end
+        end
+    end)
+end
+
+local function OnRowClick(row, button)
+    local data = row.data
+    if not data then return end
+    if pickGuid then
+        if button == "LeftButton" and GUILD_ROWS[data.kind] and data.guid ~= pickGuid then
+            M.Assign(pickGuid, data.guid)
+        end
+        EndPick()
+        return
+    end
+    if button == "RightButton" and GUILD_ROWS[data.kind] and M.CanAssign() then
+        OpenAssignMenu(row, data.guid)
+    end
+end
 
 local function Rows()
     local roster, own = M.Roster(), M.OwnView()
@@ -56,7 +115,13 @@ local function InitRow(row, data)
             GameTooltip:Show()
         end)
         row.Crown:SetScript("OnLeave", GameTooltip_Hide)
+        row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        row:SetScript("OnClick", OnRowClick)
+        row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
     end
+    row.data = data
+    -- Only rows an officer can click (to assign) light up on hover.
+    row:GetHighlightTexture():SetAlpha((GUILD_ROWS[data.kind] and M.CanAssign()) and 1 or 0)
 
     local member = data.guid and M.Roster()[data.guid]
     if data.guid and not member then -- stale row (roster changed since the list was built)
@@ -142,6 +207,14 @@ local function CreateWindow()
     local onlineLabel = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     onlineLabel:SetPoint("LEFT", online, "RIGHT", 2, 0)
     onlineLabel:SetText(L.ALTS_ONLY_ONLINE)
+    f.Online, f.OnlineLabel = online, onlineLabel
+
+    -- Replaces the checkbox line while an officer picks a main (Esc closes the window and ends it).
+    f.PickText = f:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    f.PickText:SetPoint("TOPLEFT", 16, -34)
+    f.PickText:SetPoint("TOPRIGHT", -16, -34)
+    f.PickText:SetJustifyH("LEFT")
+    f.PickText:Hide()
 
     local scroll = CreateFrame("Frame", nil, f, "WowScrollBoxList")
     scroll:SetPoint("TOPLEFT", 14, -56)
@@ -151,7 +224,7 @@ local function CreateWindow()
     bar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 6, 0)
     local view = CreateScrollBoxListLinearView()
     view:SetElementExtent(ROW_HEIGHT)
-    view:SetElementInitializer("Frame", InitRow)
+    view:SetElementInitializer("Button", InitRow)
     ScrollUtil.InitScrollBoxListWithScrollBar(scroll, bar, view)
     f.Scroll = scroll
 
@@ -159,6 +232,7 @@ local function CreateWindow()
         if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
         Refresh()
     end)
+    f:SetScript("OnHide", EndPick)
     f:Hide() -- frames are created shown; ToggleWindow shows it (and runs OnShow)
     return f
 end
