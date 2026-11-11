@@ -43,7 +43,9 @@ db.assigned = {                     -- module DB, account-wide, shared across ow
 ```
 
 - Removal is a tombstone (`main = false`) so another officer's client doesn't send the old entry back.
-- Entries (including tombstones) not received for 90 days are pruned (same `STALE_SECONDS`).
+- Entries not received for 90 days are pruned (same `STALE_SECONDS`); tombstones also once their `t`
+  is older than 90 days. A client ignores its own messages coming back, and only characters in the
+  roster are shared, so entries of characters that left the guild expire.
 
 ## Wire format
 
@@ -58,12 +60,13 @@ Same prefix `BiaAlts`, new kind `A`:
   names the original officer. It is only trusted because the relaying sender is itself rank 0/1.
 
 **Sending:**
-- Rank 0/1 clients send all non-expired entries 10 s after the first roster update (together with
+- Rank 0/1 clients send all non-expired entries 5 s after the first roster update (together with
   the existing group broadcast), and in reply to `R|1` (same random 2–10 s delay and 30 s cooldown).
+  A share still being sent is not restarted (it already reaches everyone).
 - On a change in the window: only the changed entry, right away.
 
-**Receiving:** sender → roster GUID (same name lookup as groups) → `rankIndex <= 1`, else drop the
-whole message. Per entry: store if there is no entry or its `t` is older.
+**Receiving:** sender → roster GUID (by name; when several members share it, by name and realm; still
+ambiguous → drop) → `rankIndex <= 1`, else drop the whole message. Per entry: store if there is no entry or its `t` is older.
 
 ## Effective groups (pure function in `Groups.lua`)
 
@@ -76,7 +79,8 @@ window, `GroupOf`):
    - `main == char`: ensure a group keyed `char` exists (chosen = true, `assigned = true`).
    - otherwise: add `char` to the group of `main` – the self-reported group if `main` has one (as
      main or alt: then the alt joins *that* group's main), else an assigned group keyed `main`
-     (created with chosen = true, `assigned = true`).
+     (created with chosen = true, `assigned = true`). If `main` is itself an assigned alt, its chain
+     is followed to the end; cycles are skipped.
 4. Assigned groups and assigned alts carry `assignedBy[guid] = by` for the tooltip.
 
 Result is cached and rebuilt on any change (groups, assignments, roster).
@@ -88,7 +92,8 @@ Result is cached and rebuilt on any change (groups, assignments, roster).
 - Right-click on a guild row (main, alt or no-data) opens a menu (`MenuUtil.CreateContextMenu`,
   verify on the `forever` branch):
   - **"Alt of …"** – enters pick mode: a line at the top says "Click the main for <name> – Esc to
-    cancel"; the next left-click on a row assigns; Esc or right-click cancels.
+    cancel"; the next left-click on a row assigns; Esc or right-click cancels. Picking the character's own
+    alt swaps them: that alt becomes the main.
   - **"Mark as main"**
   - **"Remove assignment"** – only when the character has an assignment (not a tombstone).
   - For characters in a self-reported group all entries are disabled with the tooltip "The player

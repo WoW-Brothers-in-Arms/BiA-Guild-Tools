@@ -326,6 +326,14 @@ describe("AltGroups", function()
             assert.is_not_nil(assigned[B])
         end)
 
+        it("PruneAssign drops removals older than the maximum age even when seen lately", function()
+            local now = 1000 + 91 * DAY
+            local assigned = { [A] = { main = false, by = D, t = 1000, seen = now }, [B] = { main = A, by = D, t = 1000, seen = now } }
+            G.PruneAssign(assigned, now, 90 * DAY)
+            assert.is_nil(assigned[A])
+            assert.is_not_nil(assigned[B])
+        end)
+
         describe("Effective", function()
             local E = "Player-1-0000EEEE"
 
@@ -360,13 +368,23 @@ describe("AltGroups", function()
                 assert.is_nil(eff[B])
             end)
 
-            it("follows an assigned main once and skips cycles", function()
+            it("skips cycles and follows an assigned main", function()
                 local eff = G.Effective({}, { [B] = entry(C, 5), [C] = entry(B, 5) })
                 assert.same({}, G.Index(eff))
                 eff = G.Effective({}, { [B] = entry(A, 5), [E] = entry(B, 5) })
                 table.sort(eff[A].alts)
                 assert.same({ B, E }, eff[A].alts)
                 assert.is_nil(eff[B])
+            end)
+
+            it("follows assigned chains of any length", function()
+                local eff = G.Effective({}, { [E] = entry(B, 5), [B] = entry(C, 5), [C] = entry(A, 5) })
+                table.sort(eff[A].alts)
+                local want = { B, C, E }
+                table.sort(want)
+                assert.same(want, eff[A].alts)
+                eff = G.Effective({}, { [E] = entry(B, 5), [B] = entry(C, 5), [C] = entry(B, 5) })
+                assert.same({}, G.Index(eff))
             end)
 
             it("ignores removed entries", function()

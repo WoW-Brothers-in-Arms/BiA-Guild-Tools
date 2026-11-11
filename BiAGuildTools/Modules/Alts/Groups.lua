@@ -298,9 +298,12 @@ function G.MergeAssign(assigned, entry, now)
     return true
 end
 
+-- Drops entries not received for maxAge, and removals older than maxAge (nobody needs them any more).
 function G.PruneAssign(assigned, now, maxAge)
     for char, entry in pairs(assigned) do
-        if (entry.seen or 0) < now - maxAge then assigned[char] = nil end
+        if (entry.seen or 0) < now - maxAge or (entry.main == false and entry.t < now - maxAge) then
+            assigned[char] = nil
+        end
     end
 end
 
@@ -321,15 +324,17 @@ function G.Effective(groups, assigned)
         return e and e.main and e.main ~= guid and not groupOf[guid]
     end
 
-    -- The main an alt assigned to m ends up with: follows a self-reported group, or one assigned hop.
+    -- The main an alt assigned to m ends up with: follows assigned mains until a self-reported group or
+    -- a character that isn't an assigned alt. nil for cycles.
     local function Target(char, m)
-        if groupOf[m] then return groupOf[m].main end
-        if not IsAssignedAlt(m) then return m end
-        local next = assigned[m].main
-        if next == char then return nil end            -- cycle
-        if groupOf[next] then return groupOf[next].main end
-        if IsAssignedAlt(next) then return nil end     -- longer chain
-        return next
+        local visited = { [char] = true }
+        while true do
+            if groupOf[m] then return groupOf[m].main end
+            if not IsAssignedAlt(m) then return m end
+            visited[m] = true
+            m = assigned[m].main
+            if visited[m] then return nil end
+        end
     end
 
     local function Ensure(m)

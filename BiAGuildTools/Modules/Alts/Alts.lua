@@ -49,11 +49,26 @@ function M.Roster()
     return r
 end
 
+-- "Name-Realm", lowercased; adds our realm when name has none. Accepts "Name Realm" (Forever's sender).
+local function FullName(name)
+    local base, realm = name:match("^([^%-%s]+)[%-%s](.+)$")
+    if not base then base, realm = name, GetNormalizedRealmName and GetNormalizedRealmName() or "" end
+    return (base .. "-" .. realm:gsub("%s", "")):lower()
+end
+
+-- The roster GUID of a sender. nil when no member or (by name alone) several members match.
 local function RosterGuidByName(name)
-    local short = ShortName(name)
+    local short, found, count = ShortName(name), nil, 0
     for guid, member in pairs(M.Roster()) do
-        if ShortName(member.name) == short then return guid end
+        if ShortName(member.name) == short then found, count = guid, count + 1 end
     end
+    if count <= 1 then return found end
+    local full = FullName(name)
+    found, count = nil, 0
+    for guid, member in pairs(M.Roster()) do
+        if FullName(member.name) == full then found, count = guid, count + 1 end
+    end
+    if count == 1 then return found end
 end
 
 ---------------------------------------------------------------------------
@@ -238,7 +253,7 @@ end)
 ---------------------------------------------------------------------------
 -- Officer assignments
 ---------------------------------------------------------------------------
-local assignQueue, assignSending = {}, false
+local assignQueue, assignSending, assignSharing = {}, false, false
 local lastAssignAt, assignPending = -REPLY_COOLDOWN, false
 
 function M.CanAssign()
@@ -250,15 +265,14 @@ end
 local function SendNextAssign()
     local msg = table.remove(assignQueue, 1)
     if not msg then
-        assignSending = false
+        assignSending, assignSharing = false, false
         return
     end
     M:SendGuild(msg)
     After(1, SendNextAssign)
 end
 
-local function QueueAssign(msgs, replace)
-    if replace then assignQueue = {} end
+local function QueueAssign(msgs)
     for _, msg in ipairs(msgs) do assignQueue[#assignQueue + 1] = msg end
     if not assignSending and #assignQueue > 0 then
         assignSending = true
@@ -266,15 +280,17 @@ local function QueueAssign(msgs, replace)
     end
 end
 
--- Sends every stored assignment (also removals), if this character may assign.
+-- Sends every stored assignment (also removals) of characters in the guild, if this character may
+-- assign. A share still being sent already reaches everyone (guild channel), so it isn't restarted.
 local function ShareAssignments()
-    if not M.CanAssign() then return end
-    local list = {}
+    if not M.CanAssign() or assignSharing then return end
+    local list, members = {}, M.Roster()
     for char, e in pairs(M.db.assigned) do
-        list[#list + 1] = { char = char, main = e.main, by = e.by, t = e.t }
+        if members[char] then list[#list + 1] = { char = char, main = e.main, by = e.by, t = e.t } end
     end
     table.sort(list, function(a, b) return a.char < b.char end)
-    QueueAssign(G.EncodeAssign(list), true)
+    assignSharing = true
+    QueueAssign(G.EncodeAssign(list))
     lastAssignAt = GetTime()
 end
 
@@ -294,6 +310,7 @@ function M.ReceiveAssign(text, from)
         return
     end
     local senderGuid = RosterGuidByName(from)
+    if senderGuid and senderGuid == UnitGUID("player") then return end -- our own message coming back
     local sender = senderGuid and M.Roster()[senderGuid]
     if not sender or sender.rank > MAX_ASSIGN_RANK then
         M:Debug(("from %s dropped: sender may not assign: %s"):format(from, text))
@@ -307,14 +324,25 @@ function M.ReceiveAssign(text, from)
     if changed then Changed() end
 end
 
--- Makes char an alt of main (main == char: a main; false: removes the assignment) and shares it.
-function M.Assign(char, main)
-    if not char or not M.CanAssign() or M.IsSelfReported(char) then return false end
+local function StoreAssign(char, main)
     local stored = M.db.assigned[char]
     local entry = { char = char, main = main, by = UnitGUID("player"),
         t = math.max(ServerTime(), (stored and stored.t or 0) + 1) }
     G.MergeAssign(M.db.assigned, entry, time())
-    QueueAssign(G.EncodeAssign({ entry }))
+    return entry
+end
+
+-- Makes char an alt of main (main == char: a main; false: removes the assignment) and shares it.
+-- Picking char's own alt as its main swaps them: that alt becomes the main.
+function M.Assign(char, main)
+    if not char or not M.CanAssign() or M.IsSelfReported(char) then return false end
+    local entries = {}
+    if main and main ~= char then
+        local g = M.GroupOf(main)
+        if g and g.main == char then entries[#entries + 1] = StoreAssign(main, main) end
+    end
+    entries[#entries + 1] = StoreAssign(char, main)
+    QueueAssign(G.EncodeAssign(entries))
     Changed()
     return true
 end
