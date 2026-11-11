@@ -63,9 +63,10 @@ L.VER_HELP_DEBUG = "log addon messages in chat"
 
 -- Bank
 L.BANK_TITLE = "Deposit Reagents"
-L.BANK_DESC = "A \"Deposit Reagents\" button at your bank that moves trade goods from your bags into the bank"
+L.BANK_DESC = "Adds the \"Deposit Reagents\" button from Retail to your bank"
 L.BANK_BUTTON = "Deposit Reagents"
-L.BANK_BUTTON_TOOLTIP = "Moves all trade goods (cloth, herbs, ore, leather …) from your bags into the bank, onto existing stacks first. Grenades and devices stay in your bags."
+L.BANK_TOOLTIP_GAME = "Moves your reagents from your bags into the bank, like the button in Retail."
+L.BANK_TOOLTIP_MANUAL = "Moves all trade goods (cloth, herbs, ore, leather …) from your bags into the bank, onto existing stacks first. Grenades and devices stay in your bags."
 L.BANK_DEPOSITED = "%d stacks deposited."
 L.BANK_FULL = "Bank full: %d stacks deposited, %d left in your bags."
 L.BANK_NOTHING = "No trade goods in your bags."

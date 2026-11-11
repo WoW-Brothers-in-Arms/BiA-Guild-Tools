@@ -63,9 +63,10 @@ L.VER_HELP_DEBUG = "Addon-Nachrichten im Chat mitprotokollieren"
 
 -- Bank
 L.BANK_TITLE = "Reagenzien einlagern"
-L.BANK_DESC = "Knopf „Reagenzien einlagern“ an der Bank, der Handwerkswaren aus den Taschen in die Bank legt"
+L.BANK_DESC = "Fügt der Bank den Knopf „Reagenzien einlagern“ aus Retail hinzu"
 L.BANK_BUTTON = "Reagenzien einlagern"
-L.BANK_BUTTON_TOOLTIP = "Legt alle Handwerkswaren (Stoff, Kräuter, Erz, Leder …) aus deinen Taschen in die Bank, zuerst auf vorhandene Stapel. Granaten und Geräte bleiben in der Tasche."
+L.BANK_TOOLTIP_GAME = "Legt deine Reagenzien aus den Taschen in die Bank, wie der Knopf in Retail."
+L.BANK_TOOLTIP_MANUAL = "Legt alle Handwerkswaren (Stoff, Kräuter, Erz, Leder …) aus deinen Taschen in die Bank, zuerst auf vorhandene Stapel. Granaten und Geräte bleiben in der Tasche."
 L.BANK_DEPOSITED = "%d Stapel eingelagert."
 L.BANK_FULL = "Bank voll: %d Stapel eingelagert, %d noch in den Taschen."
 L.BANK_NOTHING = "Keine Handwerkswaren in den Taschen."
