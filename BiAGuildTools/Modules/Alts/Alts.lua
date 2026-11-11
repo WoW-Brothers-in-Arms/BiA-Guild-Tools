@@ -210,6 +210,17 @@ function M.SetMain(guid)
     return true
 end
 
+-- Takes back the main choice: the group is shared without a chosen main again ("(Main?)").
+function M.ClearMain()
+    local _, key = M.OwnView()
+    if not key then return false end
+    GuildState(key).main = nil
+    Broadcast()
+    Changed()
+    M:Print(L.ALTS_MAIN_CLEARED)
+    return true
+end
+
 ---------------------------------------------------------------------------
 -- Addon messages
 ---------------------------------------------------------------------------
@@ -476,6 +487,8 @@ M:RegisterSlash("alts", function(msg, cmd)
     local word, rest = cmd:match("^(%S*)%s*(.-)$")
     if word == "" then
         if M.ToggleWindow then M.ToggleWindow() end
+    elseif word == "main" and rest:lower() == "clear" then
+        M.ClearMain()
     elseif word == "main" then
         local guid = UnitGUID("player")
         if rest ~= "" then
@@ -507,6 +520,7 @@ M:RegisterSlash("alts", function(msg, cmd)
 end, {
     "– " .. L.ALTS_HELP_WINDOW,
     "main [name] – " .. L.ALTS_HELP_MAIN,
+    "main clear – " .. L.ALTS_HELP_MAIN_CLEAR,
     "tooltip – " .. L.ALTS_HELP_TOOLTIP,
     "sync – " .. L.ALTS_HELP_SYNC,
     "debug – " .. L.ALTS_HELP_DEBUG,

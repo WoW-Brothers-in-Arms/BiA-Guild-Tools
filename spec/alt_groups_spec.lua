@@ -128,6 +128,12 @@ describe("AltGroups", function()
     end)
 
     describe("Merge", function()
+        it("drops an older group when a newer one without alts or chosen main arrives", function()
+            local groups = { [A] = group(A, {}, 1, true) }
+            G.Merge(groups, group(A, {}, 2, false), {}, 1000, A)
+            assert.is_nil(groups[A])
+        end)
+
         it("stores a new group with the time it was seen", function()
             local groups = {}
             G.Merge(groups, group(A, { B }, 1), {}, 100)

@@ -66,10 +66,12 @@ local function InitRow(row, data)
         row.Crown:SetSize(14, 14)
         row.Crown:SetPoint("LEFT", 4, 0)
         row.Crown:SetNormalTexture(CROWN)
-        row.Crown:SetScript("OnClick", function(self) M.SetMain(self.guid) end)
+        row.Crown:SetScript("OnClick", function(self)
+            if self.isMain then M.ClearMain() else M.SetMain(self.guid) end
+        end)
         row.Crown:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText(L.ALTS_MAKE_MAIN)
+            GameTooltip:SetText(self.isMain and L.ALTS_CLEAR_MAIN or L.ALTS_MAKE_MAIN)
             GameTooltip:Show()
         end)
         row.Crown:SetScript("OnLeave", GameTooltip_Hide)
@@ -106,7 +108,7 @@ local function InitRow(row, data)
     local indent = (data.kind == "alt") and 22 or 4
     if data.kind == "own" then
         indent = 22
-        row.Crown.guid = data.guid
+        row.Crown.guid, row.Crown.isMain = data.guid, data.isMain
         row.Crown:GetNormalTexture():SetDesaturated(not data.isMain)
         row.Crown:SetAlpha(data.isMain and 1 or 0.4)
     end

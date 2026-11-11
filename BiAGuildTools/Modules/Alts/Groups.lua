@@ -143,7 +143,10 @@ function G.Merge(groups, incoming, ownChars, now, sender)
         end
         stored.seen = now
     else
-        if Empty(incoming) then return end
+        if Empty(incoming) then -- nothing left to show: the newer word clears the older group
+            groups[main] = nil
+            return
+        end
         stored = { main = main, alts = Without(incoming.alts, { [main] = true }), chosen = incoming.chosen,
             t = incoming.t, seen = now }
         groups[main] = stored
