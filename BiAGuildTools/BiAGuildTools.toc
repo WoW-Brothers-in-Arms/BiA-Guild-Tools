@@ -20,6 +20,7 @@ RosterColumn.lua
 Modules\Professions\Data.lua
 Modules\Professions\Professions.lua
 Modules\Alts\Groups.lua
+Modules\Alts\Alts.lua
 Modules\Version\Version.lua
 Modules\Bank\Bank.lua
 Modules\Bags\Bags.lua

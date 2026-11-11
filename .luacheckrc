@@ -24,7 +24,7 @@ read_globals = {
     "date", "time", "strtrim", "tinsert", "geterrorhandler", "hooksecurefunc", "issecretvalue",
 
     -- Client, addons, timers
-    "GetLocale", "GetTime", "C_AddOns", "C_Timer", "GetAddOnMetadata", "GetAddOnInfo", "DisableAddOn",
+    "GetLocale", "GetTime", "GetServerTime", "C_AddOns", "C_Timer", "GetAddOnMetadata", "GetAddOnInfo", "DisableAddOn",
     "Settings", "PlaySound", "SOUNDKIT", "Enum",
 
     -- Frames, UI
