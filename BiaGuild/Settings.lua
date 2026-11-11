@@ -1,4 +1,4 @@
--- Settings.lua: BiaGuild page in the game's settings (Esc → Optionen → AddOns).
+-- Settings.lua: BiaGuild page in the game's settings (Esc → Options → AddOns).
 -- Shows logo, title, version and description, and lets each tool be switched on or off.
 local ADDON, ns = ...
 
@@ -57,7 +57,7 @@ function ns.CreateSettingsPanel()
         info:SetWidth(PAGE_WIDTH - 30)
         info:SetJustifyH("LEFT")
         local text = m.desc or ""
-        if #cmds > 0 then text = text .. "\n|cff909090Befehle: " .. table.concat(cmds, ", ") .. "|r" end
+        if #cmds > 0 then text = text .. "\n|cff909090Commands: " .. table.concat(cmds, ", ") .. "|r" end
         info:SetText(text)
 
         boxes[m] = box
@@ -69,7 +69,7 @@ function ns.CreateSettingsPanel()
 
     local hint = panel:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     hint:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 4, -20)
-    hint:SetText("Übersicht im Chat: /bia")
+    hint:SetText("Overview in chat: /bia")
 
     -- Checkbox states can change through chat commands; refresh whenever the page opens.
     panel:SetScript("OnShow", function()
@@ -85,6 +85,6 @@ function ns.OpenSettings()
     if ns.settingsCategory and Settings and Settings.OpenToCategory then
         Settings.OpenToCategory(ns.settingsCategory:GetID())
     else
-        ns.Print("Die Einstellungsseite ist in diesem Client nicht verfügbar.")
+        ns.Print("The settings page is not available in this client.")
     end
 end

@@ -1,12 +1,13 @@
--- Professions.lua (Berufe): shares your professions with guild mates who use BiaGuild and shows
--- everyone's professions as icons in the guild roster (Gilde & Communitys) and in the member tooltip.
+-- Professions.lua: shares your professions with guild mates who use BiaGuild and shows everyone's
+-- professions as icons in the guild roster (Guild & Communities) and in the member tooltip.
 local ADDON, ns = ...
 local D = ns.ProfessionData
 local Readable, After = ns.Readable, ns.After
 
-local M = ns:NewModule("berufe", {
-    title = "Gildenberufe",
-    desc = "Berufe der Mitglieder in der Gildenliste und im Tooltip",
+local M = ns:NewModule("professions", {
+    title = "Guild Professions",
+    desc = "Members' professions in the guild roster and its tooltip",
+    formerKey = "berufe", -- key up to 1.0.x
     -- Retail shows guild professions natively, so the tool starts switched off there.
     enabledByDefault = function() return not ns.IsRetail end,
     defaults = { members = {}, showInTooltip = true, showSecondary = false, column = true },
@@ -133,28 +134,28 @@ M:RegisterComm(PREFIX, function(text, channel, sender)
     if channel ~= "GUILD" then return end
     local kind, version, rest = text:match("^(%a)|(%d+)|?(.*)$")
     if version ~= PROTOCOL then
-        M:Debug(("von %s verworfen: unbekanntes Format/Version: %s"):format(from, text))
+        M:Debug(("from %s dropped: unknown format/version: %s"):format(from, text))
         return
     end
 
     if kind == "R" then
-        M:Debug("Anfrage von " .. from)
+        M:Debug("request from " .. from)
         -- Someone asked for everyone's data; answer with a random delay to spread the traffic.
         if GetTime() - lastSentAt > 30 then QueueBroadcast(math.random(2, 10), true) end
     elseif kind == "P" then
         local guid, name, profs = rest:match("^([^|]+)|([^|]+)|(.*)$")
         if not guid or not guid:match("^Player%-") then
-            M:Debug(("von %s verworfen: ungültige Daten: %s"):format(from, text))
+            M:Debug(("from %s dropped: invalid data: %s"):format(from, text))
             return
         end
         -- Only accept data a character sends about itself (when the client lets us read the sender).
         -- Names are compared without realm, since sender and payload may spell the realm differently.
         if Readable(sender) and type(sender) == "string" and ShortName(sender) ~= ShortName(name) then
-            M:Debug(("von %s verworfen: Name passt nicht (%s)"):format(from, name))
+            M:Debug(("from %s dropped: name does not match (%s)"):format(from, name))
             return
         end
         Store(guid, name, Decode(profs))
-        M:Debug(("Berufe von %s gespeichert: %s"):format(name, profs))
+        M:Debug(("stored professions of %s: %s"):format(name, profs))
         RefreshRoster()
     end
 end)
@@ -204,10 +205,10 @@ end
 
 ---------------------------------------------------------------------------
 -- Guild roster UI (Blizzard_Communities)
--- Column "Berufe" in the full guild roster. It uses the roster's spare column slot on the right
+-- Column "Professions" in the full guild roster. It uses the roster's spare column slot on the right
 -- (the one Blizzard fills with e.g. achievement points) while no Blizzard column is picked there.
 ---------------------------------------------------------------------------
-local COLUMN_TITLE = "Berufe"
+local COLUMN_TITLE = "Professions"
 local COLUMN_INFO = { title = COLUMN_TITLE, width = 115 }
 local columnRows = setmetatable({}, { __mode = "k" })   -- rows whose Note/GuildInfo we changed
 
@@ -317,7 +318,7 @@ local function AddTooltipLines(row)
         AddMemberLines(tooltip, row)
     end
     tooltip:AddLine(" ")
-    tooltip:AddLine("Berufe", 0.4, 0.8, 1)
+    tooltip:AddLine("Professions", 0.4, 0.8, 1)
     for _, p in ipairs(shown) do
         local icon = "|T" .. D.ProfessionIcon(p.id) .. ":14:14:0:0:64:64:5:59:5:59|t "
         local rank = ""
@@ -329,9 +330,9 @@ local function AddTooltipLines(row)
         tooltip:AddDoubleLine(icon .. D.ProfessionName(p.id), rank, r, g, b, 1, 0.82, 0)
     end
     if updated then
-        tooltip:AddLine("Stand: " .. date("%d.%m.%Y %H:%M", updated), 0.5, 0.5, 0.5)
+        tooltip:AddLine("Updated: " .. date("%Y-%m-%d %H:%M", updated), 0.5, 0.5, 0.5)
     else
-        tooltip:AddLine("Stufen nur sichtbar, wenn der Spieler BiaGuild nutzt", 0.5, 0.5, 0.5)
+        tooltip:AddLine("Skill levels only show for players using BiaGuild", 0.5, 0.5, 0.5)
     end
     tooltip:Show()
 end
@@ -404,7 +405,7 @@ local function HookCommunities()
     local list = MemberList()
     local scroll = list and list.ScrollBox
     if not scroll or not ScrollBoxListMixin then
-        M:Print("Gildenliste nicht gefunden – Anzeige in der Liste deaktiviert.")
+        M:Print("Guild roster not found – roster display disabled.")
         return
     end
     scroll:RegisterCallback(ScrollBoxListMixin.Event.OnInitializedFrame, function(_, row)
@@ -431,9 +432,9 @@ local function HookCommunities()
         dropdown:HookScript("OnShow", ClaimSlot)
     end
 
-    -- Entry "BiA: Berufe" in the roster's column dropdown. Picking a Blizzard entry hides the
+    -- Entry "BiA: Professions" in the roster's column dropdown. Picking a Blizzard entry hides the
     -- column until the roster is opened again. (Blizzard hides that dropdown when it has fewer than
-    -- two entries of its own; then /bia-berufe spalte is the switch.)
+    -- two entries of its own; then /bia-prof column is the switch.)
     if Menu and Menu.ModifyMenu then
         Menu.ModifyMenu("MENU_COMMUNITIES_GUILD_MEMBER_LIST", function(_, root)
             if not M:IsEnabled() then return end
@@ -447,7 +448,7 @@ local function HookCommunities()
 end
 
 ---------------------------------------------------------------------------
--- /bia-berufe
+-- /bia-prof
 ---------------------------------------------------------------------------
 local function OnlineNames()
     local online = {}
@@ -467,7 +468,7 @@ local function ListProfession(query)
         end
     end
     if not id then
-        M:Print("Unbekannter Beruf: " .. query)
+        M:Print("Unknown profession: " .. query)
         return
     end
 
@@ -484,29 +485,33 @@ local function ListProfession(query)
     table.sort(rows, function(a, b) return a.rank > b.rank end)
 
     M:Print(D.ProfessionName(id) .. " (" .. #rows .. "):")
-    if #rows == 0 then DEFAULT_CHAT_FRAME:AddMessage("  Niemand bekannt (nur Spieler mit BiaGuild werden erfasst).") end
+    if #rows == 0 then DEFAULT_CHAT_FRAME:AddMessage("  Nobody known (only players using BiaGuild are tracked).") end
     for _, r in ipairs(rows) do
         local color = r.on and "|cff40ff40" or "|cff909090"
         DEFAULT_CHAT_FRAME:AddMessage(("  %s%s|r  %d/%d"):format(color, r.name, r.rank, r.max))
     end
 end
 
-M:RegisterSlash("berufe", function(msg, cmd)
+-- German subcommands from 1.0.x still work.
+local SUBCOMMAND_ALIASES = { sek = "secondary", spalte = "column" }
+
+M:RegisterSlash("prof", function(msg, cmd)
     local db = M.db
-    if cmd == "sek" then
+    cmd = SUBCOMMAND_ALIASES[cmd] or cmd
+    if cmd == "secondary" then
         db.showSecondary = not db.showSecondary
-        M:Print("Nebenberufe in der Liste: " .. (db.showSecondary and "an" or "aus"))
+        M:Print("Secondary professions in the column: " .. ns.OnOff(db.showSecondary))
         RefreshRoster()
-    elseif cmd == "spalte" then
+    elseif cmd == "column" then
         db.column = not db.column
-        M:Print("Spalte „Berufe“ in der Gildenliste: " .. (db.column and "an" or "aus"))
+        M:Print("\"Professions\" column in the guild roster: " .. ns.OnOff(db.column))
         ApplyColumn()
     elseif cmd == "tooltip" then
         db.showInTooltip = not db.showInTooltip
-        M:Print("Berufe im Tooltip: " .. (db.showInTooltip and "an" or "aus"))
+        M:Print("Professions in the tooltip: " .. ns.OnOff(db.showInTooltip))
     elseif cmd == "debug" then
         db.debug = not db.debug
-        M:Print("Debug-Ausgabe: " .. (db.debug and "an" or "aus"))
+        M:Print("Debug output: " .. ns.OnOff(db.debug))
     elseif cmd == "status" then
         local n = 0
         for guid, e in pairs(db.members) do
@@ -514,25 +519,25 @@ M:RegisterSlash("berufe", function(msg, cmd)
             local profs = {}
             for _, p in ipairs(e.profs or {}) do profs[#profs + 1] = D.ProfessionName(p.id) .. " " .. (p.rank or "?") end
             DEFAULT_CHAT_FRAME:AddMessage(("  %s: %s  (%s)"):format(e.name or guid, table.concat(profs, ", "),
-                e.t and date("%d.%m. %H:%M", e.t) or "?"))
+                e.t and date("%Y-%m-%d %H:%M", e.t) or "?"))
         end
-        M:Print(n .. " Mitglieder mit BiaGuild-Daten gespeichert.")
+        M:Print(n .. " members with BiaGuild data stored.")
     elseif cmd == "sync" then
         Broadcast(true)
         M:SendGuild("R|" .. PROTOCOL)
-        M:Print("Berufe gesendet und von der Gilde angefordert.")
+        M:Print("Sent your professions and requested the guild's.")
     else
         ListProfession(msg)
     end
 end, {
-    "<Beruf> – wer in der Gilde den Beruf hat, z. B. Alchemie",
-    "sek – Kochen/Angeln/Erste Hilfe in der Spalte ein/aus",
-    "spalte – Spalte „Berufe“ in der Gildenliste ein/aus",
-    "tooltip – Berufe im Tooltip ein/aus",
-    "sync – Daten neu von der Gilde anfordern",
-    "status – gespeicherte Daten anderer Mitglieder anzeigen",
-    "debug – Addon-Nachrichten im Chat mitprotokollieren",
-})
+    "<profession> – who in the guild has it, e.g. Alchemy",
+    "secondary – show Cooking/Fishing/First Aid in the column on/off",
+    "column – \"Professions\" column in the guild roster on/off",
+    "tooltip – professions in the tooltip on/off",
+    "sync – request fresh data from the guild",
+    "status – show stored data of other members",
+    "debug – log addon messages in chat",
+}, { "berufe" })
 
 ---------------------------------------------------------------------------
 -- Lifecycle
@@ -550,7 +555,7 @@ function M:OnLogin()
     end)
 end
 
--- Called by /bia-berufe an | aus: show or hide the icons right away.
+-- Called by /bia-prof on | off: show or hide the column right away.
 function M:OnToggle()
     ApplyColumn()
     RefreshRoster()
