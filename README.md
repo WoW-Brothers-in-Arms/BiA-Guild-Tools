@@ -67,6 +67,7 @@ BiAGuildTools/
 ├── BiAGuildTools.toc     ← loads the core and all modules
 ├── Core.lua              ← module system, events, addon messages, commands, saved data
 ├── Settings.lua          ← page in the game's settings
+├── Locales/              ← texts by key: enUS.lua (base) and deDE.lua
 ├── Media/Icon.tga        ← icon in the addon list (guild crest from the bia-2 portal, 64×64)
 └── Modules/
     └── Professions/      ← module "professions"
@@ -75,3 +76,13 @@ BiAGuildTools/
 To add a tool, create a folder under `Modules/` and add its files to `BiAGuildTools.toc`.
 How a module is built is described at the top of `Core.lua`.
 `on`, `off` and `help` are reserved in every tool command.
+
+## Translations
+
+Texts shown to players live in `Locales/` and are used by key, e.g. `L.PROF_UNKNOWN:format(name)`.
+
+- `enUS.lua` holds every key in English and is always loaded.
+- `deDE.lua` overwrites the keys it translates when the client runs in German. A key missing there shows in English.
+- Keys are grouped by tool and start with its prefix (`PROF_…`); texts with values use placeholders (`%s`, `%d`).
+
+For a new text, add the key to `enUS.lua` first, then to `deDE.lua`. For another language, add e.g. `Locales/frFR.lua` (guarded by `if ns.Locale ~= "frFR" then return end`) and list it in the TOC after `enUS.lua`. Commands and debug output stay in English.

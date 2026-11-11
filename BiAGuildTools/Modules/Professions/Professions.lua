@@ -1,12 +1,13 @@
 -- Professions.lua: shares your professions with guild mates who use BiA Guild Tools and shows everyone's
 -- professions as icons in the guild roster (Guild & Communities) and in the member tooltip.
 local ADDON, ns = ...
+local L = ns.L
 local D = ns.ProfessionData
 local Readable, After = ns.Readable, ns.After
 
 local M = ns:NewModule("professions", {
-    title = "Guild Professions",
-    desc = "Members' professions in the guild roster and its tooltip",
+    title = L.PROF_TITLE,
+    desc = L.PROF_DESC,
     formerKey = "berufe", -- key up to 1.0.x
     -- Retail shows guild professions natively, so the tool starts switched off there.
     enabledByDefault = function() return not ns.IsRetail end,
@@ -208,7 +209,7 @@ end
 -- Column "Professions" in the full guild roster. It uses the roster's spare column slot on the right
 -- (the one Blizzard fills with e.g. achievement points) while no Blizzard column is picked there.
 ---------------------------------------------------------------------------
-local COLUMN_TITLE = "Professions"
+local COLUMN_TITLE = L.PROF_PROFESSIONS
 local COLUMN_INFO = { title = COLUMN_TITLE, width = 115 }
 local columnRows = setmetatable({}, { __mode = "k" })   -- rows whose Note/GuildInfo we changed
 
@@ -318,7 +319,7 @@ local function AddTooltipLines(row)
         AddMemberLines(tooltip, row)
     end
     tooltip:AddLine(" ")
-    tooltip:AddLine("Professions", 0.4, 0.8, 1)
+    tooltip:AddLine(L.PROF_PROFESSIONS, 0.4, 0.8, 1)
     for _, p in ipairs(shown) do
         local icon = "|T" .. D.ProfessionIcon(p.id) .. ":14:14:0:0:64:64:5:59:5:59|t "
         local rank = ""
@@ -330,9 +331,9 @@ local function AddTooltipLines(row)
         tooltip:AddDoubleLine(icon .. D.ProfessionName(p.id), rank, r, g, b, 1, 0.82, 0)
     end
     if updated then
-        tooltip:AddLine("Updated: " .. date("%Y-%m-%d %H:%M", updated), 0.5, 0.5, 0.5)
+        tooltip:AddLine(L.PROF_TOOLTIP_UPDATED:format(date(L.DATE_TIME_FORMAT, updated)), 0.5, 0.5, 0.5)
     else
-        tooltip:AddLine("Skill levels only show for players using BiA Guild Tools", 0.5, 0.5, 0.5)
+        tooltip:AddLine(L.PROF_TOOLTIP_NO_RANKS, 0.5, 0.5, 0.5)
     end
     tooltip:Show()
 end
@@ -405,7 +406,7 @@ local function HookCommunities()
     local list = MemberList()
     local scroll = list and list.ScrollBox
     if not scroll or not ScrollBoxListMixin then
-        M:Print("Guild roster not found – roster display disabled.")
+        M:Print(L.PROF_ROSTER_NOT_FOUND)
         return
     end
     scroll:RegisterCallback(ScrollBoxListMixin.Event.OnInitializedFrame, function(_, row)
@@ -468,7 +469,7 @@ local function ListProfession(query)
         end
     end
     if not id then
-        M:Print("Unknown profession: " .. query)
+        M:Print(L.PROF_UNKNOWN:format(query))
         return
     end
 
@@ -485,7 +486,7 @@ local function ListProfession(query)
     table.sort(rows, function(a, b) return a.rank > b.rank end)
 
     M:Print(D.ProfessionName(id) .. " (" .. #rows .. "):")
-    if #rows == 0 then DEFAULT_CHAT_FRAME:AddMessage("  Nobody known (only players using BiA Guild Tools are tracked).") end
+    if #rows == 0 then DEFAULT_CHAT_FRAME:AddMessage("  " .. L.PROF_NOBODY_KNOWN) end
     for _, r in ipairs(rows) do
         local color = r.on and "|cff40ff40" or "|cff909090"
         DEFAULT_CHAT_FRAME:AddMessage(("  %s%s|r  %d/%d"):format(color, r.name, r.rank, r.max))
@@ -500,18 +501,18 @@ M:RegisterSlash("prof", function(msg, cmd)
     cmd = SUBCOMMAND_ALIASES[cmd] or cmd
     if cmd == "secondary" then
         db.showSecondary = not db.showSecondary
-        M:Print("Secondary professions in the column: " .. ns.OnOff(db.showSecondary))
+        M:Print(L.PROF_SECONDARY_TOGGLED:format(ns.OnOff(db.showSecondary)))
         RefreshRoster()
     elseif cmd == "column" then
         db.column = not db.column
-        M:Print("\"Professions\" column in the guild roster: " .. ns.OnOff(db.column))
+        M:Print(L.PROF_COLUMN_TOGGLED:format(ns.OnOff(db.column)))
         ApplyColumn()
     elseif cmd == "tooltip" then
         db.showInTooltip = not db.showInTooltip
-        M:Print("Professions in the tooltip: " .. ns.OnOff(db.showInTooltip))
+        M:Print(L.PROF_TOOLTIP_TOGGLED:format(ns.OnOff(db.showInTooltip)))
     elseif cmd == "debug" then
         db.debug = not db.debug
-        M:Print("Debug output: " .. ns.OnOff(db.debug))
+        M:Print(L.DEBUG_TOGGLED:format(ns.OnOff(db.debug)))
     elseif cmd == "status" then
         local n = 0
         for guid, e in pairs(db.members) do
@@ -519,24 +520,24 @@ M:RegisterSlash("prof", function(msg, cmd)
             local profs = {}
             for _, p in ipairs(e.profs or {}) do profs[#profs + 1] = D.ProfessionName(p.id) .. " " .. (p.rank or "?") end
             DEFAULT_CHAT_FRAME:AddMessage(("  %s: %s  (%s)"):format(e.name or guid, table.concat(profs, ", "),
-                e.t and date("%Y-%m-%d %H:%M", e.t) or "?"))
+                e.t and date(L.DATE_TIME_FORMAT, e.t) or "?"))
         end
-        M:Print(n .. " members with BiA Guild Tools data stored.")
+        M:Print(L.PROF_STATUS_COUNT:format(n))
     elseif cmd == "sync" then
         Broadcast(true)
         M:SendGuild("R|" .. PROTOCOL)
-        M:Print("Sent your professions and requested the guild's.")
+        M:Print(L.PROF_SYNC_SENT)
     else
         ListProfession(msg)
     end
 end, {
-    "<profession> – who in the guild has it, e.g. Alchemy",
-    "secondary – show Cooking/Fishing/First Aid in the column on/off",
-    "column – \"Professions\" column in the guild roster on/off",
-    "tooltip – professions in the tooltip on/off",
-    "sync – request fresh data from the guild",
-    "status – show stored data of other members",
-    "debug – log addon messages in chat",
+    L.PROF_HELP_ARG .. " – " .. L.PROF_HELP_QUERY:format(D.ProfessionName(171)),
+    "secondary – " .. L.PROF_HELP_SECONDARY,
+    "column – " .. L.PROF_HELP_COLUMN,
+    "tooltip – " .. L.PROF_HELP_TOOLTIP,
+    "sync – " .. L.PROF_HELP_SYNC,
+    "status – " .. L.PROF_HELP_STATUS,
+    "debug – " .. L.PROF_HELP_DEBUG,
 }, { "berufe" })
 
 ---------------------------------------------------------------------------
