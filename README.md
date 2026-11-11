@@ -60,6 +60,14 @@ Shows which guild members run which version of BiA Guild Tools. When a member ha
 
 Members still on 1.0.x show as "–" (no answer), since those versions don't answer yet.
 
+### Deposit Reagents (`/bia-bank`)
+
+Adds a **Deposit Reagents** button to your bank, like the one in Retail. WoW: Forever has no reagent bank, so one click moves every trade good (cloth, herbs, ore and bars, leather, elementals, meat …) from your bags into the normal bank slots and bank bags. The game fills existing stacks and fitting bags (e.g. herb bags) first. Grenades and devices stay in your bags, and so do spell reagents (they are not trade goods). When the bank is full, the chat tells you how many stacks are left.
+
+- `/bia-bank deposit`: the same as the button, for bag addons that replace the bank window (the bank must be open)
+
+This tool is off by default in Retail, which has its own button.
+
 ## Releasing a new version
 
 While working, add player-facing changes to `CHANGELOG.md` under `## Unreleased`. Then:
@@ -88,7 +96,8 @@ BiAGuildTools/
 ├── Media/Icon.tga        ← icon in the addon list (guild crest from the bia-2 portal, 64×64)
 └── Modules/
     ├── Professions/      ← module "professions"
-    └── Version/          ← module "version"
+    ├── Version/          ← module "version"
+    └── Bank/             ← module "bank"
 ```
 
 To add a tool, create a folder under `Modules/` and add its files to `BiAGuildTools.toc`.

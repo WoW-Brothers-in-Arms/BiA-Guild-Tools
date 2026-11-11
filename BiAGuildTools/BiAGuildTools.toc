@@ -19,3 +19,4 @@ RosterTooltip.lua
 Modules\Professions\Data.lua
 Modules\Professions\Professions.lua
 Modules\Version\Version.lua
+Modules\Bank\Bank.lua
