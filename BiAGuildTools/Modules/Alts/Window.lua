@@ -11,7 +11,7 @@ local ONLINE = "Interface\\FriendsFrame\\StatusIcon-Online"
 local window
 
 local function Rows()
-    local roster, own = M.Roster(), M.db.own
+    local roster, own = M.Roster(), M.OwnView()
     local rows = { { kind = "header", text = L.ALTS_YOUR_CHARS } }
 
     local mine = {}
@@ -59,6 +59,13 @@ local function InitRow(row, data)
     end
 
     local member = data.guid and M.Roster()[data.guid]
+    if data.guid and not member then -- stale row (roster changed since the list was built)
+        row.Crown:Hide()
+        row.Dot:Hide()
+        row.Name:SetText("")
+        row.Level:SetText("")
+        return
+    end
     row.Crown:SetShown(data.kind == "own")
     row.Dot:SetShown(member ~= nil and member.online)
     row.Level:SetText(member and member.level or "")

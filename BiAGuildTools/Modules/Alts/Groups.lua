@@ -52,20 +52,24 @@ local function Long(short)
     if guid:match("^Player%-%d+%-%x+$") then return guid end
 end
 
-function G.Encode(group)
+-- sender: the sending character; when it is an alt it goes into every part, so a receiver can check
+-- each part against the sender on its own.
+function G.Encode(group, sender)
     local head = ("G|%s|%s|%s|%d|"):format(PROTOCOL, Short(group.main), group.chosen and "1" or "0", group.t)
-    local msgs, current = {}, {}
-    local length = #head
+    local always = (sender and sender ~= group.main) and Short(sender) or nil
+    local function Start() return always and { always } or {}, #head + (always and #always or 0) end
+    local msgs = {}
+    local current, length = Start()
     for _, guid in ipairs(group.alts) do
         local short = Short(guid)
-        local add = #short + (#current > 0 and 1 or 0)
-        if #current > 0 and length + add > MAX_MESSAGE then
-            msgs[#msgs + 1] = head .. table.concat(current, ",")
-            current, length = {}, #head
-            add = #short
+        if short ~= always then
+            if #current > 0 and length + 1 + #short > MAX_MESSAGE then
+                msgs[#msgs + 1] = head .. table.concat(current, ",")
+                current, length = Start()
+            end
+            length = length + #short + (#current > 0 and 1 or 0)
+            current[#current + 1] = short
         end
-        current[#current + 1] = short
-        length = length + add
     end
     msgs[#msgs + 1] = head .. table.concat(current, ",")
     return msgs
@@ -117,7 +121,9 @@ end
 
 -- Adds a received group to groups (keyed by main). ownChars: your own characters – only a group made
 -- of nothing but your characters may contain them, so nobody else can claim them. now: our time.
-function G.Merge(groups, incoming, ownChars, now)
+-- sender (optional): the sending character. A group may only take characters out of an older group
+-- its sender belongs to (a player switching main sends from a character that is in both).
+function G.Merge(groups, incoming, ownChars, now, sender)
     local mine = ownChars[incoming.main]
     for _, guid in ipairs(incoming.alts) do
         if mine and not ownChars[guid] then mine = false end
@@ -143,6 +149,17 @@ function G.Merge(groups, incoming, ownChars, now)
         groups[main] = stored
     end
 
+    if sender then
+        for key, other in pairs(groups) do
+            if key ~= main and other.t < stored.t and not Members(other)[sender] then
+                local theirs = Members(other)
+                if theirs[main] then groups[main] = nil return end
+                stored.alts = Without(stored.alts, theirs)
+            end
+        end
+        if Empty(stored) then groups[main] = nil return end
+    end
+
     for key, other in pairs(groups) do
         if groups[main] ~= stored then break end -- the incoming group itself lost
         if key ~= main then
@@ -151,6 +168,23 @@ function G.Merge(groups, incoming, ownChars, now)
             elseif other.t > stored.t then
                 Resolve(groups, other, stored)
             end
+        end
+    end
+end
+
+-- Takes your characters out of groups someone else sent (e.g. received before the character was yours).
+function G.Claim(groups, ownChars)
+    for main, group in pairs(groups) do
+        local mineMain = ownChars[main]
+        local foreign = false
+        for _, guid in ipairs(group.alts) do
+            if not ownChars[guid] then foreign = true end
+        end
+        if mineMain and foreign then
+            groups[main] = nil
+        elseif not mineMain then
+            group.alts = Without(group.alts, ownChars)
+            if Empty(group) then groups[main] = nil end
         end
     end
 end

@@ -12,6 +12,7 @@ local function Roster(members)
                 0, 0, false, false, 0, m[2]
         end,
         C_GuildInfo = { GuildRoster = function() end },
+        GetGuildInfo = function() return "BiA", "Member", 1, nil end,
         RAID_CLASS_COLORS = { MAGE = { colorStr = "ff3fc7eb" }, WARRIOR = { colorStr = "ffc69b6d" } },
     }
 end
@@ -41,7 +42,7 @@ describe("Alts", function()
     describe("your own characters", function()
         it("records the current character and shares the group once the roster is there", function()
             local game = ready()
-            assert.is_true(db(game).own.chars[ME])
+            assert.equal("BiA-Realm", db(game).own.chars[ME])
             local sent = game:sentWith("BiaAlts")
             assert.matches("^G|1|1%-0000AAAA|0|%d+|$", sent[1])
             assert.equal("R|1", sent[2])
@@ -50,23 +51,33 @@ describe("Alts", function()
         it("waits for roster data instead of pruning your characters", function()
             local members = {}
             local game = Wow.new({ globals = Roster(members),
-                savedVariables = { modules = { alts = { own = { chars = { [ALT] = true } } } } } })
+                savedVariables = { modules = { alts = { own = { chars = { [ALT] = "BiA-Realm" } } } } } })
             game:login()
             game:fire("GUILD_ROSTER_UPDATE")
             game:advance(30)
-            assert.is_true(db(game).own.chars[ALT])
+            assert.equal("BiA-Realm", db(game).own.chars[ALT])
             assert.same({}, game:sentWith("BiaAlts"))
         end)
 
         it("forgets own characters that left the guild", function()
             local members = guild()
-            local game = ready(members, { modules = { alts = { own = { chars = { [ALT] = true, ["Player-1-0000DEAD"] = true } } } } })
-            assert.is_true(db(game).own.chars[ALT])
+            local chars = { [ALT] = "BiA-Realm", ["Player-1-0000DEAD"] = "BiA-Realm" }
+            local game = ready(members, { modules = { alts = { own = { chars = chars } } } })
+            assert.equal("BiA-Realm", db(game).own.chars[ALT])
             assert.is_nil(db(game).own.chars["Player-1-0000DEAD"])
         end)
 
         it("includes alts recorded on earlier logins", function()
-            local game = ready(nil, { modules = { alts = { own = { chars = { [ALT] = true } } } } })
+            local game = ready(nil, { modules = { alts = { own = { chars = { [ALT] = "BiA-Realm" } } } } })
+            assert.matches("^G|1|1%-0000AAAA|0|%d+|1%-0000A2A2$", game:sentWith("BiaAlts")[1])
+        end)
+    end)
+
+    describe("several guilds on one account", function()
+        it("keeps characters of other guilds and leaves them out of this guild's group", function()
+            local chars = { [ALT] = "BiA-Realm", ["Player-1-0000BA4C"] = "Bank-Realm" }
+            local game = ready(nil, { modules = { alts = { own = { chars = chars } } } })
+            assert.equal("Bank-Realm", db(game).own.chars["Player-1-0000BA4C"])
             assert.matches("^G|1|1%-0000AAAA|0|%d+|1%-0000A2A2$", game:sentWith("BiaAlts")[1])
         end)
     end)
@@ -75,24 +86,32 @@ describe("Alts", function()
         it("makes the current character your main and shares it", function()
             local game = ready()
             game:slash("alts main")
-            assert.equal(ME, db(game).own.main)
+            assert.equal(ME, db(game).own.guilds["BiA-Realm"].main)
             local sent = game:sentWith("BiaAlts")
             assert.matches("^G|1|1%-0000AAAA|1|", sent[#sent])
             assert.equal(ME, M(game).GroupOf(ME).main)
         end)
 
         it("makes a named own character your main", function()
-            local game = ready(nil, { modules = { alts = { own = { chars = { [ALT] = true } } } } })
+            local game = ready(nil, { modules = { alts = { own = { chars = { [ALT] = "BiA-Realm" } } } } })
             game:slash("alts main twinky")
-            assert.equal(ALT, db(game).own.main)
+            assert.equal(ALT, db(game).own.guilds["BiA-Realm"].main)
             assert.equal(ALT, M(game).GroupOf(ME).main)
+        end)
+
+        it("works before the roster has loaded", function()
+            local game = Wow.new({ globals = Roster(guild()), savedVariables = { modules = { alts = {
+                own = { chars = { [ME] = "BiA-Realm" } } } } } })
+            game:login()
+            game:slash("alts main")
+            assert.same({}, game.errors)
         end)
 
         it("refuses characters that aren't yours", function()
             local game = ready()
             local before = #game:sentWith("BiaAlts")
             game:slash("alts main Other")
-            assert.is_nil(db(game).own.main)
+            assert.is_nil(db(game).own.guilds["BiA-Realm"] and db(game).own.guilds["BiA-Realm"].main)
             assert.equal(before, #game:sentWith("BiaAlts"))
             assert.matches("not one of your characters", game:chatText())
         end)
@@ -116,6 +135,46 @@ describe("Alts", function()
             game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Stranger Realm")
             game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Other Realm", "WHISPER")
             assert.is_nil(M(game).GroupOf(OTHER_ALT))
+        end)
+
+        it("accepts every part of a long group sent by an alt", function()
+            local members = guild()
+            local alts = {}
+            for i = 1, 30 do
+                local guid = ("Player-1-0000F%03X"):format(i)
+                members[#members + 1] = { "Many" .. i .. "-Realm", guid, level = i }
+                alts[#alts + 1] = guid
+            end
+            local game = ready(members)
+            local G = game.ns.AltGroups
+            local msgs = G.Encode({ main = OTHER, alts = alts, chosen = true, t = 1700000000 }, alts[30])
+            assert.is_true(#msgs > 1)
+            for _, m in ipairs(msgs) do game:receive("BiaAlts", m, "Many30 Realm") end
+            assert.equal(30, #M(game).GroupOf(OTHER).alts)
+        end)
+
+        it("drops groups with a time stamp from the future", function()
+            local game = ready()
+            game:receive("BiaAlts", "G|1|1-0000BBBB|1|99999999999|1-0000CCCC", "Other Realm")
+            assert.is_nil(M(game).GroupOf(OTHER_ALT))
+        end)
+
+        it("doesn't let a guild mate claim someone else's characters", function()
+            local game = ready()
+            game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Other Realm")
+            game:receive("BiaAlts", "G|1|1-0000AAAA|1|1700000100|1-0000BBBB,1-0000CCCC", "Twinky Realm")
+            assert.equal(OTHER, M(game).GroupOf(OTHER_ALT).main)
+        end)
+
+        it("takes back your character from a group received before it was yours", function()
+            local game = Wow.new({ globals = Roster(guild()), savedVariables = { modules = { alts = {
+                groups = { [OTHER] = { main = OTHER, alts = { ALT, OTHER_ALT }, chosen = true, t = 1800000000, seen = 1700000000 } },
+                own = { chars = { [ALT] = "BiA-Realm" } } } } } })
+            game:login()
+            game:fire("GUILD_ROSTER_UPDATE")
+            game:advance(10)
+            assert.equal(ME, M(game).GroupOf(ALT).main)
+            assert.equal(OTHER, M(game).GroupOf(OTHER_ALT).main)
         end)
 
         it("answers a request after a random delay", function()
@@ -162,7 +221,7 @@ describe("Alts", function()
         end)
 
         it("marks a main that was not chosen", function()
-            local game = ready(nil, { modules = { alts = { own = { chars = { [ALT] = true } } } } })
+            local game = ready(nil, { modules = { alts = { own = { chars = { [ALT] = "BiA-Realm" } } } } })
             assert.equal("(Main?)", plain(cell(game, ME, "Tester-Realm")))
         end)
 

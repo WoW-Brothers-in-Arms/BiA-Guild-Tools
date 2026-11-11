@@ -34,7 +34,7 @@ read_globals = {
 
     -- Player, guild, chat
     "UnitFullName", "UnitGUID", "GetNormalizedRealmName", "IsInGuild", "Ambiguate", "C_ChatInfo",
-    "C_GuildInfo", "GetNumGuildMembers", "GetGuildRosterInfo", "C_CreatureInfo",
+    "C_GuildInfo", "GetGuildInfo", "GetNumGuildMembers", "GetGuildRosterInfo", "C_CreatureInfo",
 
     -- Guild & Communities roster
     "CommunitiesFrame", "COMMUNITIES_PRESENCE_MOBILE_CHAT", "COMMUNITY_MEMBER_CHARACTER_INFO_FORMAT",

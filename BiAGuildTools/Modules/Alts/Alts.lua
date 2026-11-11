@@ -9,7 +9,7 @@ local Readable, After, ShortName = ns.Readable, ns.After, ns.ShortName
 local M = ns:NewModule("alts", {
     title = L.ALTS_TITLE,
     desc = L.ALTS_DESC,
-    defaults = { own = { chars = {} }, groups = {}, showInTooltip = true, onlyOnline = true },
+    defaults = { own = { chars = {}, guilds = {} }, groups = {}, showInTooltip = true, onlyOnline = true },
     slashAllowsEmpty = true, -- /bia alts without argument opens the window
 })
 
@@ -75,29 +75,59 @@ end
 
 ---------------------------------------------------------------------------
 -- Your own group
+-- db.own.chars: { [guid] = guildKey } – characters of this account, per guild (an account can have
+-- characters in several guilds, e.g. a bank guild). db.own.guilds[guildKey] = { main, t, sig }.
 ---------------------------------------------------------------------------
+local function GuildKey()
+    if not IsInGuild() or not GetGuildInfo then return nil end
+    local name, _, _, realm = GetGuildInfo("player")
+    if not Readable(name) or not name then return nil end
+    return name .. "-" .. ((Readable(realm) and realm) or (GetNormalizedRealmName and GetNormalizedRealmName()) or "")
+end
+
+local function GuildState(key)
+    local guilds = M.db.own.guilds
+    guilds[key] = guilds[key] or {}
+    return guilds[key]
+end
+
+-- Your characters in the current guild as { chars = { [guid] = true }, main = guid } (for Groups.lua).
+function M.OwnView()
+    local key = GuildKey()
+    local chars = {}
+    if key then
+        for guid, k in pairs(M.db.own.chars) do
+            if k == key then chars[guid] = true end
+        end
+    end
+    return { chars = chars, main = key and M.db.own.guilds[key] and M.db.own.guilds[key].main }, key
+end
+
 local function Signature(group)
     return group.main .. (group.chosen and "!" or "?") .. table.concat(group.alts, ",")
 end
 
 -- Builds your group; any change to it gets a new time stamp, so guild mates replace the old one.
 local function OwnGroup()
-    local own = M.db.own
-    local group = G.OwnGroup(own, M.Roster(), own.t or 0)
+    local view, key = M.OwnView()
+    if not key then return nil end
+    local state = GuildState(key)
+    local group = G.OwnGroup(view, M.Roster(), state.t or 0)
     if not group then return nil end
     local sig = Signature(group)
-    if sig ~= own.sig or not own.t then
-        own.t, own.sig = math.max(ServerTime(), (own.t or 0) + 1), sig
-        group.t = own.t
+    if sig ~= state.sig or not state.t then
+        state.t, state.sig = math.max(ServerTime(), (state.t or 0) + 1), sig
+        group.t = state.t
     end
-    G.Merge(M.db.groups, group, own.chars, time())
-    return group
+    G.Claim(M.db.groups, view.chars)
+    G.Merge(M.db.groups, group, view.chars, time())
+    return group, state
 end
 
 local function Broadcast()
-    local group = OwnGroup()
+    local group, state = OwnGroup()
     if not group then return end
-    for _, msg in ipairs(G.Encode(group)) do
+    for _, msg in ipairs(G.Encode(group, UnitGUID("player"))) do
         local ok, reason = M:SendGuild(msg)
         if not ok then
             if reason ~= "NotInGuild" and reason ~= "NoAPI" and not pendingBroadcast then
@@ -110,7 +140,7 @@ local function Broadcast()
             return
         end
     end
-    lastSentAt, lastSentSig = GetTime(), M.db.own.sig
+    lastSentAt, lastSentSig = GetTime(), state.sig
 end
 
 local function QueueBroadcast(delay)
@@ -122,36 +152,39 @@ local function QueueBroadcast(delay)
     end)
 end
 
--- Adds the current character and forgets own characters that are no longer in the guild.
+-- Adds the current character and forgets own characters of this guild that are no longer in it.
 local function UpdateOwnChars()
     local r = M.Roster()
-    if next(r) == nil then return false end
+    local key = GuildKey()
+    if next(r) == nil or not key then return false end
     local chars = M.db.own.chars
     local me = UnitGUID("player")
-    if me and r[me] then chars[me] = true end
-    for guid in pairs(chars) do
-        if not r[guid] then chars[guid] = nil end
+    if me and r[me] then chars[me] = key end
+    for guid, k in pairs(chars) do
+        if k == key and not r[guid] then chars[guid] = nil end
     end
     return true
 end
 
 function M.SetMain(guid)
-    local own = M.db.own
-    if not guid or not own.chars[guid] then
-        local member = guid and M.Roster()[guid]
+    local view, key = M.OwnView()
+    local member = guid and M.Roster()[guid]
+    if not guid or not key or not view.chars[guid] then
         M:Print(L.ALTS_NOT_OWN:format(member and member.name or "?"))
         return false
     end
-    own.main = guid
+    GuildState(key).main = guid
     Broadcast()
     Changed()
-    M:Print(L.ALTS_MAIN_SET:format(M.Roster()[guid].name))
+    M:Print(L.ALTS_MAIN_SET:format(member and member.name or "?"))
     return true
 end
 
 ---------------------------------------------------------------------------
 -- Addon messages
 ---------------------------------------------------------------------------
+local MAX_CLOCK_SKEW = 300 -- seconds a received time stamp may lie in the future
+
 M:RegisterComm(PREFIX, function(text, channel, sender)
     local from = Readable(sender) and type(sender) == "string" and sender or nil
     if channel ~= "GUILD" or not from then return end
@@ -165,6 +198,10 @@ M:RegisterComm(PREFIX, function(text, channel, sender)
         M:Debug(("from %s dropped: invalid data: %s"):format(from, text))
         return
     end
+    if group.t > ServerTime() + MAX_CLOCK_SKEW then
+        M:Debug(("from %s dropped: time stamp in the future: %s"):format(from, text))
+        return
+    end
     -- Only accept a group from one of its own characters.
     local senderGuid = RosterGuidByName(from)
     local member = senderGuid == group.main
@@ -175,7 +212,7 @@ M:RegisterComm(PREFIX, function(text, channel, sender)
         M:Debug(("from %s dropped: sender is not in the group: %s"):format(from, text))
         return
     end
-    G.Merge(M.db.groups, group, M.db.own.chars, time())
+    G.Merge(M.db.groups, group, M.OwnView().chars, time(), senderGuid)
     M:Debug(("stored group from %s: %s"):format(from, text))
     Changed()
 end)
@@ -192,8 +229,9 @@ M:RegisterEvent("GUILD_ROSTER_UPDATE", function()
             Broadcast()
             M:SendGuild(REQUEST)
         end)
-    elseif OwnGroup() and M.db.own.sig ~= lastSentSig then
-        QueueBroadcast(5)
+    else
+        local _, state = OwnGroup()
+        if state and state.sig ~= lastSentSig then QueueBroadcast(5) end
     end
     Changed()
 end)
@@ -306,7 +344,7 @@ M:RegisterSlash("alts", function(msg, cmd)
         if rest ~= "" then
             guid = nil
             local short = ShortName(rest)
-            for g in pairs(db.own.chars) do
+            for g in pairs(M.OwnView().chars) do
                 local member = M.Roster()[g]
                 if member and ShortName(member.name) == short then guid = g end
             end
@@ -345,6 +383,8 @@ M.options = {
 -- Lifecycle
 ---------------------------------------------------------------------------
 function M:OnLogin()
+    self.db.own.chars = self.db.own.chars or {}
+    self.db.own.guilds = self.db.own.guilds or {} -- defaults only fill missing top-level keys
     G.Prune(self.db.groups, time(), STALE_SECONDS)
     if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
 end

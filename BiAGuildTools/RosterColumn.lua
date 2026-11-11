@@ -135,15 +135,17 @@ local function UpdateOwnDropdown()
     if not ownDropdown then return end
     local list = MemberList()
     local blizzard = CommunitiesFrame.GuildMemberListDropdown
-    local show = IsGuildRoster(list) and #RC.Columns() > 0 and not (blizzard and blizzard:IsShown())
+    local show = IsGuildRoster(list) and list:IsShown() and #RC.Columns() > 0 and not (blizzard and blizzard:IsShown())
     ownDropdown:SetShown(show)
     ownDropdown.Label:SetShown(show)
     if show then ownDropdown:GenerateMenu() end
 end
 
 local function CreateOwnDropdown()
-    ownDropdown = CreateFrame("DropdownButton", nil, CommunitiesFrame, "WowStyle1DropdownTemplate")
-    ownDropdown:SetFrameLevel(5)
+    -- Child of the member list, so it hides with it on the other tabs (Guild Info, Benefits, ...).
+    local list = MemberList()
+    ownDropdown = CreateFrame("DropdownButton", nil, list, "WowStyle1DropdownTemplate")
+    ownDropdown:SetFrameLevel(list:GetFrameLevel() + 5)
     ownDropdown:SetWidth(150)
     ownDropdown:SetPoint("TOPRIGHT", CommunitiesFrame, "TOPRIGHT", -10, -27)
     ownDropdown.Label = ownDropdown:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")

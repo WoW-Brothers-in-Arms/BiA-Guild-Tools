@@ -81,6 +81,52 @@ describe("AltGroups", function()
         end)
     end)
 
+    describe("Encode with a sender", function()
+        it("puts the sending character into every part, so each part can be checked against it", function()
+            local alts = {}
+            for i = 1, 40 do alts[i] = ("Player-4184-%08X"):format(i) end
+            local msgs = G.Encode(group("Player-4184-0A0B0C0D", alts, 9), alts[40])
+            assert.is_true(#msgs > 1)
+            for _, m in ipairs(msgs) do
+                assert.is_true(#m <= 250)
+                local parts = G.Decode(m)
+                local found = false
+                for _, guid in ipairs(parts.alts) do found = found or guid == alts[40] end
+                assert.is_true(found)
+            end
+            local groups = {}
+            for _, m in ipairs(msgs) do G.Merge(groups, G.Decode(m), {}, 100) end
+            assert.equal(40, #groups["Player-4184-0A0B0C0D"].alts)
+        end)
+    end)
+
+    describe("Merge with a sender", function()
+        it("doesn't let a group take characters from a group its sender isn't part of", function()
+            local groups = {}
+            G.Merge(groups, group(A, { B }, 1), {}, 100, A)
+            G.Merge(groups, group(C, { A, B }, 99999999999), {}, 100, C)
+            assert.same({ B }, groups[A].alts)
+            assert.same({}, groups[C].alts)
+        end)
+
+        it("still lets a player switch their main", function()
+            local groups = {}
+            G.Merge(groups, group(A, { B }, 1), {}, 100, A)
+            G.Merge(groups, group(B, { A }, 2), {}, 100, B)
+            assert.is_nil(groups[A])
+            assert.same({ A }, groups[B].alts)
+        end)
+    end)
+
+    describe("Claim", function()
+        it("takes your characters out of groups received before they were yours", function()
+            local groups = { [C] = group(C, { B, D }, 50), [B] = group(B, { D }, 50) }
+            G.Claim(groups, { [A] = true, [B] = true })
+            assert.same({ D }, groups[C].alts)
+            assert.is_nil(groups[B])
+        end)
+    end)
+
     describe("Merge", function()
         it("stores a new group with the time it was seen", function()
             local groups = {}
