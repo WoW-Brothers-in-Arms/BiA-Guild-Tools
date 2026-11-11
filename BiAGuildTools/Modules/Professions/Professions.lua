@@ -9,8 +9,6 @@ local M = ns:NewModule("professions", {
     title = L.PROF_TITLE,
     desc = L.PROF_DESC,
     formerKey = "berufe", -- key up to 1.0.x
-    -- Retail shows guild professions natively, so the tool starts switched off there.
-    enabledByDefault = function() return not ns.IsRetail end,
     defaults = { members = {}, showInTooltip = true, column = true },
 })
 

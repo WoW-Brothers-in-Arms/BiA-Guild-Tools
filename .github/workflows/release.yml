@@ -1,6 +1,6 @@
 # Builds BiAGuildTools-<version>.zip and publishes a GitHub release when a tag like v1.2.3 is pushed.
 # WowUp ("Install from URL") and other addon managers download the zip from the latest release.
-# release.json tells WowUp the zip is for both Retail ("mainline") and WoW: Forever ("forever");
+# release.json tells WowUp the zip is for WoW: Forever ("forever");
 # without it WowUp only offers a zip to Forever when its name ends in -forever.zip.
 name: Release
 

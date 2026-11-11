@@ -28,7 +28,7 @@ function ns.CreateSettingsPanel()
 
     local version = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     version:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
-    version:SetText(L.SETTINGS_VERSION:format(Meta("Version") or "?") .. "  ·  " .. ns.ClientName)
+    version:SetText(L.SETTINGS_VERSION:format(Meta("Version") or "?"))
 
     local notes = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     notes:SetPoint("TOPLEFT", icon, "BOTTOMLEFT", 0, -16)

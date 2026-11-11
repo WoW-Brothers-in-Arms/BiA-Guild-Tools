@@ -9,8 +9,6 @@ local L = ns.L
 local M = ns:NewModule("bags", {
     title = L.BAGS_TITLE,
     desc = L.BAGS_DESC,
-    -- Retail puts B on "Open All Bags" by default, so the tool starts switched off there.
-    enabledByDefault = function() return not ns.IsRetail end,
     defaults = {},
 })
 

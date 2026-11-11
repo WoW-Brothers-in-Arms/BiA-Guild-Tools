@@ -9,8 +9,6 @@ local After = ns.After
 local M = ns:NewModule("bank", {
     title = L.BANK_TITLE,
     desc = L.BANK_DESC,
-    -- Retail has its own button, so the tool starts switched off there.
-    enabledByDefault = function() return not ns.IsRetail end,
     defaults = {},
 })
 

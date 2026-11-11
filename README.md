@@ -1,7 +1,7 @@
 # BiA Guild Tools
 
 A collection of small World of Warcraft tools for the guild **Brothers in Arms (BiA)**.
-Runs in **WoW: Forever** (interface 16001) and in **Retail** (12.x).
+Runs in **World of Warcraft: Forever** (interface 16001) only.
 
 ## Installation
 
@@ -11,14 +11,12 @@ Runs in **WoW: Forever** (interface 16001) and in **Retail** (12.x).
 
 **Manually:** download `BiAGuildTools-x.y.z.zip` from the [releases](https://github.com/WoW-Brothers-in-Arms/BiA-Guild-Tools/releases/latest), unzip it and copy the `BiAGuildTools` folder into the game's AddOns folder:
 
-- Forever: `World of Warcraft/_forever_/Interface/AddOns/BiAGuildTools`
-- Retail: `World of Warcraft/_retail_/Interface/AddOns/BiAGuildTools`
+`World of Warcraft/_forever_/Interface/AddOns/BiAGuildTools`
 
 For development, a symlink to the folder in this repo is more convenient:
 
 ```bash
 ln -s "$PWD/BiAGuildTools" "/Applications/World of Warcraft/_forever_/Interface/AddOns/BiAGuildTools"
-ln -s "$PWD/BiAGuildTools" "/Applications/World of Warcraft/_retail_/Interface/AddOns/BiAGuildTools"
 ```
 
 **Upgrading from 1.0.x:** the addon folder used to be called `BiaGuild`. Delete `Interface/AddOns/BiaGuild` after installing. If it is still there on your next login, BiA Guild Tools takes over your settings from it, turns it off and reminds you to delete it.
@@ -49,8 +47,6 @@ The game does not pass other players' professions to addons. So every member run
 
 The tooltip can also be switched on the settings page (Esc → Options → AddOns → BiA Guild Tools).
 
-This tool is off by default in Retail.
-
 ### Addon Versions (`/bia-version`)
 
 Shows which guild members run which version of BiA Guild Tools. When a member has a newer version than you, you get a hint in chat once per session. The guild roster tooltip shows the version of members who use the addon.
@@ -68,15 +64,11 @@ If the game doesn't offer auto deposit, the tool moves every trade good (cloth, 
 
 - `/bia-bank deposit`: the same as the button, for bag addons that replace the bank window (the bank must be open)
 
-This tool is off by default in Retail, which has its own button.
-
 ### Reagent Bag (`/bia-bags`)
 
 Opens and closes the reagent bag together with your backpack. In WoW: Forever, **B** is bound to "Toggle Backpack" by default, which opens only the backpack (or the combined bags) but not the reagent bag; only "Open All Bags" (**Shift-B**) includes it. This tool adds the reagent bag to "Toggle Backpack", so **B**, **F12** and a click on the backpack button open it too. Your key bindings stay as they are.
 
 - `/bia-bags on` / `off`: turn it on or off
-
-This tool is off by default in Retail, where B opens all bags.
 
 ## Releasing a new version
 
@@ -92,7 +84,7 @@ The CurseForge upload needs, under the repository's Settings → Secrets and var
 - secret `CF_API_KEY`: a token from curseforge.com → Account → API Tokens
 - variable `CF_PROJECT_ID`: the project ID from the CurseForge project page ("About Project")
 
-Without them the upload is skipped. The game versions come from `## Interface:` in the TOC (`120105` → `12.1.5`); versions CurseForge doesn't list are skipped with a warning.
+Without them the upload is skipped. The game versions come from `## Interface:` in the TOC (`16001` → `1.60.1`); versions CurseForge doesn't list are skipped with a warning.
 
 ## Structure
 

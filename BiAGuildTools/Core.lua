@@ -7,7 +7,7 @@
 --   M:RegisterComm("BiaXyz", function(text, channel, sender) end)
 --   M:RegisterSlash("prof", handler, { "<arg> – help line", ... })   -- creates /bia-prof
 --   function M:OnLogin() ... end                                     -- M.db is ready here
---   Optional: enabledByDefault = false | function() return not ns.IsRetail end
+--   Optional: enabledByDefault = false
 --   Optional: formerKey = "old"   -- saved data and on/off choice are moved over from that key
 --   Optional: M.options = { { key = "dbField", label = "...", onChange = fn }, ... }
 --             -- boolean settings in M.db, shown as checkboxes on the settings page
@@ -16,12 +16,6 @@ local L = ns.L
 _G.BiAGuildTools = ns
 
 ns.modules, ns.moduleOrder = {}, {}
-
--- Which game client is running: WoW: Forever (interface 16xxx) or Retail.
-local interface = select(4, GetBuildInfo()) or 0
-ns.IsForever = interface >= 16000 and interface < 17000
-ns.IsRetail = not ns.IsForever and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
-ns.ClientName = ns.IsForever and "Forever" or (ns.IsRetail and "Retail" or "Classic")
 
 -- This addon's version from the TOC ("## Version:").
 local getMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
@@ -109,12 +103,10 @@ function Module:Print(msg)
 end
 
 function Module:IsEnabledByDefault()
-    local d = self.enabledByDefault
-    if type(d) == "function" then return d() and true or false end
-    return d ~= false
+    return self.enabledByDefault ~= false
 end
 
--- An explicit /bia-<tool> on | off wins; otherwise the module's default for this client applies.
+-- An explicit /bia-<tool> on | off wins; otherwise the module's default applies.
 function Module:IsEnabled()
     local choice = BiAGuildToolsDB and BiAGuildToolsDB.enabled and BiAGuildToolsDB.enabled[self.key]
     if choice ~= nil then return choice end
@@ -221,9 +213,6 @@ local function ShowOverview()
     ns.Print(L.OVERVIEW_HEADER:format("/bia-<tool> help"))
     for _, m in ipairs(ns.moduleOrder) do
         local state = ns.OnOff(m:IsEnabled())
-        if BiAGuildToolsDB.enabled[m.key] == nil and not m:IsEnabledByDefault() then
-            state = state .. " " .. L.OVERVIEW_DEFAULT_IN:format(ns.ClientName)
-        end
         local cmds = {}
         for _, c in ipairs(m.commands) do cmds[#cmds + 1] = "/bia-" .. c.name end
         DEFAULT_CHAT_FRAME:AddMessage(("  %s%s|r %s – %s"):format(COLOR, m.title, state, m.desc or ""))
