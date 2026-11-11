@@ -248,3 +248,115 @@ function G.Index(groups)
     end
     return index
 end
+
+---------------------------------------------------------------------------
+-- Officer assignments: guild master and officers link characters for others.
+--   assigned = { [charGuid] = { main = guid | false, by = guid, t = number, seen = number } }
+--     main == charGuid: the character is a main; false: the assignment was removed (kept, so an
+--     older copy relayed by another officer can't bring it back)
+-- Wire format: "A|1|<char>:<main|0>:<t>:<by>,..." – each entry stands alone.
+---------------------------------------------------------------------------
+function G.EncodeAssign(list)
+    local head = "A|" .. PROTOCOL .. "|"
+    local msgs, current, length = {}, {}, #head
+    for _, e in ipairs(list) do
+        local item = ("%s:%s:%d:%s"):format(Short(e.char), e.main and Short(e.main) or "0", e.t, Short(e.by))
+        if #current > 0 and length + 1 + #item > MAX_MESSAGE then
+            msgs[#msgs + 1] = head .. table.concat(current, ",")
+            current, length = {}, #head
+        end
+        length = length + #item + (#current > 0 and 1 or 0)
+        current[#current + 1] = item
+    end
+    if #current > 0 then msgs[#msgs + 1] = head .. table.concat(current, ",") end
+    return msgs
+end
+
+function G.DecodeAssign(text)
+    local version, body = text:match("^A|(%d+)|(.+)$")
+    if version ~= PROTOCOL then return nil end
+    local list = {}
+    for item in body:gmatch("[^,]+") do
+        local char, main, t, by = item:match("^([^:]+):([^:]+):(%d+):([^:]+)$")
+        char, by = char and Long(char), by and Long(by)
+        if main and main ~= "0" then main = Long(main) else main = main and false end
+        if not char or not by or main == nil then return nil end
+        list[#list + 1] = { char = char, main = main, by = by, t = tonumber(t) }
+    end
+    return list
+end
+
+-- Stores entry for its character unless a newer one is stored. Returns true when something changed.
+function G.MergeAssign(assigned, entry, now)
+    local stored = assigned[entry.char]
+    if stored and stored.t > entry.t then return false end
+    if stored and stored.t == entry.t then
+        stored.seen = now
+        return false
+    end
+    assigned[entry.char] = { main = entry.main, by = entry.by, t = entry.t, seen = now }
+    return true
+end
+
+function G.PruneAssign(assigned, now, maxAge)
+    for char, entry in pairs(assigned) do
+        if (entry.seen or 0) < now - maxAge then assigned[char] = nil end
+    end
+end
+
+-- The groups to show: self-reported groups plus officer assignments for characters that aren't in a
+-- self-reported group (the player's own word wins). Returns a new table; groups is not changed.
+-- Assigned characters are listed in their group's assignedBy = { [guid] = officerGuid }.
+function G.Effective(groups, assigned)
+    local eff, groupOf = {}, {}
+    for main, g in pairs(groups) do
+        local copy = { main = g.main, alts = { unpack(g.alts) }, chosen = g.chosen, t = g.t, seen = g.seen }
+        eff[main] = copy
+        groupOf[main] = copy
+        for _, alt in ipairs(g.alts) do groupOf[alt] = copy end
+    end
+
+    local function IsAssignedAlt(guid)
+        local e = assigned[guid]
+        return e and e.main and e.main ~= guid and not groupOf[guid]
+    end
+
+    -- The main an alt assigned to m ends up with: follows a self-reported group, or one assigned hop.
+    local function Target(char, m)
+        if groupOf[m] then return groupOf[m].main end
+        if not IsAssignedAlt(m) then return m end
+        local next = assigned[m].main
+        if next == char then return nil end            -- cycle
+        if groupOf[next] then return groupOf[next].main end
+        if IsAssignedAlt(next) then return nil end     -- longer chain
+        return next
+    end
+
+    local function Ensure(m)
+        local g = eff[m]
+        if not g then
+            g = { main = m, alts = {}, chosen = true, assigned = true }
+            eff[m] = g
+        end
+        g.assignedBy = g.assignedBy or {}
+        return g
+    end
+
+    for char, e in pairs(assigned) do
+        if e.main and not groupOf[char] then
+            if e.main == char then
+                Ensure(char).assignedBy[char] = e.by
+            else
+                local target = Target(char, e.main)
+                if target and target ~= char then
+                    local g = Ensure(target)
+                    local present = false
+                    for _, alt in ipairs(g.alts) do present = present or alt == char end
+                    if not present then g.alts[#g.alts + 1] = char end
+                    g.assignedBy[char] = e.by
+                end
+            end
+        end
+    end
+    return eff
+end

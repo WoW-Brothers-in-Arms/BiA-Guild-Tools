@@ -253,4 +253,133 @@ describe("AltGroups", function()
             assert.same({ "alt:Abe", "main:Dan", "main:Zed", "alt:Cat", "alt:Bob" }, kinds(G.BuildList(groups, r, true)))
         end)
     end)
+
+    describe("assignments", function()
+        local function entry(main, t, by) return { main = main, t = t, by = by or D, seen = 0 } end
+
+        describe("EncodeAssign and DecodeAssign", function()
+            it("round-trips an entry", function()
+                local msgs = G.EncodeAssign({ { char = B, main = A, by = D, t = 5 } })
+                assert.same({ "A|1|1-0000BBBB:1-0000AAAA:5:1-0000DDDD" }, msgs)
+                assert.same({ { char = B, main = A, by = D, t = 5 } }, G.DecodeAssign(msgs[1]))
+            end)
+
+            it("encodes a removal as 0", function()
+                local msgs = G.EncodeAssign({ { char = B, main = false, by = D, t = 6 } })
+                assert.same({ "A|1|1-0000BBBB:0:6:1-0000DDDD" }, msgs)
+                assert.is_false(G.DecodeAssign(msgs[1])[1].main)
+            end)
+
+            it("splits many entries into messages of at most 250 bytes", function()
+                local list = {}
+                for i = 1, 30 do
+                    list[i] = { char = ("Player-4184-%08X"):format(i), main = A, by = D, t = 1700000000 + i }
+                end
+                local msgs = G.EncodeAssign(list)
+                assert.is_true(#msgs > 1)
+                local n = 0
+                for _, m in ipairs(msgs) do
+                    assert.is_true(#m <= 250)
+                    n = n + #G.DecodeAssign(m)
+                end
+                assert.equal(30, n)
+            end)
+
+            it("rejects other versions, bad GUIDs and missing fields", function()
+                assert.is_nil(G.DecodeAssign("A|2|1-0000BBBB:1-0000AAAA:5:1-0000DDDD"))
+                assert.is_nil(G.DecodeAssign("A|1|nonsense:1-0000AAAA:5:1-0000DDDD"))
+                assert.is_nil(G.DecodeAssign("A|1|1-0000BBBB:1-0000AAAA:5"))
+                assert.is_nil(G.DecodeAssign("G|1|1-0000BBBB:1-0000AAAA:5:1-0000DDDD"))
+            end)
+        end)
+
+        describe("MergeAssign", function()
+            it("keeps the newer entry per character", function()
+                local assigned = {}
+                assert.is_true(G.MergeAssign(assigned, { char = B, main = A, by = D, t = 5 }, 100))
+                assert.is_false(G.MergeAssign(assigned, { char = B, main = C, by = D, t = 4 }, 100))
+                assert.equal(A, assigned[B].main)
+                assert.is_true(G.MergeAssign(assigned, { char = B, main = C, by = D, t = 6 }, 100))
+                assert.equal(C, assigned[B].main)
+            end)
+
+            it("refreshes the seen time on an equal entry", function()
+                local assigned = {}
+                G.MergeAssign(assigned, { char = B, main = A, by = D, t = 5 }, 100)
+                assert.is_false(G.MergeAssign(assigned, { char = B, main = A, by = D, t = 5 }, 200))
+                assert.equal(200, assigned[B].seen)
+            end)
+
+            it("doesn't revive a removed entry when an older copy is relayed", function()
+                local assigned = {}
+                G.MergeAssign(assigned, { char = B, main = A, by = D, t = 5 }, 100)
+                G.MergeAssign(assigned, { char = B, main = false, by = D, t = 6 }, 100)
+                G.MergeAssign(assigned, { char = B, main = A, by = C, t = 5 }, 100)
+                assert.is_false(assigned[B].main)
+            end)
+        end)
+
+        it("PruneAssign drops entries not seen for longer than the maximum age", function()
+            local assigned = { [A] = { main = A, by = D, t = 1, seen = 1000 }, [B] = { main = A, by = D, t = 1, seen = 1000 + 2 * DAY } }
+            G.PruneAssign(assigned, 1000 + 91 * DAY, 90 * DAY)
+            assert.is_nil(assigned[A])
+            assert.is_not_nil(assigned[B])
+        end)
+
+        describe("Effective", function()
+            local E = "Player-1-0000EEEE"
+
+            it("makes a group from an alt assignment", function()
+                local eff = G.Effective({}, { [B] = entry(A, 5) })
+                assert.same({ B }, eff[A].alts)
+                assert.is_true(eff[A].chosen)
+                assert.equal(D, eff[A].assignedBy[B])
+            end)
+
+            it("makes a group for a character marked as main", function()
+                local eff = G.Effective({}, { [A] = entry(A, 5) })
+                assert.same({}, eff[A].alts)
+                assert.is_true(eff[A].chosen)
+                assert.equal(D, eff[A].assignedBy[A])
+            end)
+
+            it("lets a self-reported group win over a newer assignment", function()
+                local eff = G.Effective({ [A] = group(A, { B }, 1) }, { [B] = entry(C, 99) })
+                assert.same({ B }, eff[A].alts)
+                assert.is_nil(eff[C])
+            end)
+
+            it("adds an assigned alt to the main's self-reported group", function()
+                local eff = G.Effective({ [A] = group(A, { B }, 1) }, { [C] = entry(A, 5) })
+                assert.same({ B, C }, eff[A].alts)
+            end)
+
+            it("adds an alt assigned to a self-reported alt to that alt's group", function()
+                local eff = G.Effective({ [A] = group(A, { B }, 1) }, { [C] = entry(B, 5) })
+                assert.same({ B, C }, eff[A].alts)
+                assert.is_nil(eff[B])
+            end)
+
+            it("follows an assigned main once and skips cycles", function()
+                local eff = G.Effective({}, { [B] = entry(C, 5), [C] = entry(B, 5) })
+                assert.same({}, G.Index(eff))
+                eff = G.Effective({}, { [B] = entry(A, 5), [E] = entry(B, 5) })
+                table.sort(eff[A].alts)
+                assert.same({ B, E }, eff[A].alts)
+                assert.is_nil(eff[B])
+            end)
+
+            it("ignores removed entries", function()
+                local eff = G.Effective({}, { [B] = entry(false, 5) })
+                assert.same({}, eff)
+            end)
+
+            it("doesn't change the self-reported groups", function()
+                local groups = { [A] = group(A, { B }, 1) }
+                G.Effective(groups, { [C] = entry(A, 5) })
+                assert.same({ B }, groups[A].alts)
+                assert.is_nil(groups[A].assignedBy)
+            end)
+        end)
+    end)
 end)
