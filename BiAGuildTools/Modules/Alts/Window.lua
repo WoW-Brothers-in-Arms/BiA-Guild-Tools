@@ -19,8 +19,8 @@ end
 
 local function OnRowClick(row, button)
     local data = row.data
-    if data and data.collapsible and button == "LeftButton" then
-        M.ToggleNoData()
+    if data and data.section and button == "LeftButton" then
+        M.ToggleSection(data.section)
     elseif data and button == "RightButton" and GUILD_ROWS[data.kind] and M.CanAssign() then
         MenuUtil.CreateContextMenu(row, function(_, root)
             root:CreateTitle(NameOf(data.guid))
@@ -29,34 +29,48 @@ local function OnRowClick(row, button)
     end
 end
 
+-- Sections of the list; each header expands or collapses its rows (stored in db.expanded).
+local EXPANDED_BY_DEFAULT = { own = true, guild = true, nodata = false }
+
+local function IsExpanded(section)
+    local stored = M.db.expanded and M.db.expanded[section]
+    if stored == nil then return EXPANDED_BY_DEFAULT[section] end
+    return stored
+end
+
+-- Adds a section header and, while the section is expanded, its rows.
+local function AddSection(rows, section, text, sectionRows)
+    local expanded = IsExpanded(section)
+    rows[#rows + 1] = { kind = "header", text = text, section = section, expanded = expanded }
+    if expanded then
+        for _, row in ipairs(sectionRows) do rows[#rows + 1] = row end
+    end
+end
+
 local function Rows()
     local roster, own = M.Roster(), M.OwnView()
-    local rows = { { kind = "header", text = L.ALTS_YOUR_CHARS } }
+    local rows = {}
 
-    local mine = {}
+    local mine, ownRows = {}, {}
     for guid in pairs(own.chars) do
         if roster[guid] then mine[#mine + 1] = guid end
     end
     table.sort(mine, function(a, b) return roster[a].level > roster[b].level end)
     local main, chosen = G.EffectiveMain(own, roster)
     for _, guid in ipairs(mine) do
-        rows[#rows + 1] = { kind = "own", guid = guid, isMain = chosen and guid == main }
+        ownRows[#ownRows + 1] = { kind = "own", guid = guid, isMain = chosen and guid == main }
     end
-    if not chosen then rows[#rows + 1] = { kind = "hint", text = L.ALTS_PICK_MAIN_HINT } end
+    if not chosen then ownRows[#ownRows + 1] = { kind = "hint", text = L.ALTS_PICK_MAIN_HINT } end
+    AddSection(rows, "own", L.ALTS_YOUR_CHARS, ownRows)
 
-    rows[#rows + 1] = { kind = "header", text = L.ALTS_GUILD }
-    -- Members without the addon come last, under a header that expands them (collapsed by default).
-    local noData = {}
+    -- Members without the addon come last, in a section of their own.
+    local guildRows, noData = {}, {}
     for _, row in ipairs(G.BuildList(M.Groups(), roster, M.db.onlyOnline)) do
-        if row.kind == "nodata" then noData[#noData + 1] = row else rows[#rows + 1] = row end
+        if row.kind == "nodata" then noData[#noData + 1] = row else guildRows[#guildRows + 1] = row end
     end
+    AddSection(rows, "guild", L.ALTS_GUILD, guildRows)
     if #noData > 0 then
-        local expanded = M.db.noDataExpanded == true
-        rows[#rows + 1] = { kind = "header", text = ("%s (%d)"):format(L.ALTS_NO_DATA, #noData),
-            collapsible = true, expanded = expanded }
-        if expanded then
-            for _, row in ipairs(noData) do rows[#rows + 1] = row end
-        end
+        AddSection(rows, "nodata", ("%s (%d)"):format(L.ALTS_NO_DATA, #noData), noData)
     end
     return rows
 end
@@ -89,7 +103,7 @@ local function InitRow(row, data)
     end
     row.data = data
     -- Only rows an officer can click (to assign) light up on hover.
-    local clickable = data.collapsible or (GUILD_ROWS[data.kind] and M.CanAssign())
+    local clickable = data.section or (GUILD_ROWS[data.kind] and M.CanAssign())
     row:GetHighlightTexture():SetAlpha(clickable and 1 or 0)
 
     local member = data.guid and M.Roster()[data.guid]
@@ -109,7 +123,7 @@ local function InitRow(row, data)
     if data.kind == "header" or data.kind == "hint" then
         row.Name:SetPoint("LEFT", 4, 0)
         row.Name:SetFontObject(data.kind == "header" and "GameFontNormalSmall" or "GameFontDisableSmall")
-        if data.collapsible then
+        if data.section then
             local icon = data.expanded and "Interface\\Buttons\\UI-MinusButton-Up" or "Interface\\Buttons\\UI-PlusButton-Up"
             row.Name:SetText(("|T%s:12:12|t %s"):format(icon, data.text))
         else
@@ -145,8 +159,9 @@ local function Refresh()
     window.Scroll:SetDataProvider(CreateDataProvider(Rows()), ScrollBoxConstants.RetainScrollPosition)
 end
 
-function M.ToggleNoData()
-    M.db.noDataExpanded = not M.db.noDataExpanded
+function M.ToggleSection(section)
+    M.db.expanded = M.db.expanded or {}
+    M.db.expanded[section] = not IsExpanded(section)
     Refresh()
 end
 
