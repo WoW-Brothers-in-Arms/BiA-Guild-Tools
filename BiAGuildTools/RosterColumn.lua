@@ -137,7 +137,6 @@ local function UpdateOwnDropdown()
     local blizzard = CommunitiesFrame.GuildMemberListDropdown
     local show = IsGuildRoster(list) and list:IsShown() and #RC.Columns() > 0 and not (blizzard and blizzard:IsShown())
     ownDropdown:SetShown(show)
-    ownDropdown.Label:SetShown(show)
     if show then ownDropdown:GenerateMenu() end
 end
 
@@ -148,9 +147,6 @@ local function CreateOwnDropdown()
     ownDropdown:SetFrameLevel(list:GetFrameLevel() + 5)
     ownDropdown:SetWidth(150)
     ownDropdown:SetPoint("TOPRIGHT", CommunitiesFrame, "TOPRIGHT", -10, -27)
-    ownDropdown.Label = ownDropdown:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    ownDropdown.Label:SetPoint("RIGHT", ownDropdown, "LEFT", -6, 0)
-    ownDropdown.Label:SetText(L.COLUMN_DROPDOWN_LABEL)
     ownDropdown:SetupMenu(function(_, root)
         for _, def in ipairs(RC.Columns()) do
             root:CreateRadio(def.title, function() return RC.Choice() == def.key end, function()

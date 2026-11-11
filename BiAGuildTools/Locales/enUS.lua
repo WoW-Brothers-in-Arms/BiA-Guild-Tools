@@ -17,7 +17,6 @@ L.DATE_TIME_FORMAT = "%Y-%m-%d %H:%M"
 L.OLD_ADDON_FOUND = "The old addon folder \"%s\" is still installed. Your settings were taken over and it is turned off now – please delete %s."
 
 -- Guild roster column
-L.COLUMN_DROPDOWN_LABEL = "Column:"
 L.COLUMN_OFF = "Off"
 
 -- Settings page

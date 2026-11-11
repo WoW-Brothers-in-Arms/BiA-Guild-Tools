@@ -68,7 +68,7 @@ If the game doesn't offer auto deposit, the tool moves every trade good (cloth, 
 
 Shows which characters belong to the same player. You only pick your main: the addon remembers every character on your account that has logged in while in the guild and shares the group with the guild via addon message. **Only members who use the addon show up as linked.** Characters on another WoW account (WoW1/WoW2) are not linked.
 
-- In the guild roster, a dropdown at the top right (**Column:**) switches the extra column between *Professions*, *Alts* and *Off*. The Alts column shows a crown for a main, "» Main name" for an alt and "(Main?)" while the player hasn't picked a main yet (then their highest-level character counts as main).
+- In the guild roster, a dropdown at the top right switches the extra column between *Professions*, *Alts* and *Off*. The Alts column shows a crown for a main, "» Main name" for an alt and "(Main?)" while the player hasn't picked a main yet (then their highest-level character counts as main).
 - The roster tooltip names the main and lists the player's other characters.
 - `/bia alts`: open the overview window – your characters on top (click a crown to pick your main), below the guild grouped by player
 - `/bia alts main [name]`: make the current (or the named own) character your main

@@ -17,7 +17,6 @@ L.DATE_TIME_FORMAT = "%d.%m.%Y %H:%M"
 L.OLD_ADDON_FOUND = "Der alte Addon-Ordner „%s“ ist noch installiert. Deine Einstellungen wurden übernommen und er ist jetzt ausgeschaltet – bitte lösche %s."
 
 -- Guild roster column
-L.COLUMN_DROPDOWN_LABEL = "Spalte:"
 L.COLUMN_OFF = "Aus"
 
 -- Settings page
