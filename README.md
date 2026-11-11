@@ -55,10 +55,12 @@ The German commands from 1.0.x (`/bia-berufe`, `an`, `aus`, `hilfe`, `spalte`, `
 
 ## Releasing a new version
 
-1. Bump `## Version:` in `BiAGuildTools/BiAGuildTools.toc` and commit
-2. Create and push a tag: `git tag v1.0.1 && git push origin main v1.0.1`
+While working, add player-facing changes to `CHANGELOG.md` under `## Unreleased`. Then:
 
-The workflow `.github/workflows/release.yml` checks that the tag matches the TOC version, builds the zip and creates the GitHub release. It then uploads the same zip to CurseForge with the generated release notes as changelog. Tags containing `beta` or `alpha` (e.g. `v1.2.0-beta1`) become beta or alpha files there.
+1. Bump `## Version:` in `BiAGuildTools/BiAGuildTools.toc`, rename `## Unreleased` in `CHANGELOG.md` to the version (e.g. `## 1.1.0 (2026-11-12)`) and commit
+2. Create and push a tag: `git tag v1.1.0 && git push origin main v1.1.0`
+
+The workflow `.github/workflows/release.yml` checks that the tag matches the TOC version and that `CHANGELOG.md` has a section for it, builds the zip and creates the GitHub release with that section as release notes. It then uploads the same zip to CurseForge with the same changelog. Tags containing `beta` or `alpha` (e.g. `v1.2.0-beta1`) become beta or alpha files there.
 
 The CurseForge upload needs, under the repository's Settings → Secrets and variables → Actions:
 
