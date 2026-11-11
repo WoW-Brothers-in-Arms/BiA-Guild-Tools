@@ -51,8 +51,6 @@ The game does not pass other players' professions to addons. So every member run
 
 This tool is off by default in Retail.
 
-The German commands from 1.0.x (`/bia-berufe`, `an`, `aus`, `hilfe`, `spalte`, `sek`) still work.
-
 ## Releasing a new version
 
 While working, add player-facing changes to `CHANGELOG.md` under `## Unreleased`. Then:

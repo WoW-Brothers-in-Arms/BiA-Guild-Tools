@@ -493,12 +493,8 @@ local function ListProfession(query)
     end
 end
 
--- German subcommands from 1.0.x still work.
-local SUBCOMMAND_ALIASES = { sek = "secondary", spalte = "column" }
-
 M:RegisterSlash("prof", function(msg, cmd)
     local db = M.db
-    cmd = SUBCOMMAND_ALIASES[cmd] or cmd
     if cmd == "secondary" then
         db.showSecondary = not db.showSecondary
         M:Print(L.PROF_SECONDARY_TOGGLED:format(ns.OnOff(db.showSecondary)))
@@ -538,7 +534,7 @@ end, {
     "sync – " .. L.PROF_HELP_SYNC,
     "status – " .. L.PROF_HELP_STATUS,
     "debug – " .. L.PROF_HELP_DEBUG,
-}, { "berufe" })
+})
 
 ---------------------------------------------------------------------------
 -- Lifecycle

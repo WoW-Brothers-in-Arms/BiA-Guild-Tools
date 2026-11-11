@@ -27,11 +27,6 @@ local eventHandlers = {}   -- event -> { { module, fn }, ... }
 local commHandlers = {}    -- prefix -> { module, fn }
 local loggedIn = false
 
--- Words every tool command understands. The German ones are kept for players used to 1.0.x.
-local WORD_ON = { on = true, an = true }
-local WORD_OFF = { off = true, aus = true }
-local WORD_HELP = { help = true, hilfe = true }
-
 ---------------------------------------------------------------------------
 -- Shared helpers
 ---------------------------------------------------------------------------
@@ -178,25 +173,24 @@ function Module:SetEnabled(on)
     self:Print(ns.OnOff(on))
 end
 
--- Creates the chat command /bia-<name> (plus /bia-<alias> for each name in aliases).
+-- Creates the chat command /bia-<name>.
 -- help: list of lines shown by /bia-<name> help. "on", "off" and "help" are handled here for every module.
-function Module:RegisterSlash(name, handler, help, aliases)
+function Module:RegisterSlash(name, handler, help)
     local id = "BIAGUILD_" .. name:upper():gsub("[^%w]", "_")
     local cmd = "/bia-" .. name
     _G["SLASH_" .. id .. "1"] = cmd
-    for i, alias in ipairs(aliases or {}) do _G["SLASH_" .. id .. (i + 1)] = "/bia-" .. alias end
     SlashCmdList[id] = function(msg)
         msg = strtrim(msg or "")
         local lower = msg:lower()
-        if WORD_ON[lower] or WORD_OFF[lower] then
-            self:SetEnabled(WORD_ON[lower] or false)
+        if lower == "on" or lower == "off" then
+            self:SetEnabled(lower == "on")
             return
         end
         if not self:IsEnabled() then
             self:Print(L.TOOL_IS_OFF:format(cmd .. " on"))
             return
         end
-        if WORD_HELP[lower] or (lower == "" and not self.slashAllowsEmpty) then
+        if lower == "help" or (lower == "" and not self.slashAllowsEmpty) then
             self:Print(L.COMMANDS)
             for _, line in ipairs(help or {}) do DEFAULT_CHAT_FRAME:AddMessage("  " .. cmd .. " " .. line) end
             DEFAULT_CHAT_FRAME:AddMessage("  " .. cmd .. " on | off – " .. L.HELP_ON_OFF)
@@ -228,7 +222,7 @@ end
 SLASH_BIAGUILD1 = "/bia"
 SlashCmdList.BIAGUILD = function(msg)
     local cmd = strtrim(msg or ""):lower()
-    if cmd == "options" or cmd == "settings" or cmd == "optionen" or cmd == "einstellungen" then
+    if cmd == "options" or cmd == "settings" then
         ns.OpenSettings()
     else
         ShowOverview()
