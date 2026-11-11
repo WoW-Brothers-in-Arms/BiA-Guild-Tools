@@ -3,7 +3,7 @@
 -- "Toggle Backpack" (ToggleBackpack) does not – and WoW: Forever puts B on "Toggle Backpack" by
 -- default. Instead of changing the player's key bindings, this tool hooks ToggleBackpack, so B,
 -- F12 and a click on the backpack button all open the reagent bag too.
-local ADDON, ns = ...
+local _, ns = ...
 local L = ns.L
 
 local M = ns:NewModule("bags", {

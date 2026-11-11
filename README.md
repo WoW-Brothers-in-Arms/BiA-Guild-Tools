@@ -70,12 +70,27 @@ Opens and closes the reagent bag together with your backpack. In WoW: Forever, *
 
 - `/bia bags on` / `off`: turn it on or off
 
+## Checks and tests
+
+`scripts/check.sh` runs [luacheck](https://github.com/lunarmodules/luacheck) (static analysis, settings in `.luacheckrc`) and the [busted](https://lunarmodules.github.io/busted) tests in `spec/`. The tests run with LuaJIT (Lua 5.1, like the game) against a small fake of the WoW client (`spec/support/wow.lua`): it loads the addon in TOC order and lets a test log in, run `/bia` commands, receive addon messages and move the clock forward.
+
+Setup, once:
+
+```bash
+brew install luarocks luajit
+luarocks --lua-version=5.1 --local install busted
+luarocks --lua-version=5.1 --local install luacheck
+git config core.hooksPath .githooks
+```
+
+The last line turns on `.githooks/pre-push`: it runs `scripts/check.sh` whenever a release tag (`v*`) is pushed and stops the push if a check fails. Other pushes are not checked. When the addon starts using a new game global, add it to `read_globals` in `.luacheckrc`.
+
 ## Releasing a new version
 
 While working, add player-facing changes to `CHANGELOG.md` under `## Unreleased`. Then:
 
 1. Bump `## Version:` in `BiAGuildTools/BiAGuildTools.toc`, rename `## Unreleased` in `CHANGELOG.md` to the version (e.g. `## 1.1.0 (2026-11-12)`) and commit
-2. Create and push a tag: `git tag v1.1.0 && git push origin main v1.1.0`
+2. Create and push a tag: `git tag v1.1.0 && git push origin main v1.1.0` – the pre-push hook runs the checks first (see above)
 
 The workflow `.github/workflows/release.yml` checks that the tag matches the TOC version and that `CHANGELOG.md` has a section for it, builds the zip and creates the GitHub release with that section as release notes. It then uploads the same zip to CurseForge with the same changelog. Tags containing `beta` or `alpha` (e.g. `v1.2.0-beta1`) become beta or alpha files there.
 
@@ -99,7 +114,12 @@ BiAGuildTools/
 └── Modules/
     ├── Professions/      ← module "professions"
     ├── Version/          ← module "version"
-    └── Bank/             ← module "bank"
+    ├── Bank/             ← module "bank"
+    └── Bags/             ← module "bags"
+spec/                     ← busted tests (not part of the release zip)
+└── support/wow.lua       ← fake WoW client for the tests
+scripts/check.sh          ← luacheck + busted
+.githooks/pre-push        ← runs the checks before a release tag is pushed
 ```
 
 To add a tool, create a folder under `Modules/` and add its files to `BiAGuildTools.toc`.

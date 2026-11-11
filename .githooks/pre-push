@@ -1,0 +1,13 @@
+#!/bin/sh
+# Runs scripts/check.sh before a release tag (v*) is pushed; a failing check stops the push.
+# Other pushes are not checked. Activate once with: git config core.hooksPath .githooks
+# Skip in an emergency with: git push --no-verify
+while read -r local_ref local_sha remote_ref remote_sha; do
+    case "$remote_ref" in
+        refs/tags/v*)
+            echo "pre-push: release tag ${remote_ref#refs/tags/} – running checks"
+            exec "$(git rev-parse --show-toplevel)/scripts/check.sh"
+            ;;
+    esac
+done
+exit 0
