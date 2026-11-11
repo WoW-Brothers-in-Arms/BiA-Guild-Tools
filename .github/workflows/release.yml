@@ -27,6 +27,11 @@ jobs:
           fi
           echo "VERSION=$tag" >> "$GITHUB_ENV"
 
+      - name: Take the release notes from CHANGELOG.md
+        run: |
+          .github/changelog-section.sh "$VERSION" > changelog.md
+          cat changelog.md
+
       - name: Build zip (contains only the BiAGuildTools folder) and release.json
         run: |
           git archive --format=zip -o "BiAGuildTools-$VERSION.zip" HEAD BiAGuildTools
@@ -38,13 +43,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" "BiAGuildTools-$VERSION.zip" release.json \
-            --title "BiA Guild Tools $VERSION" --generate-notes
+            --title "BiA Guild Tools $VERSION" --notes-file changelog.md
 
       # Needs the secret CF_API_KEY (curseforge.com → Account → API Tokens) and the repository
       # variable CF_PROJECT_ID (CurseForge project page → "About Project"). Skipped while either is missing.
       - name: Upload to CurseForge
         env:
-          GH_TOKEN: ${{ github.token }}
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
           CF_PROJECT_ID: ${{ vars.CF_PROJECT_ID }}
         run: |
@@ -52,5 +56,4 @@ jobs:
             echo "::notice::CF_API_KEY or CF_PROJECT_ID not set, skipping the CurseForge upload"
             exit 0
           fi
-          gh release view "$GITHUB_REF_NAME" --json body -q .body > changelog.md
           .github/curseforge-upload.sh "$GITHUB_REF_NAME" "BiAGuildTools-$VERSION.zip" changelog.md
