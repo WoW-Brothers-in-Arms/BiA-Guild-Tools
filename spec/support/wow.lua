@@ -62,6 +62,8 @@ local function NewFrame(game, name, template)
         end
     end
     function frame:GetName() return self.name end
+    function frame:CreateFontString() return NewFrame(game) end -- font strings and textures: plain fakes
+    function frame:CreateTexture() return NewFrame(game) end
     setmetatable(frame, { __index = function() return function() end end })
     game.frames[#game.frames + 1] = frame
     return frame

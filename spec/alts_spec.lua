@@ -658,4 +658,79 @@ describe("Alts", function()
             assert.same({ "main:true", "alt:true", "main:false" }, bands)
         end)
     end)
+
+    describe("login hint", function()
+        -- Logs in, stubbing the dialog; returns the game and the list of hints shown.
+        local function hintGame(members, savedVariables, globals)
+            local g = Roster(members or guild())
+            for k, v in pairs(globals or {}) do g[k] = v end
+            local game = Wow.new({ globals = g, savedVariables = savedVariables })
+            local shown = {}
+            game.ns.modules.alts.OpenLoginHint = function(needs) shown[#shown + 1] = needs end
+            game:login()
+            game:fire("GUILD_ROSTER_UPDATE")
+            game:advance(10)
+            return game, shown
+        end
+        local function noted(note)
+            local members = guild()
+            members[1].note = note
+            return members
+        end
+        local chosen = { modules = { alts = { own = { chars = { [ME] = "BiA-Realm" }, guilds = { ["BiA-Realm"] = { main = ME } } } } } }
+
+        it("asks for the main and the note once after login", function()
+            local game, shown = hintGame()
+            assert.same({ { main = true, note = true } }, shown)
+            game:fire("GUILD_ROSTER_UPDATE")
+            game:advance(10)
+            assert.equal(1, #shown)
+        end)
+
+        it("asks only for what is missing", function()
+            local _, shown = hintGame(noted("Twink von Bob"))
+            assert.same({ { main = true, note = false } }, shown)
+            _, shown = hintGame(nil, chosen)
+            assert.same({ { main = false, note = true } }, shown)
+        end)
+
+        it("shows nothing when main and note are set", function()
+            local _, shown = hintGame(noted("Main"), chosen)
+            assert.same({}, shown)
+        end)
+
+        it("treats a note of only spaces as empty", function()
+            local _, shown = hintGame(noted("   "), chosen)
+            assert.same({ { main = false, note = true } }, shown)
+        end)
+
+        it("stays quiet after 'don't ask again' until /bia alts hint", function()
+            local game, shown = hintGame()
+            M(game).DisableHint()
+            assert.is_true(db(game).noHint[ME])
+            assert.is_nil(M(game).HintNeeds())
+            game:slash("alts hint")
+            assert.is_nil(db(game).noHint[ME])
+            assert.equal(2, #shown)
+        end)
+
+        it("waits until combat is over", function()
+            local fighting = true
+            local game, shown = hintGame(nil, nil, { InCombatLockdown = function() return fighting end })
+            assert.same({}, shown)
+            fighting = false
+            game:fire("PLAYER_REGEN_ENABLED")
+            assert.equal(1, #shown)
+            game:fire("PLAYER_REGEN_ENABLED")
+            assert.equal(1, #shown)
+        end)
+
+        it("suggests the note your other characters already carry", function()
+            local members = guild()
+            members[2].note = " Paul "
+            local game = ready(members, { modules = { alts = { own = { chars = { [ALT] = "BiA-Realm" } } } } })
+            assert.equal("Paul", M(game).NoteSuggestion())
+            assert.is_nil(M(ready()).NoteSuggestion())
+        end)
+    end)
 end)

@@ -9,7 +9,8 @@ local Readable, After, ShortName = ns.Readable, ns.After, ns.ShortName
 local M = ns:NewModule("alts", {
     title = L.ALTS_TITLE,
     desc = L.ALTS_DESC,
-    defaults = { own = { chars = {}, guilds = {} }, groups = {}, assigned = {}, showInTooltip = true, onlyOnline = true },
+    defaults = { own = { chars = {}, guilds = {} }, groups = {}, assigned = {}, noHint = {}, showInTooltip = true,
+        onlyOnline = true },
     slashAllowsEmpty = true, -- /bia alts without argument opens the window
 })
 
@@ -361,6 +362,42 @@ function M.Assign(char, main)
 end
 
 ---------------------------------------------------------------------------
+-- Login hint: once per login, ask for a main (none chosen) and point at an empty guild note.
+---------------------------------------------------------------------------
+local hintWaiting = false
+
+-- { main = bool, note = bool } when the current character should be reminded, else nil.
+function M.HintNeeds()
+    local me = UnitGUID("player")
+    local view, key = M.OwnView()
+    if not key or not me or M.db.noHint[me] then return nil end
+    local main, chosen = G.EffectiveMain(view, M.Roster())
+    local member = M.Roster()[me]
+    local needs = { main = not (main and chosen), note = member ~= nil and member.note:match("^%s*$") ~= nil }
+    if needs.main or needs.note then return needs end
+end
+
+-- Shows the hint (LoginHint.lua) now, or once combat is over.
+function M.ShowLoginHint()
+    if InCombatLockdown and InCombatLockdown() then
+        hintWaiting = true
+        return
+    end
+    hintWaiting = false
+    local needs = M.HintNeeds()
+    if needs and M.OpenLoginHint then M.OpenLoginHint(needs) end
+end
+
+function M.DisableHint()
+    local me = UnitGUID("player")
+    if me then M.db.noHint[me] = true end
+end
+
+M:RegisterEvent("PLAYER_REGEN_ENABLED", function()
+    if hintWaiting then M.ShowLoginHint() end
+end)
+
+---------------------------------------------------------------------------
 -- Events
 ---------------------------------------------------------------------------
 M:RegisterEvent("GUILD_ROSTER_UPDATE", function()
@@ -372,6 +409,7 @@ M:RegisterEvent("GUILD_ROSTER_UPDATE", function()
             Broadcast()
             ShareAssignments()
             M:SendGuild(REQUEST)
+            M.ShowLoginHint()
         end)
     else
         local _, state = OwnGroup()
@@ -511,6 +549,11 @@ M:RegisterSlash("alts", function(msg, cmd)
         Broadcast()
         M:SendGuild(REQUEST)
         M:Print(L.ALTS_SYNC_SENT)
+    elseif word == "hint" then
+        local me = UnitGUID("player")
+        if me then db.noHint[me] = nil end
+        M:Print(L.ALTS_HINT_ON)
+        M.ShowLoginHint()
     elseif word == "debug" then
         db.debug = not db.debug
         M:Print(L.DEBUG_TOGGLED:format(ns.OnOff(db.debug)))
@@ -523,6 +566,7 @@ end, {
     "main clear – " .. L.ALTS_HELP_MAIN_CLEAR,
     "tooltip – " .. L.ALTS_HELP_TOOLTIP,
     "sync – " .. L.ALTS_HELP_SYNC,
+    "hint – " .. L.ALTS_HELP_HINT,
     "debug – " .. L.ALTS_HELP_DEBUG,
 })
 
@@ -537,6 +581,7 @@ function M:OnLogin()
     G.PruneAssign(self.db.assigned, time(), STALE_SECONDS)
     self.db.own.chars = self.db.own.chars or {}
     self.db.own.guilds = self.db.own.guilds or {} -- defaults only fill missing top-level keys
+    self.db.noHint = self.db.noHint or {}
     G.Prune(self.db.groups, time(), STALE_SECONDS)
     if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
 end

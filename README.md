@@ -74,6 +74,7 @@ Shows which characters belong to the same player. You only pick your main: the a
 - **Guild master and officers** (rank 1) can link characters for others, e.g. members without the addon: right-click a member in the guild roster (submenu *BiA Alts*) or in the window → *Alt of …* (search by name or guild note – the field starts with the character's note – and pick the main), *Mark as main* or *Remove assignment*. Every officer with the addon passes these links on, so they reach everyone. A player's own choice always wins: characters someone linked themselves can't be assigned, and the tooltip names the officer for assigned links.
 - `/bia alts main [name]`: make the current (or the named own) character your main
 - `/bia alts main clear`: take back your main choice
+- `/bia alts hint`: show the login hint again – after login it asks for your main (none chosen) and reminds you to put your name in an empty guild note (the same on all your characters), until you click *Don't ask again*
 - `/bia alts tooltip`: alts in the tooltip on/off
 - `/bia alts sync`: request fresh data from the guild
 - `/bia alts debug`: log addon messages in chat (for troubleshooting)
