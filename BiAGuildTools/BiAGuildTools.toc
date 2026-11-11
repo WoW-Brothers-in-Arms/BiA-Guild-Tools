@@ -7,6 +7,10 @@
 ## SavedVariables: BiAGuildToolsDB
 ## IconTexture: Interface\AddOns\BiAGuildTools\Media\Icon
 
+Locales\Locale.lua
+Locales\enUS.lua
+Locales\deDE.lua
+
 Core.lua
 Settings.lua
 

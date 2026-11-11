@@ -1,6 +1,7 @@
 -- Settings.lua: BiA Guild Tools page in the game's settings (Esc → Options → AddOns).
 -- Shows logo, title, version and description, and lets each tool be switched on or off.
 local ADDON, ns = ...
+local L = ns.L
 
 local ICON = "Interface\\AddOns\\" .. ADDON .. "\\Media\\Icon"
 local PAGE_WIDTH = 600
@@ -26,17 +27,18 @@ function ns.CreateSettingsPanel()
 
     local version = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     version:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
-    version:SetText("Version " .. (Meta("Version") or "?") .. "  ·  " .. ns.ClientName)
+    version:SetText(L.SETTINGS_VERSION:format(Meta("Version") or "?") .. "  ·  " .. ns.ClientName)
 
     local notes = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     notes:SetPoint("TOPLEFT", icon, "BOTTOMLEFT", 0, -16)
     notes:SetWidth(PAGE_WIDTH)
     notes:SetJustifyH("LEFT")
-    notes:SetText(Meta("Notes") or "")
+    -- GetAddOnMetadata does not pick the localized notes by itself.
+    notes:SetText(Meta("Notes-" .. ns.Locale) or Meta("Notes") or "")
 
     local header = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     header:SetPoint("TOPLEFT", notes, "BOTTOMLEFT", 0, -24)
-    header:SetText("Tools")
+    header:SetText(L.SETTINGS_TOOLS)
 
     -- One checkbox per tool, with its description and commands underneath.
     local boxes = {}
@@ -57,7 +59,7 @@ function ns.CreateSettingsPanel()
         info:SetWidth(PAGE_WIDTH - 30)
         info:SetJustifyH("LEFT")
         local text = m.desc or ""
-        if #cmds > 0 then text = text .. "\n|cff909090Commands: " .. table.concat(cmds, ", ") .. "|r" end
+        if #cmds > 0 then text = text .. "\n|cff909090" .. L.SETTINGS_COMMANDS:format(table.concat(cmds, ", ")) .. "|r" end
         info:SetText(text)
 
         boxes[m] = box
@@ -69,7 +71,7 @@ function ns.CreateSettingsPanel()
 
     local hint = panel:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     hint:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 4, -20)
-    hint:SetText("Overview in chat: /bia")
+    hint:SetText(L.SETTINGS_OVERVIEW_HINT:format("/bia"))
 
     -- Checkbox states can change through chat commands; refresh whenever the page opens.
     panel:SetScript("OnShow", function()
@@ -85,6 +87,6 @@ function ns.OpenSettings()
     if ns.settingsCategory and Settings and Settings.OpenToCategory then
         Settings.OpenToCategory(ns.settingsCategory:GetID())
     else
-        ns.Print("The settings page is not available in this client.")
+        ns.Print(L.SETTINGS_UNAVAILABLE)
     end
 end

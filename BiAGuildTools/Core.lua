@@ -10,6 +10,7 @@
 --   Optional: enabledByDefault = false | function() return not ns.IsRetail end
 --   Optional: formerKey = "old"   -- saved data and on/off choice are moved over from that key
 local ADDON, ns = ...
+local L = ns.L
 _G.BiAGuildTools = ns
 
 ns.modules, ns.moduleOrder = {}, {}
@@ -21,7 +22,6 @@ ns.IsRetail = not ns.IsForever and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
 ns.ClientName = ns.IsForever and "Forever" or (ns.IsRetail and "Retail" or "Classic")
 
 local COLOR = "|cff66ccff"
-local ON, OFF = "|cff40ff40on|r", "|cffff4040off|r"
 local frame = CreateFrame("Frame")
 local eventHandlers = {}   -- event -> { { module, fn }, ... }
 local commHandlers = {}    -- prefix -> { module, fn }
@@ -48,7 +48,7 @@ function ns.Print(msg)
 end
 
 function ns.OnOff(on)
-    return on and ON or OFF
+    return on and ("|cff40ff40" .. L.ON .. "|r") or ("|cffff4040" .. L.OFF .. "|r")
 end
 
 function ns.After(seconds, fn)
@@ -193,13 +193,13 @@ function Module:RegisterSlash(name, handler, help, aliases)
             return
         end
         if not self:IsEnabled() then
-            self:Print("is off. Turn it on: " .. cmd .. " on")
+            self:Print(L.TOOL_IS_OFF:format(cmd .. " on"))
             return
         end
         if WORD_HELP[lower] or (lower == "" and not self.slashAllowsEmpty) then
-            self:Print("Commands:")
+            self:Print(L.COMMANDS)
             for _, line in ipairs(help or {}) do DEFAULT_CHAT_FRAME:AddMessage("  " .. cmd .. " " .. line) end
-            DEFAULT_CHAT_FRAME:AddMessage("  " .. cmd .. " on | off – turn this tool on or off")
+            DEFAULT_CHAT_FRAME:AddMessage("  " .. cmd .. " on | off – " .. L.HELP_ON_OFF)
             return
         end
         handler(msg, lower)
@@ -211,18 +211,18 @@ end
 -- /bia – overview
 ---------------------------------------------------------------------------
 local function ShowOverview()
-    ns.Print("Tools (details: /bia-<tool> help):")
+    ns.Print(L.OVERVIEW_HEADER:format("/bia-<tool> help"))
     for _, m in ipairs(ns.moduleOrder) do
         local state = ns.OnOff(m:IsEnabled())
         if BiAGuildToolsDB.enabled[m.key] == nil and not m:IsEnabledByDefault() then
-            state = state .. " (default in " .. ns.ClientName .. ")"
+            state = state .. " " .. L.OVERVIEW_DEFAULT_IN:format(ns.ClientName)
         end
         local cmds = {}
         for _, c in ipairs(m.commands) do cmds[#cmds + 1] = "/bia-" .. c.name end
         DEFAULT_CHAT_FRAME:AddMessage(("  %s%s|r %s – %s"):format(COLOR, m.title, state, m.desc or ""))
         if #cmds > 0 then DEFAULT_CHAT_FRAME:AddMessage("     " .. table.concat(cmds, ", ")) end
     end
-    DEFAULT_CHAT_FRAME:AddMessage("  Turn on/off: /bia-<tool> on | off  ·  Settings: /bia options")
+    DEFAULT_CHAT_FRAME:AddMessage("  " .. L.OVERVIEW_FOOTER:format("/bia-<tool> on | off", "/bia options"))
 end
 
 SLASH_BIAGUILD1 = "/bia"
@@ -265,8 +265,8 @@ local function MigrateFromOldAddon()
     local disable = (C_AddOns and C_AddOns.DisableAddOn) or DisableAddOn
     if disable then disable(OLD_ADDON) end
     ns.After(5, function()
-        ns.Print("The old addon folder \"" .. OLD_ADDON .. "\" is still installed. Your settings were taken over "
-            .. "and it is turned off now – please delete Interface\\AddOns\\" .. OLD_ADDON .. ".")
+        ns.Print(L.OLD_ADDON_FOUND
+            :format(OLD_ADDON, "Interface\\AddOns\\" .. OLD_ADDON))
     end)
 end
 
