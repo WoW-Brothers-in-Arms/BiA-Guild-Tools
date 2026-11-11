@@ -175,4 +175,36 @@ describe("AltGroups", function()
             assert.is_nil(index[C])
         end)
     end)
+
+    describe("BuildList", function()
+        local function member(name, level, online) return { name = name, level = level, classFile = "MAGE", online = online } end
+        local r = {
+            [A] = member("Zed", 60, false), [B] = member("Bob", 20, false), [C] = member("Cat", 30, true),
+            [D] = member("Dan", 60, true), ["Player-1-0000EEEE"] = member("Eve", 10, false),
+            ["Player-1-0000FFFF"] = member("Abe", 50, true),
+        }
+        local groups = {
+            [A] = group(A, { B, C }, 1),
+            [D] = group(D, {}, 1),
+            ["Player-1-0000GONE"] = group("Player-1-0000GONE", { "Player-1-0000FFFF" }, 1),
+        }
+        local function kinds(rows)
+            local out = {}
+            for _, row in ipairs(rows) do out[#out + 1] = row.kind .. ":" .. r[row.guid].name end
+            return out
+        end
+
+        it("lists groups by main name, alts by level, members without data last", function()
+            assert.same({
+                "alt:Abe",               -- group whose main left the guild, sorted by its first alt
+                "main:Dan",
+                "main:Zed", "alt:Cat", "alt:Bob",
+                "nodata:Eve",
+            }, kinds(G.BuildList(groups, r, false)))
+        end)
+
+        it("keeps groups with anyone online and drops fully offline members", function()
+            assert.same({ "alt:Abe", "main:Dan", "main:Zed", "alt:Cat", "alt:Bob" }, kinds(G.BuildList(groups, r, true)))
+        end)
+    end)
 end)

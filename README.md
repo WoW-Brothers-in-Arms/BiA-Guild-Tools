@@ -64,6 +64,18 @@ If the game doesn't offer auto deposit, the tool moves every trade good (cloth, 
 
 - `/bia bank deposit`: the same as the button, for bag addons that replace the bank window (the bank must be open)
 
+### Alts (`/bia alts`)
+
+Shows which characters belong to the same player. You only pick your main: the addon remembers every character on your account that has logged in while in the guild and shares the group with the guild via addon message. **Only members who use the addon show up as linked.** Characters on another WoW account (WoW1/WoW2) are not linked.
+
+- In the guild roster, a dropdown at the top right (**Column:**) switches the extra column between *Professions*, *Alts* and *Off*. The Alts column shows a crown for a main, "» Main name" for an alt and "(Main?)" while the player hasn't picked a main yet (then their highest-level character counts as main).
+- The roster tooltip names the main and lists the player's other characters.
+- `/bia alts`: open the overview window – your characters on top (click a crown to pick your main), below the guild grouped by player
+- `/bia alts main [name]`: make the current (or the named own) character your main
+- `/bia alts tooltip`: alts in the tooltip on/off
+- `/bia alts sync`: request fresh data from the guild
+- `/bia alts debug`: log addon messages in chat (for troubleshooting)
+
 ### Reagent Bag (`/bia bags`)
 
 Opens and closes the reagent bag together with your backpack. In WoW: Forever, **B** is bound to "Toggle Backpack" by default, which opens only the backpack (or the combined bags) but not the reagent bag; only "Open All Bags" (**Shift-B**) includes it. This tool adds the reagent bag to "Toggle Backpack", so **B**, **F12** and a click on the backpack button open it too. Your key bindings stay as they are.
@@ -109,11 +121,13 @@ BiAGuildTools/
 ├── Core.lua              ← module system, events, addon messages, commands, saved data
 ├── Settings.lua          ← page in the game's settings
 ├── RosterTooltip.lua     ← shared guild roster tooltip; tools add their own section
+├── RosterColumn.lua      ← shared extra column in the guild roster and its dropdown
 ├── Locales/              ← texts by key: enUS.lua (base) and deDE.lua
 ├── Media/Icon.tga        ← icon in the addon list (guild crest from the bia-2 portal, 64×64)
 └── Modules/
     ├── Professions/      ← module "professions"
     ├── Version/          ← module "version"
+    ├── Alts/             ← module "alts" (Groups.lua: data logic, Window.lua: overview)
     ├── Bank/             ← module "bank"
     └── Bags/             ← module "bags"
 spec/                     ← busted tests (not part of the release zip)

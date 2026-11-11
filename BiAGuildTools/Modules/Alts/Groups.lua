@@ -162,6 +162,49 @@ function G.Prune(groups, now, maxAge)
     end
 end
 
+-- Rows for the overview window: { kind = "main" | "alt" | "nodata", guid }. Groups sorted by the name
+-- of their main (or of their first alt when the main is not in the guild), alts by level; then members
+-- without a group by name. Only characters in the roster are listed. onlyOnline: groups with at least
+-- one character online, and members without a group who are online.
+function G.BuildList(groups, roster, onlyOnline)
+    local byLevel = function(a, b)
+        if roster[a].level ~= roster[b].level then return roster[a].level > roster[b].level end
+        return roster[a].name < roster[b].name
+    end
+    local blocks, grouped = {}, {}
+    for _, group in pairs(groups) do
+        local alts, online = {}, false
+        for _, guid in ipairs(group.alts) do
+            if roster[guid] then
+                alts[#alts + 1] = guid
+                online = online or roster[guid].online
+            end
+            grouped[guid] = true
+        end
+        grouped[group.main] = true
+        local main = roster[group.main] and group.main or nil
+        if main then online = online or roster[main].online end
+        table.sort(alts, byLevel)
+        if (main or #alts > 0) and (online or not onlyOnline) then
+            blocks[#blocks + 1] = { main = main, alts = alts, key = roster[main or alts[1]].name }
+        end
+    end
+    table.sort(blocks, function(a, b) return a.key < b.key end)
+
+    local rows = {}
+    for _, block in ipairs(blocks) do
+        if block.main then rows[#rows + 1] = { kind = "main", guid = block.main } end
+        for _, guid in ipairs(block.alts) do rows[#rows + 1] = { kind = "alt", guid = guid } end
+    end
+    local rest = {}
+    for guid, member in pairs(roster) do
+        if not grouped[guid] and (member.online or not onlyOnline) then rest[#rest + 1] = guid end
+    end
+    table.sort(rest, function(a, b) return roster[a].name < roster[b].name end)
+    for _, guid in ipairs(rest) do rows[#rows + 1] = { kind = "nodata", guid = guid } end
+    return rows
+end
+
 -- Every main and alt to its group.
 function G.Index(groups)
     local index = {}
