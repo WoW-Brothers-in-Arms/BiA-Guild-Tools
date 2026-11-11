@@ -3,7 +3,7 @@
 local ADDON, ns = ...
 local L = ns.L
 local D = ns.ProfessionData
-local Readable, After = ns.Readable, ns.After
+local Readable, After, ShortName = ns.Readable, ns.After, ns.ShortName
 
 local M = ns:NewModule("professions", {
     title = L.PROF_TITLE,
@@ -121,13 +121,6 @@ function QueueBroadcast(delay, force)
         pendingBroadcast, pendingForce = false, false
         Broadcast(forced)
     end)
-end
-
--- Character name without realm, for comparing names that may or may not carry one.
--- Forever reports the addon message sender as "Name Realm" (space), UnitFullName gives "Name-Realm".
-local function ShortName(name)
-    if type(name) ~= "string" then return nil end
-    return (name:match("^([^%-%s]+)") or name):lower()
 end
 
 M:RegisterComm(PREFIX, function(text, channel, sender)
@@ -273,75 +266,35 @@ local function PaintRow(row)
     PaintColumn(row)
 end
 
-local function Value(v)
-    if Readable(v) and v ~= "" then return v end
-end
-
--- The same member lines Blizzard's own roster tooltip shows (CommunitiesMemberListEntryMixin:OnEnter),
--- so a tooltip looks the same whether or not Blizzard showed one.
-local function AddMemberLines(tooltip, row)
-    local info = row.memberInfo
-    local hr, hg, hb = HIGHLIGHT_FONT_COLOR:GetRGB()
-    local nr, ng, nb = NORMAL_FONT_COLOR:GetRGB()
-    tooltip:SetOwner(row)
-    tooltip:AddLine(Value(info.name) or "?")
-    tooltip:AddLine(Value(info.guildRank) or "")
-
-    local level, race, classID = Value(info.level), Value(info.race), Value(info.classID)
-    if level and race and classID then
-        local raceInfo = C_CreatureInfo.GetRaceInfo(race)
-        local classInfo = C_CreatureInfo.GetClassInfo(classID)
-        if raceInfo and classInfo then
-            tooltip:AddLine(COMMUNITY_MEMBER_CHARACTER_INFO_FORMAT:format(level, raceInfo.raceName, classInfo.className), hr, hg, hb, true)
-        end
-    end
-
-    if Value(info.presence) == Enum.ClubMemberPresence.OnlineMobile then
-        tooltip:AddLine(COMMUNITIES_PRESENCE_MOBILE_CHAT, hr, hg, hb, true)
-    elseif Value(info.zone) then
-        tooltip:AddLine(info.zone, hr, hg, hb, true)
-    end
-
-    if Value(info.memberNote) then
-        tooltip:AddLine(COMMUNITY_MEMBER_NOTE_FORMAT:format(info.memberNote), nr, ng, nb, true)
-    end
-end
-
-local function AddTooltipLines(row)
-    local tooltip = GameTooltip
-    if not M:IsEnabled() or not M.db.showInTooltip or tooltip:IsForbidden() then return end
-    local profs, updated = MemberProfessions(row.memberInfo)
+-- Section "Professions" in the shared roster tooltip (RosterTooltip.lua).
+ns.RosterTooltip.Register(function(info)
+    if not M:IsEnabled() or not M.db.showInTooltip then return nil end
+    local profs, updated = MemberProfessions(info)
     local shown = SortedForDisplay(profs, true)
-    if #shown == 0 then return end
-
-    -- In the full roster Blizzard only shows its tooltip when a column text is cut off.
-    if not tooltip:IsOwned(row) or not tooltip:IsShown() then
-        AddMemberLines(tooltip, row)
-    end
-    tooltip:AddLine(" ")
-    tooltip:AddLine(L.PROF_PROFESSIONS, 0.4, 0.8, 1)
-    for _, p in ipairs(shown) do
-        local icon = "|T" .. D.ProfessionIcon(p.id) .. ":14:14:0:0:64:64:5:59:5:59|t "
-        local rank = ""
-        if p.rank then
-            rank = (p.max and p.max > 0) and (p.rank .. " / " .. p.max) or tostring(p.rank)
+    if #shown == 0 then return nil end
+    return function(tooltip)
+        tooltip:AddLine(L.PROF_PROFESSIONS, 0.4, 0.8, 1)
+        for _, p in ipairs(shown) do
+            local icon = "|T" .. D.ProfessionIcon(p.id) .. ":14:14:0:0:64:64:5:59:5:59|t "
+            local rank = ""
+            if p.rank then
+                rank = (p.max and p.max > 0) and (p.rank .. " / " .. p.max) or tostring(p.rank)
+            end
+            local r, g, b = 1, 1, 1
+            if D.IsSecondary(p.id) then r, g, b = 0.75, 0.75, 0.75 end
+            tooltip:AddDoubleLine(icon .. D.ProfessionName(p.id), rank, r, g, b, 1, 0.82, 0)
         end
-        local r, g, b = 1, 1, 1
-        if D.IsSecondary(p.id) then r, g, b = 0.75, 0.75, 0.75 end
-        tooltip:AddDoubleLine(icon .. D.ProfessionName(p.id), rank, r, g, b, 1, 0.82, 0)
+        if updated then
+            tooltip:AddLine(L.PROF_TOOLTIP_UPDATED:format(date(L.DATE_TIME_FORMAT, updated)), 0.5, 0.5, 0.5)
+        else
+            tooltip:AddLine(L.PROF_TOOLTIP_NO_RANKS, 0.5, 0.5, 0.5)
+        end
     end
-    if updated then
-        tooltip:AddLine(L.PROF_TOOLTIP_UPDATED:format(date(L.DATE_TIME_FORMAT, updated)), 0.5, 0.5, 0.5)
-    else
-        tooltip:AddLine(L.PROF_TOOLTIP_NO_RANKS, 0.5, 0.5, 0.5)
-    end
-    tooltip:Show()
-end
+end)
 
 local function HookRow(row)
     if hookedRows[row] then return end
     hookedRows[row] = true
-    row:HookScript("OnEnter", AddTooltipLines)
     if type(row.SetMember) == "function" then
         hooksecurefunc(row, "SetMember", PaintRow)
     end

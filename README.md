@@ -51,6 +51,15 @@ The game does not pass other players' professions to addons. So every member run
 
 This tool is off by default in Retail.
 
+### Addon Versions (`/bia-version`)
+
+Shows which guild members run which version of BiA Guild Tools. When a member has a newer version than you, you get a hint in chat once per session. The guild roster tooltip shows each member's version.
+
+- `/bia-version`: open the overview window (online members only, or everyone with the checkbox; green = newest, yellow = outdated, grey = no answer)
+- `/bia-version debug`: log addon messages in chat (for troubleshooting)
+
+Members still on 1.0.x show as "not installed", since those versions don't answer yet.
+
 ## Releasing a new version
 
 While working, add player-facing changes to `CHANGELOG.md` under `## Unreleased`. Then:
@@ -74,10 +83,12 @@ BiAGuildTools/
 ├── BiAGuildTools.toc     ← loads the core and all modules
 ├── Core.lua              ← module system, events, addon messages, commands, saved data
 ├── Settings.lua          ← page in the game's settings
+├── RosterTooltip.lua     ← shared guild roster tooltip; tools add their own section
 ├── Locales/              ← texts by key: enUS.lua (base) and deDE.lua
 ├── Media/Icon.tga        ← icon in the addon list (guild crest from the bia-2 portal, 64×64)
 └── Modules/
-    └── Professions/      ← module "professions"
+    ├── Professions/      ← module "professions"
+    └── Version/          ← module "version"
 ```
 
 To add a tool, create a folder under `Modules/` and add its files to `BiAGuildTools.toc`.
