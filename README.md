@@ -64,18 +64,48 @@ If the game doesn't offer auto deposit, the tool moves every trade good (cloth, 
 
 - `/bia bank deposit`: the same as the button, for bag addons that replace the bank window (the bank must be open)
 
+### Alts (`/bia alts`)
+
+Shows which characters belong to the same player. You only pick your main: the addon remembers every character on your account that has logged in while in the guild and shares the group with the guild via addon message. **Only members who use the addon show up as linked.** Characters on another WoW account (WoW1/WoW2) are not linked.
+
+- In the guild roster, a dropdown at the top right switches the extra column between *Professions*, *Alts* and *Off*. The Alts column shows a crown for a main, "» Main name" for an alt and "(Main?)" while the player hasn't picked a main yet (then their highest-level character counts as main).
+- The roster tooltip names the main and lists the player's other characters.
+- `/bia alts`: open the overview window – your characters on top (click a crown to pick your main, click the lit crown again to take it back), below the guild grouped by player. The guild window also gets a tab on its right edge (below Blizzard's guild tabs) that opens and closes it.
+- **Guild master and officers** (rank 1) can link characters for others, e.g. members without the addon: right-click a member in the guild roster (submenu *BiA Alts*) or in the window → *Alt of …* (search by name or guild note – the field starts with the character's note – and pick the main), *Mark as main* or *Remove assignment*. Every officer with the addon passes these links on, so they reach everyone. A player's own choice always wins: characters someone linked themselves can't be assigned, and the tooltip names the officer for assigned links.
+- `/bia alts main [name]`: make the current (or the named own) character your main
+- `/bia alts main clear`: take back your main choice
+- `/bia alts hint`: show the login hint again – after login it asks for your main (none chosen) and reminds you to put your name in an empty guild note (the same on all your characters), until you click *Don't ask again*
+- `/bia alts tooltip`: alts in the tooltip on/off
+- `/bia alts sync`: request fresh data from the guild
+- `/bia alts debug`: log addon messages in chat (for troubleshooting)
+
 ### Reagent Bag (`/bia bags`)
 
 Opens and closes the reagent bag together with your backpack. In WoW: Forever, **B** is bound to "Toggle Backpack" by default, which opens only the backpack (or the combined bags) but not the reagent bag; only "Open All Bags" (**Shift-B**) includes it. This tool adds the reagent bag to "Toggle Backpack", so **B**, **F12** and a click on the backpack button open it too. Your key bindings stay as they are.
 
 - `/bia bags on` / `off`: turn it on or off
 
+## Checks and tests
+
+`scripts/check.sh` runs [luacheck](https://github.com/lunarmodules/luacheck) (static analysis, settings in `.luacheckrc`) and the [busted](https://lunarmodules.github.io/busted) tests in `spec/`. The tests run with LuaJIT (Lua 5.1, like the game) against a small fake of the WoW client (`spec/support/wow.lua`): it loads the addon in TOC order and lets a test log in, run `/bia` commands, receive addon messages and move the clock forward.
+
+Setup, once:
+
+```bash
+brew install luarocks luajit
+luarocks --lua-version=5.1 --local install busted
+luarocks --lua-version=5.1 --local install luacheck
+git config core.hooksPath .githooks
+```
+
+The last line turns on `.githooks/pre-push`: it runs `scripts/check.sh` whenever a release tag (`v*`) is pushed and stops the push if a check fails. Other pushes are not checked. When the addon starts using a new game global, add it to `read_globals` in `.luacheckrc`.
+
 ## Releasing a new version
 
 While working, add player-facing changes to `CHANGELOG.md` under `## Unreleased`. Then:
 
 1. Bump `## Version:` in `BiAGuildTools/BiAGuildTools.toc`, rename `## Unreleased` in `CHANGELOG.md` to the version (e.g. `## 1.1.0 (2026-11-12)`) and commit
-2. Create and push a tag: `git tag v1.1.0 && git push origin main v1.1.0`
+2. Create and push a tag: `git tag v1.1.0 && git push origin main v1.1.0` – the pre-push hook runs the checks first (see above)
 
 The workflow `.github/workflows/release.yml` checks that the tag matches the TOC version and that `CHANGELOG.md` has a section for it, builds the zip and creates the GitHub release with that section as release notes. It then uploads the same zip to CurseForge with the same changelog. Tags containing `beta` or `alpha` (e.g. `v1.2.0-beta1`) become beta or alpha files there.
 
@@ -94,12 +124,19 @@ BiAGuildTools/
 ├── Core.lua              ← module system, events, addon messages, commands, saved data
 ├── Settings.lua          ← page in the game's settings
 ├── RosterTooltip.lua     ← shared guild roster tooltip; tools add their own section
+├── RosterColumn.lua      ← shared extra column in the guild roster and its dropdown
 ├── Locales/              ← texts by key: enUS.lua (base) and deDE.lua
 ├── Media/Icon.tga        ← icon in the addon list (guild crest from the bia-2 portal, 64×64)
 └── Modules/
     ├── Professions/      ← module "professions"
     ├── Version/          ← module "version"
-    └── Bank/             ← module "bank"
+    ├── Alts/             ← module "alts" (Groups.lua: data logic, Window.lua: overview)
+    ├── Bank/             ← module "bank"
+    └── Bags/             ← module "bags"
+spec/                     ← busted tests (not part of the release zip)
+└── support/wow.lua       ← fake WoW client for the tests
+scripts/check.sh          ← luacheck + busted
+.githooks/pre-push        ← runs the checks before a release tag is pushed
 ```
 
 To add a tool, create a folder under `Modules/` and add its files to `BiAGuildTools.toc`.

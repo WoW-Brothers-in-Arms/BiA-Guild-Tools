@@ -1,6 +1,6 @@
 -- Version.lua: shows which guild members run which version of BiA Guild Tools, tells you once per
 -- session when someone has a newer one, and adds the version to the guild roster tooltip.
-local ADDON, ns = ...
+local _, ns = ...
 local L = ns.L
 local Readable, After, ShortName = ns.Readable, ns.After, ns.ShortName
 

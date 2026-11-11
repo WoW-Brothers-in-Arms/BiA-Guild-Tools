@@ -2,7 +2,7 @@
 -- WoW: Forever runs the modern bank window and has the API behind Retail's button
 -- (C_Bank.AutoDepositItemsIntoBank), but its bank window ("Camelot" variant) leaves the button out.
 -- This tool adds it back. If the game doesn't offer auto deposit, it moves trade goods itself.
-local ADDON, ns = ...
+local _, ns = ...
 local L = ns.L
 local After = ns.After
 

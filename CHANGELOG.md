@@ -4,6 +4,15 @@ New entries go under `## Unreleased`. Before tagging a release, rename that head
 (e.g. `## 1.1.0 (2026-11-12)`) – the release workflow uses that section as release notes on GitHub
 and CurseForge and stops if it is missing.
 
+## Unreleased
+
+- New tool **Alts**: pick your main once and the addon links your other characters for the guild. Shown in the guild roster as its own column, in the roster tooltip and in the window `/bia alts`.
+- Alts: a tab on the right edge of the guild window opens the alts window.
+- Alts: the guild master and officers can link characters for others (e.g. members without the addon) with a right-click in the guild roster or the `/bia alts` window; *Alt of …* opens a name search. A player's own choice always wins.
+- Alts: after login a short hint asks for your main if none is chosen and reminds you when your guild note is empty (*Don't ask again* turns it off; `/bia alts hint` turns it back on).
+- The guild roster has a new dropdown at the top right to switch the extra column between Professions, Alts and Off.
+- Fixed: the reminder to delete the old `BiaGuild` folder appeared at every login even though the folder was no longer installed.
+
 ## 1.1.0 (2026-11-11)
 
 - The addon is now called **BiA Guild Tools** and is available on CurseForge.

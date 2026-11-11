@@ -3,7 +3,7 @@
 ## Notes: BiA Guild Tools – A small collection of quality-of-life tools for World of Warcraft: Forever
 ## Notes-deDE: BiA Guild Tools – Eine kleine Sammlung von Komfort-Tools für World of Warcraft: Forever
 ## Author: Paul
-## Version: 1.1.0
+## Version: 1.2.0-DEV
 ## SavedVariables: BiAGuildToolsDB
 ## IconTexture: Interface\AddOns\BiAGuildTools\Media\Icon
 
@@ -14,10 +14,18 @@ Locales\deDE.lua
 Core.lua
 Settings.lua
 RosterTooltip.lua
+RosterColumn.lua
 
 # Modules
 Modules\Professions\Data.lua
 Modules\Professions\Professions.lua
+Modules\Alts\Groups.lua
+Modules\Alts\Alts.lua
+Modules\Alts\MainPicker.lua
+Modules\Alts\LoginHint.lua
+Modules\Alts\Window.lua
+Modules\Alts\RosterMenu.lua
+Modules\Alts\RosterTab.lua
 Modules\Version\Version.lua
 Modules\Bank\Bank.lua
 Modules\Bags\Bags.lua

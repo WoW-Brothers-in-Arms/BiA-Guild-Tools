@@ -1,0 +1,8 @@
+-- busted configuration (https://lunarmodules.github.io/busted). Run: scripts/check.sh
+return {
+    default = {
+        ROOT = { "spec" },
+        lpath = "spec/?.lua",
+        pattern = "_spec",
+    },
+}
