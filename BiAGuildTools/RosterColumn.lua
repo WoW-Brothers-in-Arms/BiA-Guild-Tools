@@ -124,21 +124,66 @@ function RC.Refresh()
     if scroll and scroll:IsVisible() then scroll:ForEachFrame(PaintRow) end
 end
 
+---------------------------------------------------------------------------
+-- Own column dropdown (top right of the roster, where Blizzard's column dropdown sits). Blizzard hides
+-- its dropdown when it has fewer than two entries of its own (always on Forever); while it is shown,
+-- our columns are entries in it instead and this one stays hidden.
+---------------------------------------------------------------------------
+local ownDropdown
+
+local function UpdateOwnDropdown()
+    if not ownDropdown then return end
+    local list = MemberList()
+    local blizzard = CommunitiesFrame.GuildMemberListDropdown
+    local show = IsGuildRoster(list) and #RC.Columns() > 0 and not (blizzard and blizzard:IsShown())
+    ownDropdown:SetShown(show)
+    ownDropdown.Label:SetShown(show)
+    if show then ownDropdown:GenerateMenu() end
+end
+
+local function CreateOwnDropdown()
+    ownDropdown = CreateFrame("DropdownButton", nil, CommunitiesFrame, "WowStyle1DropdownTemplate")
+    ownDropdown:SetFrameLevel(5)
+    ownDropdown:SetWidth(150)
+    ownDropdown:SetPoint("TOPRIGHT", CommunitiesFrame, "TOPRIGHT", -10, -27)
+    ownDropdown.Label = ownDropdown:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    ownDropdown.Label:SetPoint("RIGHT", ownDropdown, "LEFT", -6, 0)
+    ownDropdown.Label:SetText(L.COLUMN_DROPDOWN_LABEL)
+    ownDropdown:SetupMenu(function(_, root)
+        for _, def in ipairs(RC.Columns()) do
+            root:CreateRadio(def.title, function() return RC.Choice() == def.key end, function()
+                RC.SetChoice(def.key)
+            end)
+        end
+        root:CreateRadio(L.COLUMN_OFF, function() return RC.Choice() == false end, function()
+            RC.SetChoice(false)
+        end)
+    end)
+    local blizzard = CommunitiesFrame.GuildMemberListDropdown
+    if blizzard then
+        blizzard:HookScript("OnShow", UpdateOwnDropdown)
+        blizzard:HookScript("OnHide", UpdateOwnDropdown)
+    end
+    UpdateOwnDropdown()
+end
+
 -- Lays out the header with our column after Blizzard's own layout pass.
 local function OnRefreshLayout(list)
     local def = ActiveColumn()
     if def and list.ColumnDisplay and list.columnInfo then
         list.ColumnDisplay:LayoutColumns(list.columnInfo, { title = def.title, width = def.width })
     end
+    UpdateOwnDropdown()
     RC.Refresh()
 end
 
--- Makes the roster's column dropdown show the current choice again.
+-- Makes the column dropdowns (Blizzard's and ours) show the current choice again.
 local function UpdateDropdown()
-    local dropdown = CommunitiesFrame and CommunitiesFrame.GuildMemberListDropdown
-    if dropdown and dropdown.GetMenuDescription and dropdown:GetMenuDescription() then
-        dropdown:SignalUpdate()
+    local blizzard = CommunitiesFrame and CommunitiesFrame.GuildMemberListDropdown
+    if blizzard and blizzard.GetMenuDescription and blizzard:GetMenuDescription() then
+        blizzard:SignalUpdate()
     end
+    UpdateOwnDropdown()
 end
 
 -- Takes the slot for our column if one is chosen and Blizzard put its default column there.
@@ -191,16 +236,17 @@ local function HookCommunities()
     if type(list.RefreshLayout) == "function" then
         hooksecurefunc(list, "RefreshLayout", OnRefreshLayout)
     end
+    CreateOwnDropdown()
 
     -- When the roster opens, Blizzard puts its default column (e.g. achievement points) into the
     -- slot: in ResetGuildColumnIndex and again at the end of the dropdown's OnShow. Take it back
     -- afterwards if one of our columns is chosen.
-    local dropdown = CommunitiesFrame.GuildMemberListDropdown
-    if dropdown then
-        if type(dropdown.ResetGuildColumnIndex) == "function" then
-            hooksecurefunc(dropdown, "ResetGuildColumnIndex", ClaimSlot)
+    local blizzard = CommunitiesFrame.GuildMemberListDropdown
+    if blizzard then
+        if type(blizzard.ResetGuildColumnIndex) == "function" then
+            hooksecurefunc(blizzard, "ResetGuildColumnIndex", ClaimSlot)
         end
-        dropdown:HookScript("OnShow", ClaimSlot)
+        blizzard:HookScript("OnShow", ClaimSlot)
     end
 
     -- Entries "BiA: <column>" in Blizzard's column dropdown. Picking a Blizzard entry hides our
