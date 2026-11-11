@@ -19,7 +19,9 @@ end
 
 local function OnRowClick(row, button)
     local data = row.data
-    if data and button == "RightButton" and GUILD_ROWS[data.kind] and M.CanAssign() then
+    if data and data.collapsible and button == "LeftButton" then
+        M.ToggleNoData()
+    elseif data and button == "RightButton" and GUILD_ROWS[data.kind] and M.CanAssign() then
         MenuUtil.CreateContextMenu(row, function(_, root)
             root:CreateTitle(NameOf(data.guid))
             M.AddAssignEntries(root, data.guid)
@@ -43,16 +45,22 @@ local function Rows()
     if not chosen then rows[#rows + 1] = { kind = "hint", text = L.ALTS_PICK_MAIN_HINT } end
 
     rows[#rows + 1] = { kind = "header", text = L.ALTS_GUILD }
-    local noDataHeader = false
+    -- Members without the addon come last, under a header that expands them (collapsed by default).
+    local noData = {}
     for _, row in ipairs(G.BuildList(M.Groups(), roster, M.db.onlyOnline)) do
-        if row.kind == "nodata" and not noDataHeader then
-            noDataHeader = true
-            rows[#rows + 1] = { kind = "header", text = L.ALTS_NO_DATA }
+        if row.kind == "nodata" then noData[#noData + 1] = row else rows[#rows + 1] = row end
+    end
+    if #noData > 0 then
+        local expanded = M.db.noDataExpanded == true
+        rows[#rows + 1] = { kind = "header", text = ("%s (%d)"):format(L.ALTS_NO_DATA, #noData),
+            collapsible = true, expanded = expanded }
+        if expanded then
+            for _, row in ipairs(noData) do rows[#rows + 1] = row end
         end
-        rows[#rows + 1] = row
     end
     return rows
 end
+M.WindowRows = Rows
 
 local function InitRow(row, data)
     if not row.Name then
@@ -81,7 +89,8 @@ local function InitRow(row, data)
     end
     row.data = data
     -- Only rows an officer can click (to assign) light up on hover.
-    row:GetHighlightTexture():SetAlpha((GUILD_ROWS[data.kind] and M.CanAssign()) and 1 or 0)
+    local clickable = data.collapsible or (GUILD_ROWS[data.kind] and M.CanAssign())
+    row:GetHighlightTexture():SetAlpha(clickable and 1 or 0)
 
     local member = data.guid and M.Roster()[data.guid]
     if data.guid and not member then -- stale row (roster changed since the list was built)
@@ -100,7 +109,12 @@ local function InitRow(row, data)
     if data.kind == "header" or data.kind == "hint" then
         row.Name:SetPoint("LEFT", 4, 0)
         row.Name:SetFontObject(data.kind == "header" and "GameFontNormalSmall" or "GameFontDisableSmall")
-        row.Name:SetText(data.text)
+        if data.collapsible then
+            local icon = data.expanded and "Interface\\Buttons\\UI-MinusButton-Up" or "Interface\\Buttons\\UI-PlusButton-Up"
+            row.Name:SetText(("|T%s:12:12|t %s"):format(icon, data.text))
+        else
+            row.Name:SetText(data.text)
+        end
         return
     end
     row.Name:SetFontObject("GameFontHighlightSmall")
@@ -129,6 +143,11 @@ end
 local function Refresh()
     if not window or not window:IsShown() then return end
     window.Scroll:SetDataProvider(CreateDataProvider(Rows()), ScrollBoxConstants.RetainScrollPosition)
+end
+
+function M.ToggleNoData()
+    M.db.noDataExpanded = not M.db.noDataExpanded
+    Refresh()
 end
 
 local function CreateWindow()

@@ -603,4 +603,26 @@ describe("Alts", function()
             assert.is_false(tab.shown)
         end)
     end)
+
+    describe("window rows", function()
+        local function kinds(rows)
+            local out = {}
+            for _, r in ipairs(rows) do out[#out + 1] = r.kind end
+            return out
+        end
+
+        it("keeps members without the addon collapsed until the header is clicked", function()
+            local game = ready()
+            local rows = M(game).WindowRows()
+            local header = rows[#rows]
+            assert.equal("Without BiA Guild Tools (3)", header.text) -- you (no echo of your own group here), Other, Otheralt
+            assert.is_true(header.collapsible)
+            assert.is_false(header.expanded)
+            M(game).ToggleNoData()
+            assert.is_true(db(game).noDataExpanded)
+            rows = M(game).WindowRows()
+            assert.same({ "header", "nodata", "nodata", "nodata" }, { unpack(kinds(rows), #rows - 3) })
+            assert.is_true(rows[#rows - 3].expanded)
+        end)
+    end)
 end)
