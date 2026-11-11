@@ -8,7 +8,7 @@ local function Roster(members)
         GetNumGuildMembers = function() return #members end,
         GetGuildRosterInfo = function(i)
             local m = members[i]
-            return m[1], "Member", 1, m.level or 60, "Mage", "Zone", "", "", m.online ~= false, 0, m.class or "MAGE",
+            return m[1], "Member", m.rank or 2, m.level or 60, "Mage", "Zone", "", "", m.online ~= false, 0, m.class or "MAGE",
                 0, 0, false, false, 0, m[2]
         end,
         C_GuildInfo = { GuildRoster = function() end },
@@ -289,6 +289,108 @@ describe("Alts", function()
             game:receive("BiaAlts", msg, "Boss Realm")
             game:slash("alts tooltip")
             assert.is_nil(M(game).TooltipLines({ guid = "Player-1-00000B00", name = "Boss-Realm" }))
+        end)
+    end)
+
+    describe("officer assignments", function()
+        local function officerGuild()
+            local members = guild()
+            members[1].rank = 1 -- Tester
+            members[3].rank = 1 -- Other
+            return members
+        end
+        local function sentKind(game, kind)
+            local out = {}
+            for _, m in ipairs(game:sentWith("BiaAlts")) do
+                if m:sub(1, 2) == kind .. "|" then out[#out + 1] = m end
+            end
+            return out
+        end
+        local function stored(n)
+            local assigned = {}
+            for i = 1, n do
+                assigned[("Player-1-0000E%03X"):format(i)] = { main = OTHER, by = OTHER, t = 1699990000 + i, seen = 1700000000 }
+            end
+            return assigned
+        end
+
+        it("accepts assignments from an officer", function()
+            local game = ready(officerGuild())
+            game:receive("BiaAlts", "A|1|1-0000CCCC:1-0000BBBB:1700000000:1-0000BBBB", "Other Realm")
+            assert.equal(OTHER, M(game).GroupOf(OTHER_ALT).main)
+        end)
+
+        it("drops assignments from normal members and unknown senders", function()
+            local game = ready(guild())
+            game:receive("BiaAlts", "A|1|1-0000CCCC:1-0000BBBB:1700000000:1-0000BBBB", "Other Realm")
+            game:receive("BiaAlts", "A|1|1-0000CCCC:1-0000BBBB:1700000000:1-0000BBBB", "Stranger Realm")
+            assert.is_nil(M(game).GroupOf(OTHER_ALT))
+        end)
+
+        it("drops assignments with a time stamp from the future", function()
+            local game = ready(officerGuild())
+            game:receive("BiaAlts", "A|1|1-0000CCCC:1-0000BBBB:99999999999:1-0000BBBB", "Other Realm")
+            assert.is_nil(M(game).GroupOf(OTHER_ALT))
+        end)
+
+        it("shares stored assignments after login as an officer", function()
+            local game = ready(officerGuild(), { modules = { alts = { assigned = stored(2) } } })
+            local sent = sentKind(game, "A")
+            assert.equal(1, #sent)
+            assert.matches("1%-0000E001:1%-0000BBBB:", sent[1])
+            assert.matches("1%-0000E002:1%-0000BBBB:", sent[1])
+        end)
+
+        it("doesn't share assignments as a normal member", function()
+            local game = ready(guild(), { modules = { alts = { assigned = stored(2) } } })
+            assert.same({}, sentKind(game, "A"))
+        end)
+
+        it("spreads many assignments over time", function()
+            local game = Wow.new({ globals = Roster(officerGuild()), savedVariables = { modules = { alts = { assigned = stored(30) } } } })
+            game:login()
+            game:fire("GUILD_ROSTER_UPDATE")
+            game:advance(5)
+            assert.equal(1, #sentKind(game, "A"))
+            game:advance(15)
+            local n = 0
+            for _, m in ipairs(sentKind(game, "A")) do n = n + #game.ns.AltGroups.DecodeAssign(m) end
+            assert.equal(30, n)
+        end)
+
+        it("shares assignments again on request", function()
+            local game = ready(officerGuild(), { modules = { alts = { assigned = stored(2) } } })
+            game:advance(60)
+            game:receive("BiaAlts", "R|1", "Other Realm")
+            game:advance(15)
+            assert.equal(2, #sentKind(game, "A"))
+        end)
+
+        it("assigns a character and shares just that entry", function()
+            local game = ready(officerGuild())
+            game:advance(30)
+            assert.is_true(M(game).Assign(OTHER_ALT, OTHER))
+            local sent = sentKind(game, "A")
+            assert.equal(1, #sent)
+            assert.matches("^A|1|1%-0000CCCC:1%-0000BBBB:%d+:1%-0000AAAA$", sent[1])
+            assert.equal(OTHER, M(game).GroupOf(OTHER_ALT).main)
+        end)
+
+        it("refuses to assign as a normal member or for self-reported characters", function()
+            local game = ready(guild())
+            assert.is_false(M(game).Assign(OTHER_ALT, OTHER))
+            assert.same({}, sentKind(game, "A"))
+            game = ready(officerGuild())
+            game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Other Realm")
+            assert.is_false(M(game).Assign(OTHER_ALT, ME))
+        end)
+
+        it("names the officer in the tooltip", function()
+            local game = ready(officerGuild())
+            game:receive("BiaAlts", "A|1|1-0000CCCC:1-0000BBBB:1700000000:1-0000BBBB", "Other Realm")
+            local lines = M(game).TooltipLines({ guid = OTHER_ALT, name = "Otheralt-Realm" })
+            local last = lines[#lines].left:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+            assert.equal("Assigned by Other", last)
         end)
     end)
 end)

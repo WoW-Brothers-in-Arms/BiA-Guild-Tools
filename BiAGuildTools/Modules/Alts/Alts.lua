@@ -9,7 +9,7 @@ local Readable, After, ShortName = ns.Readable, ns.After, ns.ShortName
 local M = ns:NewModule("alts", {
     title = L.ALTS_TITLE,
     desc = L.ALTS_DESC,
-    defaults = { own = { chars = {}, guilds = {} }, groups = {}, showInTooltip = true, onlyOnline = true },
+    defaults = { own = { chars = {}, guilds = {} }, groups = {}, assigned = {}, showInTooltip = true, onlyOnline = true },
     slashAllowsEmpty = true, -- /bia alts without argument opens the window
 })
 
@@ -17,8 +17,9 @@ local PREFIX = "BiaAlts"           -- addon message prefix (max 16 chars)
 local REQUEST = "R|1"
 local STALE_SECONDS = 90 * 24 * 3600
 local REPLY_COOLDOWN = 30
+local MAX_ASSIGN_RANK = 1         -- guild master (0) and officers (1) may assign mains for others
 
-local roster, index           -- caches, rebuilt on demand
+local roster, index, effective -- caches, rebuilt on demand
 local rosterSeen = false      -- a non-empty roster arrived since login
 local lastSentAt = -REPLY_COOLDOWN
 local pendingBroadcast = false
@@ -32,15 +33,16 @@ end
 ---------------------------------------------------------------------------
 -- Guild roster
 ---------------------------------------------------------------------------
--- { [guid] = { name, level, classFile, online } } of everyone in the guild roster.
+-- { [guid] = { name, level, classFile, online, rank } } of everyone in the guild roster.
 function M.Roster()
     if roster then return roster end
     local r = {}
     for i = 1, (GetNumGuildMembers and GetNumGuildMembers() or 0) do
-        local name, _, _, level, _, _, _, _, online, _, classFile, _, _, _, _, _, guid = GetGuildRosterInfo(i)
+        local name, _, rank, level, _, _, _, _, online, _, classFile, _, _, _, _, _, guid = GetGuildRosterInfo(i)
         if Readable(name) and Readable(guid) and type(guid) == "string" and name then
             r[guid] = { name = Ambiguate(name, "none"), level = Readable(level) and level or 0,
-                classFile = Readable(classFile) and classFile or nil, online = Readable(online) and online and true or false }
+                classFile = Readable(classFile) and classFile or nil, online = Readable(online) and online and true or false,
+                rank = Readable(rank) and tonumber(rank) or 99 }
         end
     end
     roster = r
@@ -62,15 +64,26 @@ function M.OnChanged(fn)
 end
 
 local function Changed()
-    index = nil
+    index, effective = nil, nil
     ns.RosterColumn.Refresh()
     for _, fn in ipairs(listeners) do fn() end
 end
 
+-- The groups to show: self-reported ones plus officer assignments (see Groups.lua, G.Effective).
+function M.Groups()
+    effective = effective or G.Effective(M.db.groups, M.db.assigned)
+    return effective
+end
+
 function M.GroupOf(guid)
     if not guid then return nil end
-    index = index or G.Index(M.db.groups)
+    index = index or G.Index(M.Groups())
     return index[guid]
+end
+
+-- A main or alt of a group the player's own client sent (assignments don't apply to it).
+function M.IsSelfReported(guid)
+    return guid ~= nil and G.Index(M.db.groups)[guid] ~= nil
 end
 
 ---------------------------------------------------------------------------
@@ -191,6 +204,11 @@ M:RegisterComm(PREFIX, function(text, channel, sender)
     if text == REQUEST then
         M:Debug("request from " .. from)
         if GetTime() - lastSentAt > REPLY_COOLDOWN then QueueBroadcast(math.random(2, 10)) end
+        M.QueueShareAssignments(math.random(2, 10))
+        return
+    end
+    if text:sub(1, 2) == "A|" then
+        M.ReceiveAssign(text, from)
         return
     end
     local group = G.Decode(text)
@@ -218,6 +236,90 @@ M:RegisterComm(PREFIX, function(text, channel, sender)
 end)
 
 ---------------------------------------------------------------------------
+-- Officer assignments
+---------------------------------------------------------------------------
+local assignQueue, assignSending = {}, false
+local lastAssignAt, assignPending = -REPLY_COOLDOWN, false
+
+function M.CanAssign()
+    local me = M.Roster()[UnitGUID("player") or ""]
+    return me ~= nil and me.rank <= MAX_ASSIGN_RANK
+end
+
+-- Sends queued assignment messages one per second (the server throttles bursts of addon messages).
+local function SendNextAssign()
+    local msg = table.remove(assignQueue, 1)
+    if not msg then
+        assignSending = false
+        return
+    end
+    M:SendGuild(msg)
+    After(1, SendNextAssign)
+end
+
+local function QueueAssign(msgs, replace)
+    if replace then assignQueue = {} end
+    for _, msg in ipairs(msgs) do assignQueue[#assignQueue + 1] = msg end
+    if not assignSending and #assignQueue > 0 then
+        assignSending = true
+        SendNextAssign()
+    end
+end
+
+-- Sends every stored assignment (also removals), if this character may assign.
+local function ShareAssignments()
+    if not M.CanAssign() then return end
+    local list = {}
+    for char, e in pairs(M.db.assigned) do
+        list[#list + 1] = { char = char, main = e.main, by = e.by, t = e.t }
+    end
+    table.sort(list, function(a, b) return a.char < b.char end)
+    QueueAssign(G.EncodeAssign(list), true)
+    lastAssignAt = GetTime()
+end
+
+function M.QueueShareAssignments(delay)
+    if assignPending or not M.CanAssign() or GetTime() - lastAssignAt <= REPLY_COOLDOWN then return end
+    assignPending = true
+    After(delay, function()
+        assignPending = false
+        ShareAssignments()
+    end)
+end
+
+function M.ReceiveAssign(text, from)
+    local list = G.DecodeAssign(text)
+    if not list then
+        M:Debug(("from %s dropped: invalid data: %s"):format(from, text))
+        return
+    end
+    local senderGuid = RosterGuidByName(from)
+    local sender = senderGuid and M.Roster()[senderGuid]
+    if not sender or sender.rank > MAX_ASSIGN_RANK then
+        M:Debug(("from %s dropped: sender may not assign: %s"):format(from, text))
+        return
+    end
+    local changed, limit = false, ServerTime() + MAX_CLOCK_SKEW
+    for _, e in ipairs(list) do
+        if e.t <= limit and G.MergeAssign(M.db.assigned, e, time()) then changed = true end
+    end
+    M:Debug(("assignments from %s: %s"):format(from, text))
+    if changed then Changed() end
+end
+
+-- Makes char an alt of main (main == char: a main; false: removes the assignment) and shares it.
+function M.Assign(char, main)
+    if not char or not M.CanAssign() or M.IsSelfReported(char) then return false end
+    local stored = M.db.assigned[char]
+    local entry = { char = char, main = main, by = UnitGUID("player"),
+        t = math.max(ServerTime(), (stored and stored.t or 0) + 1) }
+    G.MergeAssign(M.db.assigned, entry, time())
+    QueueAssign(G.EncodeAssign({ entry }))
+    Changed()
+    return true
+end
+
+---------------------------------------------------------------------------
 -- Events
 ---------------------------------------------------------------------------
 M:RegisterEvent("GUILD_ROSTER_UPDATE", function()
@@ -227,6 +329,7 @@ M:RegisterEvent("GUILD_ROSTER_UPDATE", function()
         rosterSeen = true
         After(5, function()
             Broadcast()
+            ShareAssignments()
             M:SendGuild(REQUEST)
         end)
     else
@@ -302,6 +405,10 @@ function M.TooltipLines(info)
         end
         local mark = (g == group.main and group.chosen) and (CROWN .. " ") or ""
         lines[#lines + 1] = { left = mark .. Colored(r[g]), right = tostring(r[g].level), online = r[g].online }
+    end
+    local by = group.assignedBy and group.assignedBy[guid]
+    if by then
+        lines[#lines + 1] = { left = GREY .. L.ALTS_ASSIGNED_BY:format(r[by] and PlainName(r[by].name) or "?") .. "|r" }
     end
     return lines
 end
@@ -383,6 +490,7 @@ M.options = {
 -- Lifecycle
 ---------------------------------------------------------------------------
 function M:OnLogin()
+    G.PruneAssign(self.db.assigned, time(), STALE_SECONDS)
     self.db.own.chars = self.db.own.chars or {}
     self.db.own.guilds = self.db.own.guilds or {} -- defaults only fill missing top-level keys
     G.Prune(self.db.groups, time(), STALE_SECONDS)

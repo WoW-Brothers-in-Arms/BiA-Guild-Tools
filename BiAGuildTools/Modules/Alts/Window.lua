@@ -27,7 +27,7 @@ local function Rows()
 
     rows[#rows + 1] = { kind = "header", text = L.ALTS_GUILD }
     local noDataHeader = false
-    for _, row in ipairs(G.BuildList(M.db.groups, roster, M.db.onlyOnline)) do
+    for _, row in ipairs(G.BuildList(M.Groups(), roster, M.db.onlyOnline)) do
         if row.kind == "nodata" and not noDataHeader then
             noDataHeader = true
             rows[#rows + 1] = { kind = "header", text = L.ALTS_NO_DATA }
