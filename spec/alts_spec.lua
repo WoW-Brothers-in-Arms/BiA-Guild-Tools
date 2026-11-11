@@ -446,4 +446,85 @@ describe("Alts", function()
             assert.equal("Assigned by Other", last)
         end)
     end)
+
+    describe("roster menu", function()
+        -- A menu description that records what the addon adds.
+        local function Description(text, fn)
+            local d = { text = text, fn = fn, enabled = true, children = {} }
+            function d:CreateButton(t, f)
+                local child = Description(t, f)
+                self.children[#self.children + 1] = child
+                return child
+            end
+            function d:CreateDivider() self.children[#self.children + 1] = { divider = true } end
+            function d:CreateTitle(t) self.children[#self.children + 1] = { title = t } end
+            function d:SetEnabled(on) self.enabled = on end
+            function d:SetTooltip(f) self.tooltip = f end
+            return d
+        end
+        local function menuGame(rank)
+            local members = guild()
+            members[1].rank = rank
+            local generators = {}
+            local globals = Roster(members)
+            globals.Menu = { ModifyMenu = function(tag, fn) generators[tag] = fn end }
+            local game = Wow.new({ globals = globals })
+            game:login()
+            game:fire("GUILD_ROSTER_UPDATE")
+            game:advance(10)
+            local build = generators.MENU_UNIT_COMMUNITIES_GUILD_MEMBER
+            return game, function(guid)
+                local root = Description()
+                build(nil, root, { guid = guid, name = "x", isGuildMember = true })
+                return root
+            end
+        end
+        local function submenu(root)
+            for _, d in ipairs(root.children) do
+                if d.text == "BiA Alts" then return d end
+            end
+        end
+        local function texts(d)
+            local out = {}
+            for _, c in ipairs(d.children) do out[#out + 1] = c.text end
+            return out
+        end
+
+        it("adds the assignment entries for officers", function()
+            local _, open = menuGame(1)
+            local sub = submenu(open(OTHER_ALT))
+            assert.same({ "Alt of …", "Mark as main" }, texts(sub))
+            assert.is_true(sub.children[1].enabled)
+        end)
+
+        it("adds nothing for normal members", function()
+            local _, open = menuGame(2)
+            assert.same({}, open(OTHER_ALT).children)
+        end)
+
+        it("offers removing an existing assignment", function()
+            local game, open = menuGame(1)
+            M(game).Assign(OTHER_ALT, OTHER)
+            assert.same({ "Alt of …", "Mark as main", "Remove assignment" }, texts(submenu(open(OTHER_ALT))))
+        end)
+
+        it("disables the entries for characters the player links themselves", function()
+            local game, open = menuGame(1)
+            game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Other Realm")
+            local sub = submenu(open(OTHER_ALT))
+            assert.is_false(sub.children[1].enabled)
+            assert.is_false(sub.children[2].enabled)
+        end)
+
+        it("marks as main and opens the main picker", function()
+            local game, open = menuGame(1)
+            local picked
+            M(game).OpenMainPicker = function(guid) picked = guid end
+            local sub = submenu(open(OTHER_ALT))
+            sub.children[1].fn()
+            assert.equal(OTHER_ALT, picked)
+            sub.children[2].fn()
+            assert.equal(OTHER_ALT, M(game).GroupOf(OTHER_ALT).main)
+        end)
+    end)
 end)

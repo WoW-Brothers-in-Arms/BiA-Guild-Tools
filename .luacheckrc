@@ -29,7 +29,7 @@ read_globals = {
 
     -- Frames, UI
     "CreateFrame", "UIParent", "UISpecialFrames", "DEFAULT_CHAT_FRAME", "GameTooltip", "GameTooltip_Hide",
-    "Menu", "MenuUtil", "CreateDataProvider", "CreateScrollBoxListLinearView", "ScrollUtil", "ScrollBoxConstants",
+    "Menu", "MenuUtil", "IsShiftKeyDown", "CreateDataProvider", "CreateScrollBoxListLinearView", "ScrollUtil", "ScrollBoxConstants",
     "ScrollBoxListMixin", "HIGHLIGHT_FONT_COLOR", "NORMAL_FONT_COLOR", "RAID_CLASS_COLORS",
 
     -- Player, guild, chat

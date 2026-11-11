@@ -365,3 +365,24 @@ function G.Effective(groups, assigned)
     end
     return eff
 end
+
+-- Roster GUIDs whose name (without realm) matches text, ignoring case: names starting with text first,
+-- then names containing it, each sorted by name. Leaves out exclude; at most max (default 8).
+function G.MatchNames(roster, text, exclude, max)
+    local needle = (text or ""):lower()
+    if needle == "" then return {} end
+    local hits = {}
+    for guid, member in pairs(roster) do
+        local short = (member.name:match("^[^%-]+") or member.name):lower()
+        local at = guid ~= exclude and short:find(needle, 1, true)
+        if at then hits[#hits + 1] = { guid = guid, short = short, prefix = at == 1 } end
+    end
+    table.sort(hits, function(a, b)
+        if a.prefix ~= b.prefix then return a.prefix end
+        if a.short ~= b.short then return a.short < b.short end
+        return a.guid < b.guid
+    end)
+    local out = {}
+    for i = 1, math.min(#hits, max or 8) do out[i] = hits[i].guid end
+    return out
+end

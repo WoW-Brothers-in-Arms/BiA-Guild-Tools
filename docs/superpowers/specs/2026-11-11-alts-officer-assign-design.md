@@ -22,8 +22,8 @@ group always wins over an assignment.
   addon later, their own group replaces the assignments automatically, without deleting them.
 - **Between officers:** per character, the assignment with the newer `t` wins. Officers can overwrite
   each other.
-- **UI:** only in the `/bia alts` window (right-click menu, pick mode). No slash command, no entries
-  in Blizzard's roster context menu (taint risk).
+- **UI:** right-click menu in the `/bia alts` window and a submenu in the guild roster's member menu;
+  "Alt of …" opens a name search dialog. No slash command.
 - **Marker:** assigned links look the same as self-reported ones in column and window; the tooltip
   adds a grey line "Assigned by <name>".
 - **Demoted officers:** assignments they made stay valid (already distributed); new messages from
@@ -87,18 +87,22 @@ Result is cached and rebuilt on any change (groups, assignments, roster).
 
 ## UI
 
-### Window `/bia alts` (only when the current character has rank 0 or 1)
+### Window `/bia alts` and guild roster (only when the current character has rank 0 or 1)
 
-- Right-click on a guild row (main, alt or no-data) opens a menu (`MenuUtil.CreateContextMenu`,
-  verify on the `forever` branch):
-  - **"Alt of …"** – enters pick mode: a line at the top says "Click the main for <name> – Esc to
-    cancel"; the next left-click on a row assigns; Esc or right-click cancels. Picking the character's own
-    alt swaps them: that alt becomes the main.
+- Right-click on a guild row in the window (main, alt or no-data) opens a menu
+  (`MenuUtil.CreateContextMenu`). Right-click on a member in the guild roster shows a submenu
+  "BiA Alts" ("BiA Twinks") in Blizzard's member menu (`Menu.ModifyMenu("MENU_UNIT_COMMUNITIES_GUILD_MEMBER")`,
+  verified on the `forever` branch; it only appends). Both have the same entries:
+  - **"Alt of …"** – opens a small dialog: a search field and up to 8 matching guild members (names
+    starting with the text first, then names containing it; case ignored; the character itself left
+    out), each with level and group. Click or Enter picks, up/down or Tab move the selection, Esc
+    closes. Picking an alt puts the character with that alt's main; picking the character's own alt
+    swaps them: that alt becomes the main.
   - **"Mark as main"**
   - **"Remove assignment"** – only when the character has an assignment (not a tombstone).
   - For characters in a self-reported group all entries are disabled with the tooltip "The player
     sets this themselves".
-- Own characters ("Your characters") have no such menu.
+- Own characters ("Your characters") in the window have no such menu.
 
 ### Tooltip
 
@@ -140,5 +144,5 @@ Visual check in game: right-click menu, pick mode, Esc, disabled entries, toolti
 ## Out of scope
 
 - Configurable ranks.
-- Slash command for assignments; entries in Blizzard's roster context menu.
+- Slash command for assignments.
 - Revoking a demoted officer's earlier assignments automatically.

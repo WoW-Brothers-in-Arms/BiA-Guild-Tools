@@ -7,7 +7,7 @@ and CurseForge and stops if it is missing.
 ## Unreleased
 
 - New tool **Alts**: pick your main once and the addon links your other characters for the guild. Shown in the guild roster as its own column, in the roster tooltip and in the window `/bia alts`.
-- Alts: the guild master and officers can link characters for others (e.g. members without the addon) with a right-click in the `/bia alts` window. A player's own choice always wins.
+- Alts: the guild master and officers can link characters for others (e.g. members without the addon) with a right-click in the guild roster or the `/bia alts` window; *Alt of …* opens a name search. A player's own choice always wins.
 - The guild roster has a new dropdown at the top right to switch the extra column between Professions, Alts and Off.
 - Fixed: the reminder to delete the old `BiaGuild` folder appeared at every login even though the folder was no longer installed.
 

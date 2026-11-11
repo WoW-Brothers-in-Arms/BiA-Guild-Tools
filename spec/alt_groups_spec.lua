@@ -400,4 +400,40 @@ describe("AltGroups", function()
             end)
         end)
     end)
+
+    describe("MatchNames", function()
+        local function members(names)
+            local r = {}
+            for i, name in ipairs(names) do r[("Player-1-%08X"):format(i)] = { name = name } end
+            return r
+        end
+        local function names(r, list)
+            local out = {}
+            for i, guid in ipairs(list) do out[i] = r[guid].name end
+            return out
+        end
+
+        it("lists names starting with the text before names containing it, ignoring case", function()
+            local r = members({ "Zarana", "Arnold-Realm", "Barney", "anna" })
+            assert.same({ "Arnold-Realm", "Barney", "Zarana" }, names(r, G.MatchNames(r, "AR")))
+            assert.same({ "anna", "Arnold-Realm" }, names(r, G.MatchNames(r, "a", nil, 2)))
+        end)
+
+        it("matches only the name, not the realm", function()
+            local r = members({ "Bob-Arrealm" })
+            assert.same({}, G.MatchNames(r, "arr"))
+        end)
+
+        it("leaves out the excluded character and returns nothing for empty text", function()
+            local r = members({ "Anna", "Annabell" })
+            local anna = "Player-1-00000001"
+            assert.same({ "Annabell" }, names(r, G.MatchNames(r, "ann", anna)))
+            assert.same({}, G.MatchNames(r, ""))
+        end)
+
+        it("treats magic characters in the text literally", function()
+            local r = members({ "Anna" })
+            assert.same({}, G.MatchNames(r, "a%"))
+        end)
+    end)
 end)

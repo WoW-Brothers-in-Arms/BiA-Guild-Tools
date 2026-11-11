@@ -71,7 +71,7 @@ Shows which characters belong to the same player. You only pick your main: the a
 - In the guild roster, a dropdown at the top right switches the extra column between *Professions*, *Alts* and *Off*. The Alts column shows a crown for a main, "» Main name" for an alt and "(Main?)" while the player hasn't picked a main yet (then their highest-level character counts as main).
 - The roster tooltip names the main and lists the player's other characters.
 - `/bia alts`: open the overview window – your characters on top (click a crown to pick your main), below the guild grouped by player
-- **Guild master and officers** (rank 1) can link characters for others, e.g. members without the addon: right-click a member in the window → *Alt of …* (then click the main), *Mark as main* or *Remove assignment*. Every officer with the addon passes these links on, so they reach everyone. A player's own choice always wins: characters someone linked themselves can't be assigned, and the tooltip names the officer for assigned links.
+- **Guild master and officers** (rank 1) can link characters for others, e.g. members without the addon: right-click a member in the guild roster (submenu *BiA Alts*) or in the window → *Alt of …* (type a name and pick the main), *Mark as main* or *Remove assignment*. Every officer with the addon passes these links on, so they reach everyone. A player's own choice always wins: characters someone linked themselves can't be assigned, and the tooltip names the officer for assigned links.
 - `/bia alts main [name]`: make the current (or the named own) character your main
 - `/bia alts tooltip`: alts in the tooltip on/off
 - `/bia alts sync`: request fresh data from the guild

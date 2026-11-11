@@ -21,7 +21,9 @@ Modules\Professions\Data.lua
 Modules\Professions\Professions.lua
 Modules\Alts\Groups.lua
 Modules\Alts\Alts.lua
+Modules\Alts\MainPicker.lua
 Modules\Alts\Window.lua
+Modules\Alts\RosterMenu.lua
 Modules\Version\Version.lua
 Modules\Bank\Bank.lua
 Modules\Bags\Bags.lua
