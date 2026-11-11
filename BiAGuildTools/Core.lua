@@ -21,6 +21,10 @@ ns.IsForever = interface >= 16000 and interface < 17000
 ns.IsRetail = not ns.IsForever and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
 ns.ClientName = ns.IsForever and "Forever" or (ns.IsRetail and "Retail" or "Classic")
 
+-- This addon's version from the TOC ("## Version:").
+local getMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+ns.Version = getMetadata and getMetadata(ADDON, "Version") or "0"
+
 local COLOR = "|cff66ccff"
 local frame = CreateFrame("Frame")
 local eventHandlers = {}   -- event -> { { module, fn }, ... }
@@ -55,6 +59,13 @@ function ns.PlayerFullName()
     if not realm or realm == "" then realm = GetNormalizedRealmName and GetNormalizedRealmName() or "" end
     if realm ~= "" then return name .. "-" .. realm end
     return name
+end
+
+-- Character name without realm, lowercased, for comparing names that may or may not carry one.
+-- Forever reports the addon message sender as "Name Realm" (space), UnitFullName gives "Name-Realm".
+function ns.ShortName(name)
+    if type(name) ~= "string" then return nil end
+    return (name:match("^([^%-%s]+)") or name):lower()
 end
 
 function ns.InChatLockdown()
