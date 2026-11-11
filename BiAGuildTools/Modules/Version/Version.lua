@@ -136,14 +136,15 @@ local function VersionColor(v, newest)
     return 0.25, 1, 0.25
 end
 
+-- Only members who reported a version get a line, so the tooltip doesn't pop up for everyone.
 ns.RosterTooltip.Register(function(info)
     if not M:IsEnabled() or not Readable(info.name) then return nil end
-    local entry = M.db.members[ShortName(info.name)]
-    if ShortName(info.name) == ShortName(ns.PlayerFullName()) then entry = { v = ns.Version } end
+    local key = ShortName(info.name)
+    local v = key == ShortName(ns.PlayerFullName()) and ns.Version or (M.db.members[key] and M.db.members[key].v)
+    if not v then return nil end
     return function(tooltip)
-        local v = entry and entry.v
         local r, g, b = VersionColor(v, NewestVersion())
-        tooltip:AddDoubleLine("BiA Guild Tools", v or L.VER_NONE, 0.4, 0.8, 1, r, g, b)
+        tooltip:AddDoubleLine("BiA Guild Tools", v, 0.4, 0.8, 1, r, g, b)
     end
 end)
 

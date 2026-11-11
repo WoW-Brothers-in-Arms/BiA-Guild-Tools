@@ -53,12 +53,12 @@ This tool is off by default in Retail.
 
 ### Addon Versions (`/bia-version`)
 
-Shows which guild members run which version of BiA Guild Tools. When a member has a newer version than you, you get a hint in chat once per session. The guild roster tooltip shows each member's version.
+Shows which guild members run which version of BiA Guild Tools. When a member has a newer version than you, you get a hint in chat once per session. The guild roster tooltip shows the version of members who use the addon.
 
 - `/bia-version`: open the overview window (online members only, or everyone with the checkbox; green = newest, yellow = outdated, grey = no answer)
 - `/bia-version debug`: log addon messages in chat (for troubleshooting)
 
-Members still on 1.0.x show as "not installed", since those versions don't answer yet.
+Members still on 1.0.x show as "–" (no answer), since those versions don't answer yet.
 
 ## Releasing a new version
 
