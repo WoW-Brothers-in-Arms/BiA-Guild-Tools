@@ -4,6 +4,10 @@ New entries go under `## Unreleased`. Before tagging a release, rename that head
 (e.g. `## 1.1.0 (2026-11-12)`) – the release workflow uses that section as release notes on GitHub
 and CurseForge and stops if it is missing.
 
+## Unreleased
+
+- Fixed: the reminder to delete the old `BiaGuild` folder appeared at every login even though the folder was no longer installed.
+
 ## 1.1.0 (2026-11-11)
 
 - The addon is now called **BiA Guild Tools** and is available on CurseForge.

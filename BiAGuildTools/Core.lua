@@ -262,9 +262,20 @@ end
 -- turn the old addon off for the next login and ask the player to delete it.
 local OLD_ADDON, OLD_DB = "BiaGuild", "BiaGuildDB"
 
-local function MigrateFromOldAddon()
+-- GetAddOnInfo also answers for addons that are not installed (reason "MISSING"), so it alone
+-- cannot tell whether the old folder still exists.
+local function OldAddonInstalled()
+    if C_AddOns and C_AddOns.DoesAddOnExist then
+        return C_AddOns.DoesAddOnExist(OLD_ADDON)
+    end
     local getInfo = (C_AddOns and C_AddOns.GetAddOnInfo) or GetAddOnInfo
-    if not getInfo or not getInfo(OLD_ADDON) then return end -- old folder not installed
+    if not getInfo then return false end
+    local ok, name, _, _, _, reason = pcall(getInfo, OLD_ADDON)
+    return ok and name ~= nil and reason ~= "MISSING"
+end
+
+local function MigrateFromOldAddon()
+    if not OldAddonInstalled() then return end -- old folder not installed
     if BiAGuildToolsDB == nil and type(_G[OLD_DB]) == "table" then
         BiAGuildToolsDB = _G[OLD_DB]
     end
