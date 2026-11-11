@@ -70,6 +70,14 @@ If the game doesn't offer auto deposit, the tool moves every trade good (cloth, 
 
 This tool is off by default in Retail, which has its own button.
 
+### Reagent Bag (`/bia-bags`)
+
+Opens and closes the reagent bag together with your backpack. In WoW: Forever, **B** is bound to "Toggle Backpack" by default, which opens only the backpack (or the combined bags) but not the reagent bag; only "Open All Bags" (**Shift-B**) includes it. This tool adds the reagent bag to "Toggle Backpack", so **B**, **F12** and a click on the backpack button open it too. Your key bindings stay as they are.
+
+- `/bia-bags on` / `off`: turn it on or off
+
+This tool is off by default in Retail, where B opens all bags.
+
 ## Releasing a new version
 
 While working, add player-facing changes to `CHANGELOG.md` under `## Unreleased`. Then:
