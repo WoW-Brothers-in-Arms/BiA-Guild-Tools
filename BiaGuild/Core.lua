@@ -2,12 +2,13 @@
 -- Provides the module system, shared helpers, events, addon messages, slash commands and saved data.
 --
 -- A module looks like this:
---   local M = ns:NewModule("berufe", { title = "Gildenberufe", desc = "...", defaults = { ... } })
+--   local M = ns:NewModule("professions", { title = "Guild Professions", desc = "...", defaults = { ... } })
 --   M:RegisterEvent("SOME_EVENT", function(...) end)
 --   M:RegisterComm("BiaXyz", function(text, channel, sender) end)
---   M:RegisterSlash("berufe", handler, { "<arg> – help line", ... })   -- creates /bia-berufe
---   function M:OnLogin() ... end                                       -- M.db is ready here
+--   M:RegisterSlash("prof", handler, { "<arg> – help line", ... })   -- creates /bia-prof
+--   function M:OnLogin() ... end                                     -- M.db is ready here
 --   Optional: enabledByDefault = false | function() return not ns.IsRetail end
+--   Optional: formerKey = "old"   -- saved data and on/off choice are moved over from that key
 local ADDON, ns = ...
 _G.BiaGuild = ns
 
@@ -20,10 +21,16 @@ ns.IsRetail = not ns.IsForever and WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
 ns.ClientName = ns.IsForever and "Forever" or (ns.IsRetail and "Retail" or "Classic")
 
 local COLOR = "|cff66ccff"
+local ON, OFF = "|cff40ff40on|r", "|cffff4040off|r"
 local frame = CreateFrame("Frame")
 local eventHandlers = {}   -- event -> { { module, fn }, ... }
 local commHandlers = {}    -- prefix -> { module, fn }
 local loggedIn = false
+
+-- Words every tool command understands. The German ones are kept for players used to 1.0.x.
+local WORD_ON = { on = true, an = true }
+local WORD_OFF = { off = true, aus = true }
+local WORD_HELP = { help = true, hilfe = true }
 
 ---------------------------------------------------------------------------
 -- Shared helpers
@@ -37,7 +44,11 @@ function ns.Readable(v)
 end
 
 function ns.Print(msg)
-    DEFAULT_CHAT_FRAME:AddMessage(COLOR .. "BIA:|r " .. msg)
+    DEFAULT_CHAT_FRAME:AddMessage(COLOR .. "BiA:|r " .. msg)
+end
+
+function ns.OnOff(on)
+    return on and ON or OFF
 end
 
 function ns.After(seconds, fn)
@@ -86,7 +97,7 @@ function ns:NewModule(key, info)
 end
 
 function Module:Print(msg)
-    DEFAULT_CHAT_FRAME:AddMessage(COLOR .. "BIA " .. self.title .. ":|r " .. msg)
+    DEFAULT_CHAT_FRAME:AddMessage(COLOR .. "BiA " .. self.title .. ":|r " .. msg)
 end
 
 function Module:IsEnabledByDefault()
@@ -95,7 +106,7 @@ function Module:IsEnabledByDefault()
     return d ~= false
 end
 
--- An explicit /bia-<tool> an | aus wins; otherwise the module's default for this client applies.
+-- An explicit /bia-<tool> on | off wins; otherwise the module's default for this client applies.
 function Module:IsEnabled()
     local choice = BiaGuildDB and BiaGuildDB.enabled and BiaGuildDB.enabled[self.key]
     if choice ~= nil then return choice end
@@ -126,7 +137,7 @@ end
 function Module:Debug(msg)
     if self.db and self.db.debug then
         -- "||" shows a literal "|" (otherwise the chat reads e.g. "|1" or "|R" in messages as codes).
-        DEFAULT_CHAT_FRAME:AddMessage("|cff909090BIA " .. self.title .. " [debug]:|r " .. msg:gsub("|", "||"))
+        DEFAULT_CHAT_FRAME:AddMessage("|cff909090BiA " .. self.title .. " [debug]:|r " .. msg:gsub("|", "||"))
     end
 end
 
@@ -148,7 +159,7 @@ function Module:SendGuild(msg, prefix)
     -- Older clients return nothing or a boolean; newer ones an Enum.SendAddonMessageResult (0 = success).
     local ok = result == nil or result == true or result == 0
     local reason = type(result) == "number" and (SEND_RESULTS[result] or tostring(result)) or tostring(result)
-    self:Debug(("gesendet (%s): %s"):format(ok and "ok" or ("FEHLER " .. reason), msg))
+    self:Debug(("sent (%s): %s"):format(ok and "ok" or ("FAILED " .. reason), msg))
     return ok, reason
 end
 
@@ -164,30 +175,31 @@ function Module:SetEnabled(on)
     BiaGuildDB.enabled[self.key] = on and true or false
     if on then StartModule(self) end
     if self.OnToggle then self:OnToggle(on) end
-    self:Print(on and "|cff40ff40an|r" or "|cffff4040aus|r")
+    self:Print(ns.OnOff(on))
 end
 
--- Creates the chat command /bia-<name>. help: list of lines shown by /bia-<name> hilfe.
--- "an", "aus" and "hilfe" are handled here for every module.
-function Module:RegisterSlash(name, handler, help)
+-- Creates the chat command /bia-<name> (plus /bia-<alias> for each name in aliases).
+-- help: list of lines shown by /bia-<name> help. "on", "off" and "help" are handled here for every module.
+function Module:RegisterSlash(name, handler, help, aliases)
     local id = "BIAGUILD_" .. name:upper():gsub("[^%w]", "_")
     local cmd = "/bia-" .. name
     _G["SLASH_" .. id .. "1"] = cmd
+    for i, alias in ipairs(aliases or {}) do _G["SLASH_" .. id .. (i + 1)] = "/bia-" .. alias end
     SlashCmdList[id] = function(msg)
         msg = strtrim(msg or "")
         local lower = msg:lower()
-        if lower == "an" or lower == "aus" then
-            self:SetEnabled(lower == "an")
+        if WORD_ON[lower] or WORD_OFF[lower] then
+            self:SetEnabled(WORD_ON[lower] or false)
             return
         end
         if not self:IsEnabled() then
-            self:Print("ist aus. Einschalten: " .. cmd .. " an")
+            self:Print("is off. Turn it on: " .. cmd .. " on")
             return
         end
-        if lower == "hilfe" or lower == "help" or (lower == "" and not self.slashAllowsEmpty) then
-            self:Print("Befehle:")
+        if WORD_HELP[lower] or (lower == "" and not self.slashAllowsEmpty) then
+            self:Print("Commands:")
             for _, line in ipairs(help or {}) do DEFAULT_CHAT_FRAME:AddMessage("  " .. cmd .. " " .. line) end
-            DEFAULT_CHAT_FRAME:AddMessage("  " .. cmd .. " an | aus – Tool ein-/ausschalten")
+            DEFAULT_CHAT_FRAME:AddMessage("  " .. cmd .. " on | off – turn this tool on or off")
             return
         end
         handler(msg, lower)
@@ -199,24 +211,24 @@ end
 -- /bia – overview
 ---------------------------------------------------------------------------
 local function ShowOverview()
-    ns.Print("Tools (Details: /bia-<tool> hilfe):")
+    ns.Print("Tools (details: /bia-<tool> help):")
     for _, m in ipairs(ns.moduleOrder) do
-        local state = m:IsEnabled() and "|cff40ff40an|r" or "|cffff4040aus|r"
+        local state = ns.OnOff(m:IsEnabled())
         if BiaGuildDB.enabled[m.key] == nil and not m:IsEnabledByDefault() then
-            state = state .. " (Standard in " .. ns.ClientName .. ")"
+            state = state .. " (default in " .. ns.ClientName .. ")"
         end
         local cmds = {}
         for _, c in ipairs(m.commands) do cmds[#cmds + 1] = "/bia-" .. c.name end
         DEFAULT_CHAT_FRAME:AddMessage(("  %s%s|r %s – %s"):format(COLOR, m.title, state, m.desc or ""))
         if #cmds > 0 then DEFAULT_CHAT_FRAME:AddMessage("     " .. table.concat(cmds, ", ")) end
     end
-    DEFAULT_CHAT_FRAME:AddMessage("  Ein-/Ausschalten: /bia-<tool> an | aus  ·  Einstellungen: /bia optionen")
+    DEFAULT_CHAT_FRAME:AddMessage("  Turn on/off: /bia-<tool> on | off  ·  Settings: /bia options")
 end
 
 SLASH_BIAGUILD1 = "/bia"
 SlashCmdList.BIAGUILD = function(msg)
     local cmd = strtrim(msg or ""):lower()
-    if cmd == "optionen" or cmd == "einstellungen" then
+    if cmd == "options" or cmd == "settings" or cmd == "optionen" or cmd == "einstellungen" then
         ns.OpenSettings()
     else
         ShowOverview()
@@ -250,6 +262,12 @@ local function InitModules()
         BiaGuildDB.disabled = nil
     end
     for _, m in ipairs(ns.moduleOrder) do
+        local old = m.formerKey
+        if old and BiaGuildDB.modules[m.key] == nil then
+            BiaGuildDB.modules[m.key] = BiaGuildDB.modules[old]
+            if BiaGuildDB.enabled[m.key] == nil then BiaGuildDB.enabled[m.key] = BiaGuildDB.enabled[old] end
+        end
+        if old then BiaGuildDB.modules[old], BiaGuildDB.enabled[old] = nil, nil end
         BiaGuildDB.modules[m.key] = BiaGuildDB.modules[m.key] or {}
         m.db = BiaGuildDB.modules[m.key]
         ApplyDefaults(m.db, m.defaults)
@@ -285,7 +303,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
             if ns.Readable(text) and type(text) == "string" then
                 h[2](text, channel, sender)
             else
-                h[1]:Debug("Nachricht nicht lesbar (geschützter Wert), verworfen")
+                h[1]:Debug("message not readable (protected value), dropped")
             end
         end
     end

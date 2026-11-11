@@ -1,6 +1,6 @@
 ## Interface: 16001, 120105, 120107
-## Title: |cff66ccffBiA|r Gilden Tools
-## Notes: Sammlung kleiner Tools für die Gilde Brothers in Arms. Übersicht: /bia
+## Title: |cff66ccffBiA|r Guild Tools
+## Notes: A collection of small tools for the guild Brothers in Arms. Overview: /bia
 ## Notes-deDE: Sammlung kleiner Tools für die Gilde Brothers in Arms. Übersicht: /bia
 ## Author: Paul
 ## Version: 1.0.1
@@ -10,6 +10,6 @@
 Core.lua
 Settings.lua
 
-# Module
+# Modules
 Modules\Professions\Data.lua
 Modules\Professions\Professions.lua

@@ -1,71 +1,75 @@
 # BiaGuild
 
-Eine Sammlung kleiner World-of-Warcraft-Tools für die Gilde **BIA**.
-Läuft in **WoW: Forever** (Interface 16001) und in **Retail** (12.x).
+A collection of small World of Warcraft tools for the guild **Brothers in Arms (BiA)**.
+Runs in **WoW: Forever** (interface 16001) and in **Retail** (12.x).
 
 ## Installation
 
-**Mit WowUp:** „Install from URL“ → `https://github.com/WoW-Brothers-in-Arms/BiA-Gilden-Tools`. Updates kommen dann automatisch.
+**CurseForge:** [BiA Guild Tools](https://www.curseforge.com/wow/addons/bia-guild-tools) – install it with the CurseForge app or any addon manager that supports CurseForge.
 
-**Von Hand:** `BiaGuild-x.y.z.zip` von den [Releases](https://github.com/WoW-Brothers-in-Arms/BiA-Gilden-Tools/releases/latest) laden, entpacken und den Ordner `BiaGuild` in den AddOns-Ordner des Spiels kopieren:
+**WowUp:** "Install from URL" → `https://github.com/WoW-Brothers-in-Arms/BiA-Guild-Tools`. Updates arrive automatically.
+
+**Manually:** download `BiaGuild-x.y.z.zip` from the [releases](https://github.com/WoW-Brothers-in-Arms/BiA-Guild-Tools/releases/latest), unzip it and copy the `BiaGuild` folder into the game's AddOns folder:
 
 - Forever: `World of Warcraft/_forever_/Interface/AddOns/BiaGuild`
 - Retail: `World of Warcraft/_retail_/Interface/AddOns/BiaGuild`
 
-Zum Entwickeln ist ein Symlink auf den Ordner in diesem Repo bequemer:
+For development, a symlink to the folder in this repo is more convenient:
 
 ```bash
 ln -s "$PWD/BiaGuild" "/Applications/World of Warcraft/_forever_/Interface/AddOns/BiaGuild"
 ln -s "$PWD/BiaGuild" "/Applications/World of Warcraft/_retail_/Interface/AddOns/BiaGuild"
 ```
 
-## Befehle
+## Commands
 
-| Befehl | Was er macht |
+| Command | What it does |
 |---|---|
-| `/bia` | Übersicht über alle Tools, ob sie an oder aus sind, und ihre Befehle |
-| `/bia-<tool> an` / `aus` | Tool sofort ein- oder ausschalten |
-| `/bia-<tool> hilfe` | Befehle des Tools anzeigen |
-| `/bia optionen` | Einstellungsseite öffnen |
+| `/bia` | Overview of all tools, whether they are on or off, and their commands |
+| `/bia-<tool> on` / `off` | Turn a tool on or off right away |
+| `/bia-<tool> help` | Show the tool's commands |
+| `/bia options` | Open the settings page |
 
-In den WoW-Einstellungen (Esc → Optionen → AddOns → BiA Gilden Tools) stehen Version und Beschreibung, und jedes Tool lässt sich dort ein- und ausschalten.
+The game's settings (Esc → Options → AddOns → BiA Guild Tools) show the version and description, and each tool can be turned on or off there.
 
 ## Tools
 
-### Gildenberufe (`/bia-berufe`)
+### Guild Professions (`/bia-prof`)
 
-Zeigt die Berufe der Gildenmitglieder in der Gildenliste: als eigene Spalte **Berufe** in der großen Liste und mit Stufe im Tooltip.
-Das Spiel gibt die Berufe anderer Spieler nicht an Addons weiter. Deshalb schickt jedes Mitglied mit BiaGuild seine Berufe per Addon-Nachricht an die Gilde. **Angezeigt werden nur Mitglieder, die das Addon nutzen.**
+Shows guild members' professions in the guild roster: as its own **Professions** column in the full roster and with skill levels in the tooltip.
+The game does not pass other players' professions to addons. So every member running BiaGuild sends their professions to the guild via addon message. **Skill levels only show for members who use the addon.**
 
-- `/bia-berufe <Beruf>`: wer in der Gilde den Beruf hat, z. B. `/bia-berufe Alchemie`
-- `/bia-berufe spalte`: Spalte in der Gildenliste ein/aus
-- `/bia-berufe sek`: Kochkunst, Angeln und Erste Hilfe auch in der Spalte anzeigen
-- `/bia-berufe tooltip`: Berufe im Tooltip ein/aus
-- `/bia-berufe sync`: Daten neu von der Gilde anfordern
-- `/bia-berufe status`: gespeicherte Daten anderer Mitglieder anzeigen
-- `/bia-berufe debug`: Addon-Nachrichten im Chat mitprotokollieren (zur Fehlersuche)
+- `/bia-prof <profession>`: who in the guild has that profession, e.g. `/bia-prof Alchemy`
+- `/bia-prof column`: Professions column in the guild roster on/off
+- `/bia-prof secondary`: also show Cooking, Fishing and First Aid in the column
+- `/bia-prof tooltip`: professions in the tooltip on/off
+- `/bia-prof sync`: request fresh data from the guild
+- `/bia-prof status`: show stored data of other members
+- `/bia-prof debug`: log addon messages in chat (for troubleshooting)
 
-In Retail ist dieses Tool standardmäßig aus.
+This tool is off by default in Retail.
 
-## Neue Version veröffentlichen
+The German commands from 1.0.x (`/bia-berufe`, `an`, `aus`, `hilfe`, `spalte`, `sek`) still work.
 
-1. `## Version:` in `BiaGuild/BiaGuild.toc` erhöhen und committen
-2. Tag setzen und pushen: `git tag v1.0.1 && git push origin main v1.0.1`
+## Releasing a new version
 
-Der Workflow `.github/workflows/release.yml` prüft, ob Tag und TOC-Version übereinstimmen, baut die ZIP-Datei und legt die GitHub-Release an.
+1. Bump `## Version:` in `BiaGuild/BiaGuild.toc` and commit
+2. Create and push a tag: `git tag v1.0.1 && git push origin main v1.0.1`
 
-## Aufbau
+The workflow `.github/workflows/release.yml` checks that the tag matches the TOC version, builds the zip and creates the GitHub release.
+
+## Structure
 
 ```
 BiaGuild/
-├── BiaGuild.toc          ← lädt den Kern und alle Module
-├── Core.lua              ← Modul-System, Events, Addon-Nachrichten, Befehle, gespeicherte Daten
-├── Settings.lua          ← Seite in den WoW-Einstellungen
-├── Media/Icon.tga        ← Icon in der Addon-Übersicht (Gildenwappen aus dem Portal bia-2, 64×64)
+├── BiaGuild.toc          ← loads the core and all modules
+├── Core.lua              ← module system, events, addon messages, commands, saved data
+├── Settings.lua          ← page in the game's settings
+├── Media/Icon.tga        ← icon in the addon list (guild crest from the bia-2 portal, 64×64)
 └── Modules/
-    └── Professions/      ← Modul „berufe“
+    └── Professions/      ← module "professions"
 ```
 
-Für ein neues Tool einen Ordner unter `Modules/` anlegen und seine Dateien in `BiaGuild.toc` eintragen.
-Wie ein Modul aufgebaut ist, steht oben in `Core.lua`.
-`an`, `aus` und `hilfe` sind bei jedem Tool-Befehl reserviert.
+To add a tool, create a folder under `Modules/` and add its files to `BiaGuild.toc`.
+How a module is built is described at the top of `Core.lua`.
+`on`, `off` and `help` are reserved in every tool command.
