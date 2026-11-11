@@ -1,8 +1,8 @@
--- Settings.lua: BiaGuild page in the game's settings (Esc → Options → AddOns).
+-- Settings.lua: BiA Guild Tools page in the game's settings (Esc → Options → AddOns).
 -- Shows logo, title, version and description, and lets each tool be switched on or off.
 local ADDON, ns = ...
 
-local ICON = "Interface\\AddOns\\BiaGuild\\Media\\Icon"
+local ICON = "Interface\\AddOns\\" .. ADDON .. "\\Media\\Icon"
 local PAGE_WIDTH = 600
 
 local function Meta(field)
