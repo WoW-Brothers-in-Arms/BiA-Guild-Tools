@@ -1,0 +1,178 @@
+local Wow = require("support.wow")
+
+local G = Wow.new().ns.AltGroups
+local A, B, C, D = "Player-1-0000AAAA", "Player-1-0000BBBB", "Player-1-0000CCCC", "Player-1-0000DDDD"
+local DAY = 24 * 3600
+
+local function roster(levels)
+    local r = {}
+    for guid, level in pairs(levels) do r[guid] = { name = guid, level = level, classFile = "MAGE", online = false } end
+    return r
+end
+
+local function group(main, alts, t, chosen)
+    return { main = main, alts = alts, t = t, chosen = chosen ~= false }
+end
+
+describe("AltGroups", function()
+    describe("EffectiveMain", function()
+        it("uses the chosen main", function()
+            local main, chosen = G.EffectiveMain({ chars = { [A] = true, [B] = true }, main = A }, roster({ [A] = 10, [B] = 60 }))
+            assert.equal(A, main)
+            assert.is_true(chosen)
+        end)
+
+        it("falls back to the highest level while none is chosen", function()
+            local main, chosen = G.EffectiveMain({ chars = { [A] = true, [B] = true } }, roster({ [A] = 10, [B] = 60 }))
+            assert.equal(B, main)
+            assert.is_false(chosen)
+        end)
+
+        it("falls back when the chosen main is no longer one of the characters", function()
+            local main, chosen = G.EffectiveMain({ chars = { [B] = true }, main = A }, roster({ [B] = 60 }))
+            assert.equal(B, main)
+            assert.is_false(chosen)
+        end)
+
+        it("returns nil without characters", function()
+            assert.is_nil(G.EffectiveMain({ chars = {} }, {}))
+        end)
+    end)
+
+    describe("OwnGroup", function()
+        it("puts the other characters in as alts", function()
+            local g = G.OwnGroup({ chars = { [A] = true, [B] = true, [C] = true }, main = A }, roster({ [A] = 60, [B] = 1, [C] = 2 }), 5)
+            assert.same({ main = A, alts = { B, C }, chosen = true, t = 5 }, g)
+        end)
+    end)
+
+    describe("Encode and Decode", function()
+        it("round-trips a group", function()
+            local g = group(A, { B }, 1700000000)
+            local msgs = G.Encode(g)
+            assert.same({ "G|1|1-0000AAAA|1|1700000000|1-0000BBBB" }, msgs)
+            assert.same(g, G.Decode(msgs[1]))
+        end)
+
+        it("round-trips a group without alts", function()
+            local g = group(A, {}, 7, false)
+            assert.same(g, G.Decode(G.Encode(g)[1]))
+        end)
+
+        it("rejects other versions, kinds and bad GUIDs", function()
+            assert.is_nil(G.Decode("G|2|1-0000AAAA|1|1|1-0000BBBB"))
+            assert.is_nil(G.Decode("X|1|1-0000AAAA|1|1|1-0000BBBB"))
+            assert.is_nil(G.Decode("G|1|nonsense|1|1|1-0000BBBB"))
+            assert.is_nil(G.Decode("G|1|1-0000AAAA|1|1|1-0000BBBB,bad"))
+            assert.is_nil(G.Decode("G|1|1-0000AAAA|1|x|"))
+        end)
+
+        it("splits long groups into messages of at most 250 bytes that merge back together", function()
+            local alts = {}
+            for i = 1, 40 do alts[i] = ("Player-4184-%08X"):format(i) end
+            local msgs = G.Encode(group("Player-4184-0A0B0C0D", alts, 9))
+            assert.is_true(#msgs > 1)
+            local groups = {}
+            for _, m in ipairs(msgs) do
+                assert.is_true(#m <= 250)
+                G.Merge(groups, G.Decode(m), {}, 100)
+            end
+            assert.equal(40, #groups["Player-4184-0A0B0C0D"].alts)
+        end)
+    end)
+
+    describe("Merge", function()
+        it("stores a new group with the time it was seen", function()
+            local groups = {}
+            G.Merge(groups, group(A, { B }, 1), {}, 100)
+            assert.same({ main = A, alts = { B }, chosen = true, t = 1, seen = 100 }, groups[A])
+        end)
+
+        it("replaces a group with a newer one and ignores an older one", function()
+            local groups = {}
+            G.Merge(groups, group(A, { B }, 2), {}, 100)
+            G.Merge(groups, group(A, { C }, 1), {}, 100)
+            assert.same({ B }, groups[A].alts)
+            G.Merge(groups, group(A, { C }, 3), {}, 100)
+            assert.same({ C }, groups[A].alts)
+        end)
+
+        it("refreshes the seen time when the same group arrives again", function()
+            local groups = {}
+            G.Merge(groups, group(A, { B }, 1), {}, 100)
+            G.Merge(groups, group(A, { B }, 1), {}, 200)
+            assert.equal(200, groups[A].seen)
+            assert.same({ B }, groups[A].alts)
+        end)
+
+        it("moves a character to the newer group", function()
+            local groups = {}
+            G.Merge(groups, group(A, { B, D }, 1), {}, 100)
+            G.Merge(groups, group(C, { B }, 2), {}, 100)
+            assert.same({ D }, groups[A].alts)
+            assert.same({ B }, groups[C].alts)
+        end)
+
+        it("drops the old group when a player switches their main", function()
+            local groups = {}
+            G.Merge(groups, group(A, { B }, 1), {}, 100)
+            G.Merge(groups, group(B, { A }, 2), {}, 100)
+            assert.is_nil(groups[A])
+            assert.same({ A }, groups[B].alts)
+        end)
+
+        it("drops an incoming group that is older than the one that took its main", function()
+            local groups = {}
+            G.Merge(groups, group(B, { A }, 2), {}, 100)
+            G.Merge(groups, group(A, { B }, 1), {}, 100)
+            assert.is_nil(groups[A])
+            assert.same({ A }, groups[B].alts)
+        end)
+
+        it("does not store a group with neither alts nor a chosen main", function()
+            local groups = {}
+            G.Merge(groups, group(A, {}, 1, false), {}, 100)
+            assert.is_nil(groups[A])
+        end)
+
+        it("never lets someone else's group take one of your characters", function()
+            local groups = {}
+            local own = { [A] = true, [B] = true }
+            G.Merge(groups, group(A, { B }, 1), own, 100)
+            G.Merge(groups, group(C, { B }, 2), own, 100)
+            assert.same({ B }, groups[A].alts)
+            assert.same({}, groups[C] and groups[C].alts or {})
+        end)
+
+        it("rejects someone else's group that names one of your characters as main", function()
+            local groups = {}
+            local own = { [A] = true, [B] = true }
+            G.Merge(groups, group(A, { B }, 1), own, 100)
+            G.Merge(groups, group(A, { C }, 2), own, 100)
+            assert.same({ B }, groups[A].alts)
+            assert.equal(1, groups[A].t)
+        end)
+    end)
+
+    describe("Prune", function()
+        it("drops groups not seen for longer than the maximum age", function()
+            local groups = {
+                old = { main = "old", alts = {}, chosen = true, t = 1, seen = 1000 },
+                fresh = { main = "fresh", alts = {}, chosen = true, t = 1, seen = 1000 + 89 * DAY },
+            }
+            G.Prune(groups, 1000 + 91 * DAY, 90 * DAY)
+            assert.is_nil(groups.old)
+            assert.is_not_nil(groups.fresh)
+        end)
+    end)
+
+    describe("Index", function()
+        it("maps every main and alt to its group", function()
+            local groups = { [A] = group(A, { B }, 1) }
+            local index = G.Index(groups)
+            assert.equal(groups[A], index[A])
+            assert.equal(groups[A], index[B])
+            assert.is_nil(index[C])
+        end)
+    end)
+end)
