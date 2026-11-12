@@ -165,7 +165,6 @@ function ns.AddHeader(f, opts)
     h.Icon = h:CreateTexture(nil, "ARTWORK")
     h.Icon:SetSize(42, 42)
     h.Icon:SetPoint("CENTER", frame)
-    h.Icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- without the icon's own border
 
     h.Title = h:CreateFontString(nil, "ARTWORK", GameFontNormalHuge and "GameFontNormalHuge" or "GameFontNormalLarge")
     h.Title:SetPoint("TOPLEFT", frame, "TOPRIGHT", 14, -2)

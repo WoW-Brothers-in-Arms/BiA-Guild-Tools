@@ -63,7 +63,8 @@ and atlases are used, so the result is more detailed than the mock-ups.
 ### One structure for every list window
 
 1. **Title bar:** "BiA Guild Tools", close button.
-2. **Header:** a 46 px icon, the window's name in large gold type (`GameFontNormalHuge`), below it one
+2. **Header:** a 46 px icon (the addon's own: `Media/IconAlts.tga`, `IconVersions.tga`, `IconRecipes.tga`,
+   drawn by `scripts/make-icons.py`), the window's name in large gold type (`GameFontNormalHuge`), below it one
    line of key figures; on the right a search box (where the window has one) and "Only online".
 3. **Ornament line** across the window.
 4. **Content:** a list, and for Guild Recipes and Alts a detail pane on the right for the chosen row.

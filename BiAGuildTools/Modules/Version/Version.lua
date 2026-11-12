@@ -263,7 +263,7 @@ end
 
 local function CreateWindow()
     local f = ns.CreateWindow("BiAGuildToolsVersionFrame", { width = 540, height = 540, db = M.db })
-    f.Header = ns.AddHeader(f, { icon = "Interface\\Icons\\INV_Misc_Note_01", title = L.VER_WINDOW_TITLE,
+    f.Header = ns.AddHeader(f, { icon = "Interface\\AddOns\\BiAGuildTools\\Media\\IconVersions", title = L.VER_WINDOW_TITLE,
         online = { db = M.db, onChange = function() RefreshWindow() end } })
     f.Scroll = ns.AddScrollList(f, { top = ns.UI.CONTENT_TOP, bottom = ns.UI.PANE_MARGIN, rowType = "Button", rowHeight = ROW_HEIGHT,
         init = InitRow })

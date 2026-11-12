@@ -16,7 +16,7 @@ local PANE_WIDTH = 290
 local MAX_CHARS = 12 -- characters of one player the pane has room for
 local FIRST_CHAR_Y = 126 -- where the pane's character rows start, below icon, name, sub line and heading
 local CROWN = "Interface\\GroupFrame\\UI-Group-LeaderIcon"
-local WINDOW_ICON = "Interface\\Icons\\INV_Crown_02"
+local WINDOW_ICON = "Interface\\AddOns\\BiAGuildTools\\Media\\IconAlts"
 local window
 local selected -- key of the chosen player
 local search   -- text of the search box
