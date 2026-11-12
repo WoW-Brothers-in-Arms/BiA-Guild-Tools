@@ -251,7 +251,7 @@ local function InitRow(row, data)
         row.Label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
         row.Label:SetPoint("LEFT", 28, 0)
         row.Note = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-        row.Note:SetPoint("RIGHT", -8, 0)
+        row.Note:SetPoint("RIGHT", -8 - ns.UI.SCROLL_BAR_ROOM, 0)
     end
     ns.SetZebra(row, data.band)
     ns.SetStatusDot(row.Dot, data.online)

@@ -801,7 +801,7 @@ describe("Alts", function()
             assert.equal("Your characters", m.rows[1].text)
             assert.equal("Guild (1 players)", m.rows[3].text)
             assert.equal("Other", m.rows[4].name)
-            assert.equal("+1", m.rows[4].alts)
+            assert.equal("1 alt", m.rows[4].alts)
             assert.equal("", m.rows[2].alts) -- nobody needs to read "no alts"
             assert.equal("online", m.rows[4].status)
             assert.is_false(m.rows[4].band) -- the first row under a header is never striped

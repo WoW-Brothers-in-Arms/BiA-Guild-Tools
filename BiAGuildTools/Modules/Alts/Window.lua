@@ -43,10 +43,11 @@ local function StatusText(player, roster)
     return L.ALTS_STATUS_ONLINE_ON:format(NameOf(roster, player.online))
 end
 
--- "+2" for a player with two alts, nothing for one without.
+-- "2 alts" for a player with two alts, nothing for one without.
 local function AltsText(player)
     local n = #player.chars - 1
-    return n > 0 and ("+" .. n) or ""
+    if n == 0 then return "" end
+    return n == 1 and L.ALTS_ONE_ALT or L.ALTS_N_ALTS:format(n)
 end
 
 local function ClassName(classFile)
@@ -56,7 +57,7 @@ end
 -- { stats, rows, detail }:
 --   rows:   { kind = "header", section, text, expanded } and
 --           { kind = "player", key, name, classFile, note, alts, status, online, nodata, selected, band }
---           (note: the player's guild note, where guilds write the player's name; alts: "+2" or "")
+--           (note: the player's guild note, where guilds write the player's name; alts: "2 alts" or "")
 --   noHits: the search text while it matches nobody in the guild, else nil.
 --   detail: the chosen player – { key, name, classFile, sub, own, hint,
 --           chars = { { guid, name, classFile, level, online, isMain, band }, ... } }; nil when no player
@@ -168,14 +169,14 @@ local function InitRow(row, data)
         row.Label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
         row.Label:SetPoint("LEFT", 32, 0)
         row.Alts = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-        row.Alts:SetPoint("RIGHT", -84, 0) -- a column of its own, left of the status
+        row.Alts:SetPoint("RIGHT", -84 - UI.SCROLL_BAR_ROOM, 0) -- a column of its own, left of the status
         row.Note = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
         row.Note:SetPoint("LEFT", row.Label, "RIGHT", 8, 0)
         row.Note:SetPoint("RIGHT", row.Alts, "LEFT", -8, 0)
         row.Note:SetJustifyH("LEFT")
         row.Note:SetWordWrap(false) -- a long note ends in "…"
         row.Status = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        row.Status:SetPoint("RIGHT", -8, 0)
+        row.Status:SetPoint("RIGHT", -8 - UI.SCROLL_BAR_ROOM, 0)
         row.Dot = ns.AddStatusDot(row)
         row.Dot:SetPoint("RIGHT", row.Status, "LEFT", -5, 0)
         row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -187,6 +188,7 @@ local function InitRow(row, data)
     ClassIcon(row.ClassIcon, data.classFile)
     row.Label:SetText(ns.MemberName(data))
     row.Note:SetText(data.note)
+    if data.online then row.Note:SetTextColor(1, 1, 1) else row.Note:SetTextColor(0.6, 0.57, 0.53) end
     row.Alts:SetText(data.alts)
     row.Status:SetText(data.status)
     if data.online then row.Status:SetTextColor(1, 1, 1) else row.Status:SetTextColor(0.6, 0.57, 0.53) end

@@ -145,6 +145,9 @@ function ns.AddCheckbox(parent, opts)
     return box
 end
 
+-- What a list's rows leave empty at their right end: the scroll bar lies there while it shows, and
+-- with the room always kept free the rows' columns line up in every section.
+UI.SCROLL_BAR_ROOM = 18
 -- Where a window's content starts below the title bar and the header (y offset from the window's top).
 UI.CONTENT_TOP = -104
 -- The distance of a window's content (header, list, detail card) from its left, right and bottom edge.
@@ -359,34 +362,27 @@ function ns.SetStatusDot(dot, online)
     dot:SetTexture(dot.online and "Interface\\FriendsFrame\\StatusIcon-Online" or "Interface\\FriendsFrame\\StatusIcon-Offline")
 end
 
-local SCROLL_BAR_ROOM = 18 -- what the list gives up on its right while its scroll bar shows
-
 -- A scrolling list with a scroll bar on the right that fills the window between top and bottom.
 -- opts: top, bottom, left, right (offsets from the window's edges; left and right default to
---       UI.PANE_MARGIN; right is where the list ends while its scroll bar is hidden),
+--       UI.PANE_MARGIN),
 --       rowType (frame type of a row), rowHeight,
 --       init = function(row, data) (sets a row up for its data; rows are reused).
 function ns.AddScrollList(f, opts)
     local left, right = opts.left or UI.PANE_MARGIN, opts.right or UI.PANE_MARGIN
     local scroll = CreateFrame("Frame", nil, f, "WowScrollBoxList")
     local bar = CreateFrame("EventFrame", nil, f, "MinimalScrollBar")
-    bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 4, 0)
-    bar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 4, 0)
     local view = CreateScrollBoxListLinearView()
     view:SetElementExtent(opts.rowHeight)
     view:SetElementInitializer(opts.rowType, opts.init)
     ScrollUtil.InitScrollBoxListWithScrollBar(scroll, bar, view)
-    -- The scroll bar only shows while there is something to scroll; the list makes room for it then.
     scroll:SetPoint("TOPLEFT", left, opts.top)
-    if ScrollUtil.AddManagedScrollBarVisibilityBehavior and CreateAnchor then
-        scroll:SetPoint("BOTTOMRIGHT", -right, opts.bottom)
-        local topLeft = CreateAnchor("TOPLEFT", f, "TOPLEFT", left, opts.top)
-        ScrollUtil.AddManagedScrollBarVisibilityBehavior(scroll, bar,
-            { topLeft, CreateAnchor("BOTTOMRIGHT", f, "BOTTOMRIGHT", -(right + SCROLL_BAR_ROOM), opts.bottom) },
-            { topLeft, CreateAnchor("BOTTOMRIGHT", f, "BOTTOMRIGHT", -right, opts.bottom) })
-    else
-        scroll:SetPoint("BOTTOMRIGHT", -(right + SCROLL_BAR_ROOM), opts.bottom)
-    end
+    scroll:SetPoint("BOTTOMRIGHT", -right, opts.bottom)
+    -- The rows keep their width whether the bar shows or not: it lies over their right end, which rows
+    -- leave empty (UI.SCROLL_BAR_ROOM). It only shows while there is something to scroll.
+    bar:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", -4, -2)
+    bar:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", -4, 2)
+    bar:SetFrameLevel((scroll:GetFrameLevel() or 1) + 10) -- above the rows
+    if ScrollUtil.AddManagedScrollBarVisibilityBehavior then ScrollUtil.AddManagedScrollBarVisibilityBehavior(scroll, bar) end
     return scroll
 end
 
