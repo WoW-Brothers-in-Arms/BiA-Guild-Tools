@@ -49,6 +49,10 @@ read_globals = {
     "BankFrame", "C_Bank", "C_Container", "C_Item", "GetContainerNumSlots", "GetContainerItemInfo",
     "GetItemInfoInstant", "UseContainerItem", "NUM_BAG_SLOTS", "IsBagOpen", "OpenBag", "CloseBag",
     "ToggleBackpack", "CHARACTER_BANK_DEPOSIT_BUTTON_LABEL",
+
+    -- Group, markers, ready check, pull timer
+    "IsInGroup", "IsInRaid", "UnitIsGroupLeader", "UnitIsGroupAssistant", "UnitExists", "CanBeRaidTarget",
+    "GetRaidTargetIndex", "IsRaidMarkerActive", "C_PartyInfo",
 }
 
 -- Translations are long sentences.

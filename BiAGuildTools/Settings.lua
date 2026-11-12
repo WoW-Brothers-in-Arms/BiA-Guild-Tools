@@ -6,6 +6,8 @@ local L = ns.L
 
 local ICON = "Interface\\AddOns\\" .. ADDON .. "\\Media\\Icon"
 local PAGE_WIDTH = 600
+-- The tools are listed in two columns, so the page fits without scrolling.
+local COLUMN_WIDTH, COLUMN_GAP = 290, 20
 
 local function Meta(field)
     local get = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
@@ -54,10 +56,19 @@ function ns.CreateSettingsPanel()
         end
     end
 
-    local anchor = header
-    for _, m in ipairs(ns.moduleOrder) do
+    -- First half of the tools in the left column, the rest in the right one. Each column starts under
+    -- the header; anchors[column] is the last part placed in it.
+    local anchors = { header, header }
+    local split = math.ceil(#ns.moduleOrder / 2)
+    for index, m in ipairs(ns.moduleOrder) do
+        local column = index <= split and 1 or 2
+        local anchor = anchors[column]
         local box = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate")
-        box:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", anchor == header and -4 or 0, -10)
+        if anchor == header then
+            box:SetPoint("TOPLEFT", header, "BOTTOMLEFT", -4 + (column - 1) * (COLUMN_WIDTH + COLUMN_GAP), -10)
+        else
+            box:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -10)
+        end
         box:SetScript("OnClick", function(self)
             m:SetEnabled(self:GetChecked())
             RefreshOptions(m)
@@ -71,7 +82,7 @@ function ns.CreateSettingsPanel()
         for _, c in ipairs(m.commands) do cmds[#cmds + 1] = c.cmd end
         local info = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         info:SetPoint("TOPLEFT", box, "BOTTOMLEFT", 30, 2)
-        info:SetWidth(PAGE_WIDTH - 30)
+        info:SetWidth(COLUMN_WIDTH - 30)
         info:SetJustifyH("LEFT")
         local text = m.desc or ""
         if #cmds > 0 then text = text .. "\n|cff909090" .. L.SETTINGS_COMMANDS:format(table.concat(cmds, ", ")) .. "|r" end
@@ -86,6 +97,8 @@ function ns.CreateSettingsPanel()
             ob.option = option
             ob.label = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
             ob.label:SetPoint("LEFT", ob, "RIGHT", 2, 1)
+            ob.label:SetWidth(COLUMN_WIDTH - 56) -- long labels wrap inside their column
+            ob.label:SetJustifyH("LEFT")
             ob.label:SetText(option.label)
             ob:SetScript("OnClick", function(self)
                 m.db[option.key] = self:GetChecked() and true or false
@@ -99,11 +112,11 @@ function ns.CreateSettingsPanel()
         -- The next checkbox lines up with this one, not with the indented text.
         local spacer = panel:CreateFontString(nil, "ARTWORK")
         spacer:SetPoint("TOPLEFT", last, "BOTTOMLEFT", last == info and -30 or -26, 0)
-        anchor = spacer
+        anchors[column] = spacer
     end
 
     local hint = panel:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-    hint:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 4, -20)
+    hint:SetPoint("BOTTOMLEFT", header, "BOTTOMRIGHT", 16, 1)
     hint:SetText(L.SETTINGS_OVERVIEW_HINT:format("/bia"))
 
     -- Checkbox states can change through chat commands; refresh whenever the page opens.

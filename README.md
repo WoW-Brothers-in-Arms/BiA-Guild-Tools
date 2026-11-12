@@ -95,6 +95,19 @@ Opens and closes the reagent bag together with your backpack. In WoW: Forever, *
 
 - `/bia bags on` / `off`: turn it on or off
 
+### Markers (`/bia marker`)
+
+A small one-row panel for raids and dungeons. A switch on the left picks **Target** or **Ground**: the eight symbols then mark your target (click: set or take off, right-click: take off) or place ground markers (click, then place the marker on the ground), and the button after them removes all target markers or all ground markers. On the right sit the ready check and the pull timer (right-click: duration). The symbol your target carries has a gold frame, a ground marker that lies has a green dot, and buttons you may not use right now are greyed out. The switch also works in combat.
+
+Who may do what follows the game's raid manager: in a party everyone may mark, in a raid only the leader and assistants; the ready check and pull timer need the party leader or a raid leader/assistant. Right-click on the panel's frame chooses **Move** or **Lock**. Target and ground markers use the game's secure buttons (both are protected in WoW: Forever), so the panel can't be moved, shown or hidden during combat. The symbols are the addon's own (`scripts/make-marker-icons.py`).
+
+- `/bia marker`: show or hide the panel
+- `/bia marker lock` / `unlock`: lock the panel or make it movable
+- `/bia marker reset`: move it back to its starting place
+- `/bia marker pull <seconds>`: the pull timer's duration (default 10)
+- Settings page: "Show the panel only in a group" (on by default)
+
+
 ## Checks and tests
 
 `scripts/check.sh` runs [luacheck](https://github.com/lunarmodules/luacheck) (static analysis, settings in `.luacheckrc`) and the [busted](https://lunarmodules.github.io/busted) tests in `spec/`. The tests run with LuaJIT (Lua 5.1, like the game) against a small fake of the WoW client (`spec/support/wow.lua`): it loads the addon in TOC order and lets a test log in, run `/bia` commands, receive addon messages and move the clock forward.
@@ -142,7 +155,8 @@ BiAGuildTools/
     ├── Version/          ← module "version"
     ├── Alts/             ← module "alts" (Groups.lua: data logic, Window.lua: overview)
     ├── Bank/             ← module "bank"
-    └── Bags/             ← module "bags"
+    ├── Bags/             ← module "bags"
+    └── Markers/          ← module "markers" (Markers.lua: rules and commands, Panel.lua: the panel)
 spec/                     ← busted tests (not part of the release zip)
 └── support/wow.lua       ← fake WoW client for the tests
 scripts/check.sh          ← luacheck + busted

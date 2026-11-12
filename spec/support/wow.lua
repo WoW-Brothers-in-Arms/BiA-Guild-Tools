@@ -40,8 +40,10 @@ end
 local NOT_IN_GAME = { SetCheckedAtlas = true, SetHighlightAtlas2 = true }
 
 -- A frame that remembers its events and scripts. Any other method is a no-op.
-local function NewFrame(game, name, template)
-    local frame = { name = name, events = {}, scripts = {}, shown = true }
+-- isRegion: a texture or font string (not a frame).
+local function NewFrame(game, name, template, isRegion)
+    local frame = { name = name, events = {}, scripts = {}, shown = true, isRegion = isRegion,
+        protected = template ~= nil and template:match("^Secure") ~= nil }
     function frame:Show() self.shown = true end
     function frame:Hide() self.shown = false end
     function frame:SetShown(on) self.shown = on and true or false end
@@ -49,6 +51,20 @@ local function NewFrame(game, name, template)
     function frame:SetChecked(on) self.checked = on and true or false end
     function frame:GetChecked() return self.checked end
     function frame:SetPoint(...)
+        -- like the game: a secure (protected) frame can't be anchored to a texture or font string,
+        -- nor to a frame whose own anchors lead to one
+        local relativeTo = select(2, ...)
+        if self.protected then
+            local seen, r = {}, relativeTo
+            while type(r) == "table" and not seen[r] do
+                if rawget(r, "isRegion") then
+                    error("Action[SetPoint] failed because[Cannot anchor protected frames to regions]")
+                end
+                seen[r] = true
+                local p = rawget(r, "point")
+                r = p and p[2]
+            end
+        end
         self.point = { ... }
         self.points = rawget(self, "points") or {}
         self.points[(...)] = { ... } -- by anchor
@@ -57,6 +73,15 @@ local function NewFrame(game, name, template)
     function frame:SetAlpha(alpha) self.alpha = alpha end
     function frame:SetVertexColor(r, g, b) self.vertex = { r, g, b } end
     function frame:SetText(text) self.text = text end
+    function frame:SetAttribute(key, value)
+        self.attributes = rawget(self, "attributes") or {}
+        self.attributes[key] = value
+    end
+    function frame:GetAttribute(key) return (rawget(self, "attributes") or {})[key] end
+    function frame:SetFrameRef(label, ref) -- SecureHandler templates
+        self.frameRefs = rawget(self, "frameRefs") or {}
+        self.frameRefs[label] = ref
+    end
     function frame:GetText() return self.text end
     function frame:ClearAllPoints() self.point = nil end
     function frame:SetClipsChildren(on) self.clips = on and true or false end
@@ -75,8 +100,8 @@ local function NewFrame(game, name, template)
         end
     end
     function frame:GetName() return self.name end
-    function frame:CreateFontString() return NewFrame(game) end -- font strings and textures: plain fakes
-    function frame:CreateTexture() return NewFrame(game) end
+    function frame:CreateFontString() return NewFrame(game, nil, nil, true) end -- font strings and textures: plain fakes
+    function frame:CreateTexture() return NewFrame(game, nil, nil, true) end
     -- Any other method is a no-op – except names that look right but don't exist in the game.
     setmetatable(frame, { __index = function(_, key)
         if NOT_IN_GAME[key] then return nil end

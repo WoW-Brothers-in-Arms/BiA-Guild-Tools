@@ -37,3 +37,5 @@ Modules\Recipes\Window.lua
 Modules\Version\Version.lua
 Modules\Bank\Bank.lua
 Modules\Bags\Bags.lua
+Modules\Markers\Markers.lua
+Modules\Markers\Panel.lua
