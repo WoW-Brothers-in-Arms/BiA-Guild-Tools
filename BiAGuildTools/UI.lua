@@ -436,7 +436,10 @@ function ns.AddSectionList(f, opts)
     -- sublevel); on one level the game drew it over the bar and the header looked dull.
     local cover = sticky:CreateTexture(nil, "BACKGROUND", nil, -8)
     cover:SetColorTexture(COLORS.ground[1], COLORS.ground[2], COLORS.ground[3], 1)
-    cover:SetAllPoints()
+    -- Only behind the bar's art, which starts a little inside the button: a cover over the whole button
+    -- shows as a dark box around the bar.
+    cover:SetPoint("TOPLEFT", SECTION_INSET, -3)
+    cover:SetPoint("BOTTOMRIGHT", -SECTION_INSET, 3)
     sticky:Hide()
     list.Sticky = sticky
 
