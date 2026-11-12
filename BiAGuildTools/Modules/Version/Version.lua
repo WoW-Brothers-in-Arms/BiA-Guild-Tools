@@ -22,12 +22,17 @@ local updateNoticeShown = false
 ---------------------------------------------------------------------------
 -- Comparing versions: "1.10.0" > "1.9.2", and "1.2.0-beta1" < "1.2.0".
 ---------------------------------------------------------------------------
+local parsed = {} -- version -> { parts, pre }: sorting and colouring compare the same few versions a lot
+
 local function ParseVersion(v)
     if type(v) ~= "string" then return nil end
+    local hit = parsed[v]
+    if hit then return hit[1], hit[2] end
     local nums, pre = v:match("^v?(%d+[%d%.]*)%-?(.*)$")
     if not nums then return nil end
     local parts = {}
     for n in nums:gmatch("%d+") do parts[#parts + 1] = tonumber(n) end
+    parsed[v] = { parts, pre }
     return parts, pre
 end
 
@@ -106,7 +111,7 @@ local function CheckForUpdate(version, from)
     if updateNoticeShown or not IsRelease(version) or Compare(version, ns.Version) ~= 1 then return end
     updateNoticeShown = true
     M:Print(L.VER_UPDATE_AVAILABLE:format(version, ns.Version))
-    M:Debug("newer version reported by " .. from)
+    M:Debug("newer version reported by %s", from)
 end
 
 M:RegisterComm(PREFIX, function(text, channel, sender)
@@ -114,12 +119,12 @@ M:RegisterComm(PREFIX, function(text, channel, sender)
     local from = Readable(sender) and type(sender) == "string" and sender or nil
     local kind, version = text:match("^(%a)|(.+)$")
     if (kind ~= "H" and kind ~= "V") or not ValidVersion(version) or not from then
-        M:Debug(("from %s dropped: %s"):format(tostring(from), text))
+        M:Debug("from %s dropped: %s", tostring(from), text)
         return
     end
     if ShortName(from) == ShortName(ns.PlayerFullName()) then return end -- our own message
 
-    M:Debug(("%s from %s: %s"):format(kind, from, version))
+    M:Debug("%s from %s: %s", kind, from, version)
     local display = from:gsub(" ", "-") -- Forever sends "Name Realm"
     Store(Ambiguate(display, "none"), version)
     CheckForUpdate(version, from)
@@ -156,15 +161,12 @@ local window
 -- One row per guild member from the roster, with the last version they reported.
 local function CollectRows()
     local rows, me = {}, ShortName(ns.PlayerFullName())
-    if not GetNumGuildMembers then return rows end
-    for i = 1, GetNumGuildMembers() do
-        local name, _, _, _, _, _, _, _, isOnline = GetGuildRosterInfo(i)
-        if Readable(name) and name and (isOnline or not M.db.onlyOnline) then
-            local key = ShortName(name)
+    for _, member in pairs(ns.Roster()) do
+        if member.online or not M.db.onlyOnline then
+            local key = ShortName(member.name)
             local entry = M.db.members[key]
             local v = key == me and ns.Version or (entry and entry.v)
-            rows[#rows + 1] = { name = Ambiguate(name, "none"), v = v, online = isOnline and true or false,
-                sortable = ParseVersion(v) ~= nil }
+            rows[#rows + 1] = { name = member.name, v = v, online = member.online, sortable = ParseVersion(v) ~= nil }
         end
     end
     -- Readable versions first (newest on top), then by name.
@@ -198,41 +200,8 @@ local function InitRow(row, data)
 end
 
 local function CreateWindow()
-    local f = CreateFrame("Frame", "BiAGuildToolsVersionFrame", UIParent, "BasicFrameTemplateWithInset")
-    f:SetSize(300, 380)
-    f:SetFrameStrata("DIALOG")
-    f:SetClampedToScreen(true)
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local point, _, relPoint, x, y = self:GetPoint()
-        M.db.window = { point = point, relPoint = relPoint, x = x, y = y }
-    end)
-    local pos = M.db.window
-    if pos then f:SetPoint(pos.point, UIParent, pos.relPoint, pos.x, pos.y) else f:SetPoint("CENTER") end
-    tinsert(UISpecialFrames, f:GetName()) -- closes with Esc
-
-    local title = f.TitleText
-    if not title then
-        title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        title:SetPoint("TOP", 0, -5)
-    end
-    title:SetText(L.VER_WINDOW_TITLE)
-
-    local online = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
-    online:SetSize(24, 24)
-    online:SetPoint("TOPLEFT", 10, -28)
-    online:SetChecked(M.db.onlyOnline)
-    online:SetScript("OnClick", function(self)
-        M.db.onlyOnline = self:GetChecked() and true or false
-        RefreshWindow()
-    end)
-    local onlineLabel = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    onlineLabel:SetPoint("LEFT", online, "RIGHT", 2, 0)
-    onlineLabel:SetText(L.VER_ONLY_ONLINE)
+    local f = ns.CreateWindow("BiAGuildToolsVersionFrame", { width = 300, height = 380, title = L.VER_WINDOW_TITLE, db = M.db })
+    ns.AddOnlineCheckbox(f, M.db, L.VER_ONLY_ONLINE, RefreshWindow)
 
     f.Newest = f:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     f.Newest:SetPoint("TOPRIGHT", -14, -34)
@@ -249,24 +218,13 @@ local function CreateWindow()
     f.Footer:SetPoint("BOTTOMRIGHT", -14, 12)
     f.Footer:SetJustifyH("LEFT")
 
-    local scroll = CreateFrame("Frame", nil, f, "WowScrollBoxList")
-    scroll:SetPoint("TOPLEFT", 14, -74)
-    scroll:SetPoint("BOTTOMRIGHT", -30, 32)
-    local bar = CreateFrame("EventFrame", nil, f, "MinimalScrollBar")
-    bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 6, 0)
-    bar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 6, 0)
-    local view = CreateScrollBoxListLinearView()
-    view:SetElementExtent(ROW_HEIGHT)
-    view:SetElementInitializer("Frame", InitRow)
-    ScrollUtil.InitScrollBoxListWithScrollBar(scroll, bar, view)
-    f.Scroll = scroll
+    f.Scroll = ns.AddScrollList(f, { top = -74, bottom = 32, rowType = "Frame", rowHeight = ROW_HEIGHT, init = InitRow })
 
     f:SetScript("OnShow", function()
         if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
         RefreshWindow()
     end)
-    f:Hide() -- frames are created shown; ToggleWindow shows it (and runs OnShow)
-    return f
+    return f -- still hidden; ToggleWindow shows it (and runs OnShow)
 end
 
 function RefreshWindow()
@@ -305,15 +263,11 @@ end
 M:RegisterSlash("version", function(msg, cmd)
     if cmd == "" then
         ToggleWindow()
-    elseif cmd == "debug" then
-        M.db.debug = not M.db.debug
-        M:Print(L.DEBUG_TOGGLED:format(ns.OnOff(M.db.debug)))
     else
         M:Print(L.VER_UNKNOWN_COMMAND:format("/bia version help"))
     end
 end, {
     "– " .. L.VER_HELP_WINDOW,
-    "debug – " .. L.VER_HELP_DEBUG,
 })
 
 ---------------------------------------------------------------------------

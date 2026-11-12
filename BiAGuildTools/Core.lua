@@ -7,6 +7,8 @@
 --   M:RegisterComm("BiaXyz", function(text, channel, sender) end)
 --   M:RegisterSlash("prof", handler, { "<arg> – help line", ... })   -- creates /bia prof
 --   function M:OnLogin() ... end                                     -- M.db is ready here
+--   M:OnToggled(function(on) ... end)                                -- the tool was switched on or off
+--   M:Debug("got %s", text)             -- shown while /bia <tool> debug is on (tools with RegisterComm)
 --   Optional: enabledByDefault = false
 --   Optional: formerKey = "old"   -- saved data and on/off choice are moved over from that key
 --   Optional: M.options = { { key = "dbField", label = "...", onChange = fn }, ... }
@@ -64,6 +66,11 @@ function ns.ShortName(name)
     return (name:match("^([^%-%s]+)") or name):lower()
 end
 
+-- Character name without realm, as shown to players ("Tester-Realm" -> "Tester").
+function ns.PlainName(name)
+    return name:match("^[^%-]+") or name
+end
+
 function ns.InChatLockdown()
     return C_ChatInfo and C_ChatInfo.InChatMessagingLockdown and C_ChatInfo.InChatMessagingLockdown() or false
 end
@@ -71,6 +78,53 @@ end
 local function IsAddOnLoaded(name)
     if C_AddOns and C_AddOns.IsAddOnLoaded then return C_AddOns.IsAddOnLoaded(name) end
     return _G.IsAddOnLoaded and _G.IsAddOnLoaded(name)
+end
+
+---------------------------------------------------------------------------
+-- Guild roster: one cache for all tools, rebuilt on demand after the game reported a change.
+---------------------------------------------------------------------------
+local roster, rosterByShort
+
+-- { [guid] = { name, level, classFile, online, rank, note, officerNote } } of everyone in the guild
+-- roster. Second result: { [short name] = guid }, false for a name several members share.
+function ns.Roster()
+    if roster then return roster, rosterByShort end
+    local r, byShort = {}, {}
+    for i = 1, (GetNumGuildMembers and GetNumGuildMembers() or 0) do
+        local name, _, rank, level, _, _, note, officerNote, online, _, classFile, _, _, _, _, _, guid = GetGuildRosterInfo(i)
+        if ns.Readable(name) and ns.Readable(guid) and type(guid) == "string" and name then
+            r[guid] = { name = Ambiguate(name, "none"), level = ns.Readable(level) and level or 0,
+                classFile = ns.Readable(classFile) and classFile or nil,
+                online = ns.Readable(online) and online and true or false,
+                rank = ns.Readable(rank) and tonumber(rank) or 99,
+                note = ns.Readable(note) and type(note) == "string" and note or "",
+                officerNote = ns.Readable(officerNote) and type(officerNote) == "string" and officerNote or "" }
+            local short = ns.ShortName(r[guid].name)
+            if byShort[short] == nil then byShort[short] = guid else byShort[short] = false end
+        end
+    end
+    roster, rosterByShort = r, byShort
+    return r, byShort
+end
+
+-- "Name-Realm", lowercased; adds our realm when name has none. Accepts "Name Realm" (Forever's sender).
+local function FullName(name)
+    local base, realm = name:match("^([^%-%s]+)[%-%s](.+)$")
+    if not base then base, realm = name, GetNormalizedRealmName and GetNormalizedRealmName() or "" end
+    return (base .. "-" .. realm:gsub("%s", "")):lower()
+end
+
+-- The roster GUID of a character name (e.g. an addon message's sender). nil when no member or (by
+-- name alone) several members match.
+function ns.RosterGuidByName(name)
+    local members, byShort = ns.Roster()
+    local hit = byShort[ns.ShortName(name) or ""]
+    if hit ~= false then return hit end -- nobody, or the only member of that name
+    local full, found, count = FullName(name), nil, 0
+    for guid, member in pairs(members) do
+        if FullName(member.name) == full then found, count = guid, count + 1 end
+    end
+    if count == 1 then return found end
 end
 
 local addonWaiters = {}
@@ -133,9 +187,11 @@ function Module:RegisterComm(prefix, fn)
     end
 end
 
--- Prints only while the module's debug output is on (/bia <tool> debug).
-function Module:Debug(msg)
+-- Prints only while the module's debug output is on (/bia <tool> debug). With further arguments msg
+-- is a format string; it is only filled in while debug output is on.
+function Module:Debug(msg, ...)
     if self.db and self.db.debug then
+        if select("#", ...) > 0 then msg = msg:format(...) end
         -- "||" shows a literal "|" (otherwise the chat reads e.g. "|1" or "|R" in messages as codes).
         DEFAULT_CHAT_FRAME:AddMessage("|cff909090BiA " .. self.title .. " [debug]:|r " .. msg:gsub("|", "||"))
     end
@@ -159,15 +215,21 @@ function Module:SendGuild(msg, prefix)
     -- Older clients return nothing or a boolean; newer ones an Enum.SendAddonMessageResult (0 = success).
     local ok = result == nil or result == true or result == 0
     local reason = type(result) == "number" and (SEND_RESULTS[result] or tostring(result)) or tostring(result)
-    self:Debug(("sent (%s): %s"):format(ok and "ok" or ("FAILED " .. reason), msg))
+    self:Debug("sent (%s): %s", ok and "ok" or ("FAILED " .. reason), msg)
     return ok, reason
+end
+
+-- Calls fn; an error goes to the game's error handler instead of stopping the caller, so one tool's
+-- mistake doesn't keep the other tools from getting the same event.
+local function SafeCall(fn, ...)
+    local ok, err = pcall(fn, ...)
+    if not ok then geterrorhandler()(err) end
 end
 
 local function StartModule(m)
     if m.started or not m.OnLogin then m.started = true return end
     m.started = true
-    local ok, err = pcall(m.OnLogin, m)
-    if not ok then geterrorhandler()(err) end
+    SafeCall(m.OnLogin, m)
 end
 
 -- Switches a module on or off right away (no /reload needed).
@@ -175,7 +237,15 @@ function Module:SetEnabled(on)
     BiAGuildToolsDB.enabled[self.key] = on and true or false
     if on then StartModule(self) end
     if self.OnToggle then self:OnToggle(on) end
+    for _, fn in ipairs(self.toggleListeners or {}) do SafeCall(fn, on) end
     self:Print(ns.OnOff(on))
+end
+
+-- Runs fn(on) whenever the module is switched on or off (next to the module's own M:OnToggle, for the
+-- other files of a tool).
+function Module:OnToggled(fn)
+    self.toggleListeners = self.toggleListeners or {}
+    table.insert(self.toggleListeners, fn)
 end
 
 -- Tools reachable as /bia <name>: name -> { name, cmd, help, run }.
@@ -183,7 +253,8 @@ local slashTools = {}
 local RESERVED = { options = true, settings = true, help = true }
 
 -- Creates the chat command /bia <name> (one /bia command; the first word picks the tool).
--- help: list of lines shown by /bia <name> help. "on", "off" and "help" are handled here for every module.
+-- help: list of lines shown by /bia <name> help. "on", "off" and "help" are handled here for every module,
+-- "debug" for modules that send addon messages.
 function Module:RegisterSlash(name, handler, help)
     name = name:lower()
     assert(not slashTools[name] and not RESERVED[name], "BiAGuildTools: command taken: " .. name)
@@ -203,7 +274,13 @@ function Module:RegisterSlash(name, handler, help)
         if lower == "help" or (lower == "" and not self.slashAllowsEmpty) then
             self:Print(L.COMMANDS)
             for _, line in ipairs(help or {}) do DEFAULT_CHAT_FRAME:AddMessage("  " .. cmd .. " " .. line) end
+            if self.commPrefix then DEFAULT_CHAT_FRAME:AddMessage("  " .. cmd .. " debug – " .. L.HELP_DEBUG) end
             DEFAULT_CHAT_FRAME:AddMessage("  " .. cmd .. " on | off – " .. L.HELP_ON_OFF)
+            return
+        end
+        if lower == "debug" and self.commPrefix then
+            self.db.debug = not self.db.debug
+            self:Print(L.DEBUG_TOGGLED:format(ns.OnOff(self.db.debug)))
             return
         end
         handler(msg, lower)
@@ -246,13 +323,11 @@ end
 ---------------------------------------------------------------------------
 local function ApplyDefaults(target, defaults)
     for k, v in pairs(defaults or {}) do
-        if target[k] == nil then
-            if type(v) == "table" then
-                target[k] = {}
-                ApplyDefaults(target[k], v)
-            else
-                target[k] = v
-            end
+        if type(v) == "table" then -- also fills keys missing inside a table that was saved already
+            if target[k] == nil then target[k] = {} end
+            if type(target[k]) == "table" then ApplyDefaults(target[k], v) end
+        elseif target[k] == nil then
+            target[k] = v
         end
     end
 end
@@ -318,7 +393,9 @@ end
 
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("ADDON_LOADED")
+frame:RegisterEvent("GUILD_ROSTER_UPDATE") -- for the roster cache, whether or not a tool listens
 frame:SetScript("OnEvent", function(_, event, ...)
+    if event == "GUILD_ROSTER_UPDATE" then roster = nil end
     if event == "PLAYER_LOGIN" then
         InitModules()
     end
@@ -327,7 +404,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
         local waiters = addonWaiters[name]
         if waiters then
             addonWaiters[name] = nil
-            for _, fn in ipairs(waiters) do fn() end
+            for _, fn in ipairs(waiters) do SafeCall(fn) end
         end
     end
     if not loggedIn then return end
@@ -338,7 +415,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
         local h = commHandlers[prefix]
         if h and h[1]:IsEnabled() then
             if ns.Readable(text) and type(text) == "string" then
-                h[2](text, channel, sender)
+                SafeCall(h[2], text, channel, sender)
             else
                 h[1]:Debug("message not readable (protected value), dropped")
             end
@@ -348,7 +425,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     local handlers = eventHandlers[event]
     if handlers then
         for _, h in ipairs(handlers) do
-            if h[1]:IsEnabled() then h[2](...) end
+            if h[1]:IsEnabled() then SafeCall(h[2], ...) end
         end
     end
 end)

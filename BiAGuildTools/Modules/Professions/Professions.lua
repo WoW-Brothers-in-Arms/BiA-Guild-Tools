@@ -97,7 +97,7 @@ local function Broadcast(force)
     RefreshRoster()
 
     local payload = Encode(list)
-    if not force and payload == lastSentPayload and GetTime() - lastSentAt < 300 then return end
+    if not force and payload == lastSentPayload then return end -- nothing new (skill events fire often)
     local ok, reason = M:SendGuild("P|" .. PROTOCOL .. "|" .. guid .. "|" .. name .. "|" .. payload)
     if ok then
         lastSentPayload, lastSentAt = payload, GetTime()
@@ -125,28 +125,35 @@ M:RegisterComm(PREFIX, function(text, channel, sender)
     if channel ~= "GUILD" then return end
     local kind, version, rest = text:match("^(%a)|(%d+)|?(.*)$")
     if version ~= PROTOCOL then
-        M:Debug(("from %s dropped: unknown format/version: %s"):format(from, text))
+        M:Debug("from %s dropped: unknown format/version: %s", from, text)
         return
     end
 
     if kind == "R" then
-        M:Debug("request from " .. from)
+        M:Debug("request from %s", from)
         -- Someone asked for everyone's data; answer with a random delay to spread the traffic.
         if GetTime() - lastSentAt > 30 then QueueBroadcast(math.random(2, 10), true) end
     elseif kind == "P" then
         local guid, name, profs = rest:match("^([^|]+)|([^|]+)|(.*)$")
         if not guid or not guid:match("^Player%-") then
-            M:Debug(("from %s dropped: invalid data: %s"):format(from, text))
+            M:Debug("from %s dropped: invalid data: %s", from, text)
             return
         end
         -- Only accept data a character sends about itself (when the client lets us read the sender).
         -- Names are compared without realm, since sender and payload may spell the realm differently.
         if Readable(sender) and type(sender) == "string" and ShortName(sender) ~= ShortName(name) then
-            M:Debug(("from %s dropped: name does not match (%s)"):format(from, name))
+            M:Debug("from %s dropped: name does not match (%s)", from, name)
+            return
+        end
+        -- The GUID must be the sender's own too, or anyone could overwrite someone else's professions.
+        -- Skipped while the roster doesn't tell who the sender is (not loaded yet, name not unique).
+        local senderGuid = Readable(sender) and type(sender) == "string" and ns.RosterGuidByName(sender) or nil
+        if senderGuid and senderGuid ~= guid then
+            M:Debug("from %s dropped: GUID is not the sender's (%s)", from, guid)
             return
         end
         Store(guid, name, Decode(profs))
-        M:Debug(("stored professions of %s: %s"):format(name, profs))
+        M:Debug("stored professions of %s: %s", name, profs)
         RefreshRoster()
     end
 end)
@@ -158,8 +165,9 @@ local function MemberProfessions(info)
     if not info then return nil end
     local guid = Readable(info.guid) and info.guid or nil
     local entry = guid and M.db.members[guid]
-    if not entry and Readable(info.name) then
-        -- No match by GUID (e.g. the roster gives none): fall back to the character name.
+    if not guid and Readable(info.name) then
+        -- The roster gives no GUID: fall back to the character name. (A member with a GUID but without
+        -- an entry simply has not sent anything; searching every entry for each such row is wasted.)
         local short = ShortName(info.name)
         for _, e in pairs(M.db.members) do
             if ShortName(e.name) == short then entry = e break end
@@ -180,6 +188,8 @@ local function MemberProfessions(info)
     if #list > 0 then return list, nil end
     return entry and entry.profs, entry and entry.t
 end
+
+M.MemberProfessions = MemberProfessions
 
 local function SortedForDisplay(list, includeSecondary)
     local out = {}
@@ -259,9 +269,6 @@ M:RegisterSlash("prof", function(msg, cmd)
     elseif cmd == "tooltip" then
         db.showInTooltip = not db.showInTooltip
         M:Print(L.PROF_TOOLTIP_TOGGLED:format(ns.OnOff(db.showInTooltip)))
-    elseif cmd == "debug" then
-        db.debug = not db.debug
-        M:Print(L.DEBUG_TOGGLED:format(ns.OnOff(db.debug)))
     elseif cmd == "status" then
         local n = 0
         for guid, e in pairs(db.members) do
@@ -284,7 +291,6 @@ end, {
     "tooltip – " .. L.PROF_HELP_TOOLTIP,
     "sync – " .. L.PROF_HELP_SYNC,
     "status – " .. L.PROF_HELP_STATUS,
-    "debug – " .. L.PROF_HELP_DEBUG,
 })
 
 -- Switches on the game's settings page (same as /bia prof tooltip).

@@ -11,7 +11,7 @@ local GREY = "|cff808080"
 local dialog
 
 local function ShortName(member)
-    return member.name:match("^[^%-]+") or member.name
+    return ns.PlainName(member.name)
 end
 
 -- Adds "Alt of …", "Mark as main" and (when assigned) "Remove assignment" for guid to a menu
@@ -85,24 +85,8 @@ local function Update()
 end
 
 local function CreateDialog()
-    local f = CreateFrame("Frame", "BiAGuildToolsMainPicker", UIParent, "BasicFrameTemplateWithInset")
-    f:SetSize(260, 70 + MAX_HITS * ROW_HEIGHT)
-    f:SetPoint("CENTER", 0, 120)
-    f:SetFrameStrata("DIALOG")
-    f:SetToplevel(true)
-    f:SetClampedToScreen(true)
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", f.StopMovingOrSizing)
-    tinsert(UISpecialFrames, f:GetName()) -- closes with Esc
-
-    f.Title = f.TitleText
-    if not f.Title then
-        f.Title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        f.Title:SetPoint("TOP", 0, -5)
-    end
+    local f = ns.CreateWindow("BiAGuildToolsMainPicker",
+        { width = 260, height = 70 + MAX_HITS * ROW_HEIGHT, y = 120, toplevel = true })
 
     local search = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
     search:SetSize(220, 20)
@@ -152,7 +136,6 @@ local function CreateDialog()
         self.Search:SetText("")
         self.Search:ClearFocus()
     end)
-    f:Hide()
     return f
 end
 
@@ -170,8 +153,6 @@ function M.OpenMainPicker(char)
     Update()
 end
 
-local onToggle = M.OnToggle
-function M:OnToggle(on)
-    if onToggle then onToggle(self, on) end
+M:OnToggled(function(on)
     if not on and dialog then dialog:Hide() end
-end
+end)

@@ -4,6 +4,16 @@ New entries go under `## Unreleased`. Before tagging a release, rename that head
 (e.g. `## 1.1.0 (2026-11-12)`) – the release workflow uses that section as release notes on GitHub
 and CurseForge and stops if it is missing.
 
+## Unreleased
+
+- Less work in the background, mostly noticeable in large guilds: Alts handles bursts of guild roster updates together and no longer redraws when a guild mate sends a group it already has; Professions no longer searches all stored members for every roster row without data.
+- Fixed: Alts could send your group twice right after login.
+- Professions: unchanged professions are no longer sent again every few minutes.
+- Professions: data is only accepted for the character that sent it (checked against the guild roster), so nobody can overwrite someone else's professions.
+- Alts: assignments by officers that could not be sent (e.g. in a raid) are sent later instead of being lost.
+- An error in one tool no longer keeps the other tools from reacting to the same game event.
+- Internal: the tools share one guild roster cache and one set of window parts; `/bia <tool> debug` is handled in one place.
+
 ## 1.2.0 (2026-11-11)
 
 - New tool **Alts**: pick your main once and the addon links your other characters for the guild. Shown in the guild roster as its own column, in the roster tooltip and in the window `/bia alts`.

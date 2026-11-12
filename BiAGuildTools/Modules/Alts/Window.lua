@@ -15,7 +15,7 @@ local TREE_X = 10 -- x of the line joining a main and its alts (under the main's
 
 local function NameOf(guid)
     local member = M.Roster()[guid]
-    return member and (member.name:match("^[^%-]+") or member.name) or "?"
+    return member and ns.PlainName(member.name) or "?"
 end
 
 local function OnRowClick(row, button)
@@ -177,12 +177,10 @@ local function InitRow(row, data)
     row.Dot:SetPoint("LEFT", indent, 0)
     row.Name:SetPoint("LEFT", indent + 14, 0)
 
-    if data.kind == "nodata" then
-        row.Name:SetText("|cff808080" .. member.name:match("^[^%-]+") .. "|r")
-    elseif member.online then
+    if member.online and data.kind ~= "nodata" then
         row.Name:SetText(M.ColoredName(member))
     else
-        row.Name:SetText("|cff808080" .. member.name:match("^[^%-]+") .. "|r")
+        row.Name:SetText("|cff808080" .. ns.PlainName(member.name) .. "|r")
     end
 end
 
@@ -198,54 +196,9 @@ function M.ToggleSection(section)
 end
 
 local function CreateWindow()
-    local f = CreateFrame("Frame", "BiAGuildToolsAltsFrame", UIParent, "BasicFrameTemplateWithInset")
-    f:SetSize(300, 440)
-    f:SetFrameStrata("DIALOG")
-    f:SetClampedToScreen(true)
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        local point, _, relPoint, x, y = self:GetPoint()
-        M.db.window = { point = point, relPoint = relPoint, x = x, y = y }
-    end)
-    local pos = M.db.window
-    if pos then f:SetPoint(pos.point, UIParent, pos.relPoint, pos.x, pos.y) else f:SetPoint("CENTER") end
-    tinsert(UISpecialFrames, f:GetName()) -- closes with Esc
-
-    local title = f.TitleText
-    if not title then
-        title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        title:SetPoint("TOP", 0, -5)
-    end
-    title:SetText(L.ALTS_WINDOW_TITLE)
-
-    local online = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
-    online:SetSize(24, 24)
-    online:SetPoint("TOPLEFT", 10, -28)
-    online:SetChecked(M.db.onlyOnline)
-    online:SetScript("OnClick", function(self)
-        M.db.onlyOnline = self:GetChecked() and true or false
-        Refresh()
-    end)
-    local onlineLabel = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    onlineLabel:SetPoint("LEFT", online, "RIGHT", 2, 0)
-    onlineLabel:SetText(L.ALTS_ONLY_ONLINE)
-    f.Online, f.OnlineLabel = online, onlineLabel
-
-    local scroll = CreateFrame("Frame", nil, f, "WowScrollBoxList")
-    scroll:SetPoint("TOPLEFT", 14, -56)
-    scroll:SetPoint("BOTTOMRIGHT", -30, 12)
-    local bar = CreateFrame("EventFrame", nil, f, "MinimalScrollBar")
-    bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 6, 0)
-    bar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 6, 0)
-    local view = CreateScrollBoxListLinearView()
-    view:SetElementExtent(ROW_HEIGHT)
-    view:SetElementInitializer("Button", InitRow)
-    ScrollUtil.InitScrollBoxListWithScrollBar(scroll, bar, view)
-    f.Scroll = scroll
+    local f = ns.CreateWindow("BiAGuildToolsAltsFrame", { width = 300, height = 440, title = L.ALTS_WINDOW_TITLE, db = M.db })
+    f.Online = ns.AddOnlineCheckbox(f, M.db, L.ALTS_ONLY_ONLINE, Refresh)
+    f.Scroll = ns.AddScrollList(f, { top = -56, bottom = 12, rowType = "Button", rowHeight = ROW_HEIGHT, init = InitRow })
 
     f:SetScript("OnShow", function()
         if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
@@ -255,8 +208,7 @@ local function CreateWindow()
     f:SetScript("OnHide", function()
         if M.OnWindowShownChanged then M.OnWindowShownChanged() end
     end)
-    f:Hide() -- frames are created shown; ToggleWindow shows it (and runs OnShow)
-    return f
+    return f -- still hidden; ToggleWindow shows it (and runs OnShow)
 end
 
 function M.IsWindowShown()
@@ -274,8 +226,6 @@ end
 
 M.OnChanged(Refresh)
 
-local onToggle = M.OnToggle
-function M:OnToggle(on)
-    if onToggle then onToggle(self, on) end
+M:OnToggled(function(on)
     if not on and window then window:Hide() end
-end
+end)

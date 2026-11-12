@@ -157,6 +157,18 @@ describe("AltGroups", function()
             assert.same({ B }, groups[A].alts)
         end)
 
+        it("tells whether the groups changed", function()
+            local groups = {}
+            assert.is_true(G.Merge(groups, group(A, { B }, 2), {}, 100))
+            assert.is_false(G.Merge(groups, group(A, { B }, 2), {}, 200)) -- the same group again
+            assert.is_false(G.Merge(groups, group(A, { C }, 1), {}, 200)) -- an older one
+            assert.is_true(G.Merge(groups, group(A, { C }, 2), {}, 200))  -- another part of the same group
+            assert.same({ B, C }, groups[A].alts)
+            assert.is_true(G.Merge(groups, group(A, {}, 3, false), {}, 200)) -- cleared
+            assert.is_false(G.Merge(groups, group(A, {}, 4, false), {}, 200)) -- nothing there to clear
+            assert.is_false(G.Merge(groups, group(A, { B }, 5), { [A] = true }, 200)) -- your character as main
+        end)
+
         it("moves a character to the newer group", function()
             local groups = {}
             G.Merge(groups, group(A, { B, D }, 1), {}, 100)

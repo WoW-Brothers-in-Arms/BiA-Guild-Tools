@@ -74,6 +74,60 @@ describe("Alts", function()
         end)
     end)
 
+    describe("roster updates", function()
+        it("handles the first one at once and a burst after it together", function()
+            local members = guild()
+            local game = ready(members)
+            local changes = 0
+            M(game).OnChanged(function() changes = changes + 1 end)
+
+            game:fire("GUILD_ROSTER_UPDATE")
+            assert.equal(1, changes)
+            members[2].online = true
+            for _ = 1, 5 do game:fire("GUILD_ROSTER_UPDATE") end
+            assert.equal(1, changes)
+            assert.is_true(M(game).Roster()[ALT].online) -- the roster itself is fresh right away
+
+            game:advance(2)
+            assert.equal(2, changes)
+            game:advance(10)
+            assert.equal(2, changes)
+        end)
+
+        it("shares the group once when several updates arrive at login", function()
+            local game = Wow.new({ globals = Roster(guild()) })
+            game:login()
+            game:fire("GUILD_ROSTER_UPDATE")
+            game:advance(3)
+            game:fire("GUILD_ROSTER_UPDATE")
+            game:advance(30)
+            local groups = 0
+            for _, msg in ipairs(game:sentWith("BiaAlts")) do
+                if msg:match("^G|") then groups = groups + 1 end
+            end
+            assert.equal(1, groups)
+        end)
+
+        it("finds a sender by name, also when two members share the short name", function()
+            local members = guild()
+            members[#members + 1] = { "Other-Elsewhere", "Player-2-0000EEEE" }
+            local game = ready(members)
+            game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Other Realm")
+            assert.equal(OTHER, M(game).GroupOf(OTHER_ALT).main)
+            game:receive("BiaAlts", "G|1|1-0000A2A2|1|1700000000|1-0000CCCC", "Nobody Realm")
+            assert.equal(OTHER, M(game).GroupOf(OTHER_ALT).main)
+        end)
+
+        it("keeps your group stored while nothing about it changes", function()
+            local game = ready(nil, { modules = { alts = { own = { chars = { [ALT] = "BiA-Realm" } } } } })
+            local stored = db(game).groups[ME]
+            assert.same({ ALT }, stored.alts)
+            game:fire("GUILD_ROSTER_UPDATE")
+            assert.equal(stored, db(game).groups[ME])
+            assert.equal(stored.alts, db(game).groups[ME].alts) -- not rebuilt on every update
+        end)
+    end)
+
     describe("several guilds on one account", function()
         it("keeps characters of other guilds and leaves them out of this guild's group", function()
             local chars = { [ALT] = "BiA-Realm", ["Player-1-0000BA4C"] = "Bank-Realm" }
@@ -134,6 +188,18 @@ describe("Alts", function()
             local game = ready()
             game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Other Realm")
             assert.equal(OTHER, M(game).GroupOf(OTHER_ALT).main)
+        end)
+
+        it("tells listeners only when a received group changed something", function()
+            local game = ready()
+            local changes = 0
+            M(game).OnChanged(function() changes = changes + 1 end)
+            game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Other Realm")
+            assert.equal(1, changes)
+            game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Other Realm")
+            assert.equal(1, changes)
+            game:receive("BiaAlts", "G|1|1-0000BBBB|0|1700000001|1-0000CCCC", "Other Realm")
+            assert.equal(2, changes)
         end)
 
         it("drops a group sent by someone who isn't in it", function()
@@ -371,6 +437,24 @@ describe("Alts", function()
             game:advance(5)
             assert.equal(1, #sentKind(game, "A"))
             game:advance(15)
+            local n = 0
+            for _, m in ipairs(sentKind(game, "A")) do n = n + #game.ns.AltGroups.DecodeAssign(m) end
+            assert.equal(30, n)
+        end)
+
+        it("keeps assignments the game refused to send and sends them later", function()
+            local game = Wow.new({ globals = Roster(withStored(30)), savedVariables = { modules = { alts = { assigned = stored(30) } } } })
+            local locked = false
+            game.env.C_ChatInfo.InChatMessagingLockdown = function() return locked end
+            game:login()
+            game:fire("GUILD_ROSTER_UPDATE")
+            game:advance(5)
+            assert.equal(1, #sentKind(game, "A"))
+            locked = true
+            game:advance(30)
+            assert.equal(1, #sentKind(game, "A"))
+            locked = false
+            game:advance(120)
             local n = 0
             for _, m in ipairs(sentKind(game, "A")) do n = n + #game.ns.AltGroups.DecodeAssign(m) end
             assert.equal(30, n)

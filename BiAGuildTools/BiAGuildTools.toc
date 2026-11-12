@@ -12,6 +12,7 @@ Locales\enUS.lua
 Locales\deDE.lua
 
 Core.lua
+UI.lua
 Settings.lua
 RosterTooltip.lua
 RosterColumn.lua

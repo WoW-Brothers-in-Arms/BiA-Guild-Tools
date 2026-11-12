@@ -77,25 +77,8 @@ function Layout()
 end
 
 local function CreateDialog()
-    local f = CreateFrame("Frame", "BiAGuildToolsLoginHint", UIParent, "BasicFrameTemplateWithInset")
-    f:SetWidth(WIDTH)
-    f:SetPoint("CENTER", 0, 150)
-    f:SetFrameStrata("DIALOG")
-    f:SetToplevel(true)
-    f:SetClampedToScreen(true)
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", f.StopMovingOrSizing)
-    tinsert(UISpecialFrames, f:GetName()) -- Esc closes it, like "Later"
-
-    local title = f.TitleText
-    if type(title) ~= "table" then -- the template's title text (missing in some clients)
-        title = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        title:SetPoint("TOP", 0, -5)
-    end
-    title:SetText(L.ALTS_HINT_TITLE)
+    -- Esc closes it, like "Later". Layout() sets the height.
+    local f = ns.CreateWindow("BiAGuildToolsLoginHint", { width = WIDTH, y = 150, toplevel = true, title = L.ALTS_HINT_TITLE })
 
     for _, key in ipairs({ "MainText", "NoteText" }) do
         local text = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
@@ -120,7 +103,6 @@ local function CreateDialog()
     end)
 
     f.chars = {}
-    f:Hide()
     return f
 end
 
@@ -132,8 +114,6 @@ function M.OpenLoginHint(needs)
     dialog:Show()
 end
 
-local onToggle = M.OnToggle
-function M:OnToggle(on)
-    if onToggle then onToggle(self, on) end
+M:OnToggled(function(on)
     if not on and dialog then dialog:Hide() end
-end
+end)

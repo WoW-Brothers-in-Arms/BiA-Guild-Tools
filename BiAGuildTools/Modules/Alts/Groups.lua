@@ -123,29 +123,37 @@ end
 -- of nothing but your characters may contain them, so nobody else can claim them. now: our time.
 -- sender (optional): the sending character. A group may only take characters out of an older group
 -- its sender belongs to (a player switching main sends from a character that is in both).
+-- Returns true when groups changed; false when the group was dropped or was already stored (then only
+-- its seen time is refreshed).
 function G.Merge(groups, incoming, ownChars, now, sender)
     local mine = ownChars[incoming.main]
     for _, guid in ipairs(incoming.alts) do
         if mine and not ownChars[guid] then mine = false end
     end
     if not mine then
-        if ownChars[incoming.main] then return end -- someone else names your character as their main
+        if ownChars[incoming.main] then return false end -- someone else names your character as their main
         incoming = { main = incoming.main, alts = Without(incoming.alts, ownChars), chosen = incoming.chosen, t = incoming.t }
     end
 
     local main = incoming.main
     local stored = groups[main]
-    if stored and stored.t > incoming.t then return end
+    if stored and stored.t > incoming.t then return false end
     if stored and stored.t == incoming.t then
-        local have = Members(stored)
+        local have, added = Members(stored), false
         for _, guid in ipairs(incoming.alts) do
-            if not have[guid] then stored.alts[#stored.alts + 1] = guid end
+            if not have[guid] then
+                stored.alts[#stored.alts + 1] = guid
+                have[guid], added = true, true
+            end
         end
         stored.seen = now
+        -- The same group again (e.g. an answer to a request): it was settled against the other groups
+        -- when it was stored.
+        if not added then return false end
     else
         if Empty(incoming) then -- nothing left to show: the newer word clears the older group
             groups[main] = nil
-            return
+            return stored ~= nil
         end
         stored = { main = main, alts = Without(incoming.alts, { [main] = true }), chosen = incoming.chosen,
             t = incoming.t, seen = now }
@@ -154,13 +162,15 @@ function G.Merge(groups, incoming, ownChars, now, sender)
 
     if sender then
         for key, other in pairs(groups) do
-            if key ~= main and other.t < stored.t and not Members(other)[sender] then
+            if key ~= main and other.t < stored.t then
                 local theirs = Members(other)
-                if theirs[main] then groups[main] = nil return end
-                stored.alts = Without(stored.alts, theirs)
+                if not theirs[sender] then
+                    if theirs[main] then groups[main] = nil return true end
+                    stored.alts = Without(stored.alts, theirs)
+                end
             end
         end
-        if Empty(stored) then groups[main] = nil return end
+        if Empty(stored) then groups[main] = nil return true end
     end
 
     for key, other in pairs(groups) do
@@ -173,6 +183,7 @@ function G.Merge(groups, incoming, ownChars, now, sender)
             end
         end
     end
+    return true
 end
 
 -- Takes your characters out of groups someone else sent (e.g. received before the character was yours).
@@ -383,7 +394,7 @@ function G.MatchNames(roster, text, exclude, max)
     for word in needle:gmatch("[^%s%p]+") do words[word] = true end
     local hits, notes = {}, {}
     for guid, member in pairs(roster) do
-        local short = (member.name:match("^[^%-]+") or member.name):lower()
+        local short = ns.PlainName(member.name):lower()
         local at, tier = short:find(needle, 1, true), nil
         if at == 1 then tier = 1 elseif at then tier = 2 elseif words[short] then tier = 3 end
         if not tier then

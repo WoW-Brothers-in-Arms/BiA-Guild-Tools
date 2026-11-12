@@ -38,6 +38,16 @@ describe("Professions", function()
             assert.same({}, game:sentWith("BiaGProf"))
         end)
 
+        it("doesn't send unchanged professions again when skills fire", function()
+            local game = Wow.new({ globals = WithProfessions() })
+            game:login()
+            game:advance(400)
+            assert.equal(2, #game:sentWith("BiaGProf"))
+            game:fire("SKILL_LINES_CHANGED")
+            game:advance(120)
+            assert.equal(2, #game:sentWith("BiaGProf"))
+        end)
+
         it("answers a request after a random delay", function()
             local game = Wow.new({ globals = WithProfessions() })
             game:login()
@@ -77,6 +87,21 @@ describe("Professions", function()
             assert.same({}, members(game))
         end)
 
+        it("rejects a GUID that is not the sender's, once the roster knows the sender", function()
+            local roster = { { "Other-Realm", "Player-1-0000BBBB" }, { "Third-Realm", "Player-1-0000CCCC" } }
+            local game = Wow.new({ globals = {
+                GetNumGuildMembers = function() return #roster end,
+                GetGuildRosterInfo = function(i)
+                    return roster[i][1], "Member", 2, 60, "Mage", "Zone", "", "", true, 0, "MAGE", 0, 0, false, false, 0, roster[i][2]
+                end,
+            } })
+            game:login()
+            game:receive("BiaGProf", "P|1|Player-1-0000CCCC|Other-Realm|171:300:300", "Other Realm")
+            assert.same({}, members(game))
+            game:receive("BiaGProf", "P|1|Player-1-0000BBBB|Other-Realm|171:300:300", "Other Realm")
+            assert.is_not_nil(members(game)["Player-1-0000BBBB"])
+        end)
+
         it("rejects unknown protocol versions, bad GUIDs and other channels", function()
             local game = loggedIn()
             game:receive("BiaGProf", "P|2|Player-1-0000BBBB|Other-Realm|171:300:300", "Other Realm")
@@ -90,6 +115,32 @@ describe("Professions", function()
             game:slash("prof off")
             game:receive("BiaGProf", "P|1|Player-1-0000BBBB|Other-Realm|171:300:300", "Other Realm")
             assert.same({}, members(game))
+        end)
+    end)
+
+    describe("looking up a roster member", function()
+        local function withOther()
+            local game = Wow.new()
+            game:login()
+            game:receive("BiaGProf", "P|1|Player-1-0000BBBB|Other-Realm|164:150:225", "Other Realm")
+            return game.ns.modules.professions.MemberProfessions
+        end
+
+        it("finds the entry by GUID", function()
+            local profs = withOther()({ guid = "Player-1-0000BBBB", name = "Renamed-Realm" })
+            assert.same({ { id = 164, rank = 150, max = 225 } }, profs)
+        end)
+
+        it("falls back to the name only when the roster gives no GUID", function()
+            local Lookup = withOther()
+            assert.same({ { id = 164, rank = 150, max = 225 } }, (Lookup({ name = "Other-Realm" })))
+            assert.is_nil((Lookup({ guid = "Player-1-0000CCCC", name = "Other-Realm" })))
+        end)
+
+        it("uses the game's own profession fields for members without data", function()
+            local profs, updated = withOther()({ guid = "Player-1-0000CCCC", name = "Third-Realm", profession1ID = 171 })
+            assert.same({ { id = 171 } }, profs)
+            assert.is_nil(updated)
         end)
     end)
 

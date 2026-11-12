@@ -20,58 +20,21 @@ local STALE_SECONDS = 90 * 24 * 3600
 local REPLY_COOLDOWN = 30
 local MAX_ASSIGN_RANK = 1         -- guild master (0) and officers (1) may assign mains for others
 
-local roster, index, effective -- caches, rebuilt on demand
+local index, effective -- caches, rebuilt on demand
+local selfIndex        -- G.Index of the self-reported groups (db.groups)
 local rosterSeen = false      -- a non-empty roster arrived since login
 local lastSentAt = -REPLY_COOLDOWN
 local pendingBroadcast = false
 local lastSentSig           -- signature of the group last sent
+local mergedSig             -- guild and signature of the own group last merged into db.groups
 local listeners = {}
+
+-- The guild roster and the GUID of a sender come from the shared cache in Core.lua.
+M.Roster = ns.Roster
+local RosterGuidByName = ns.RosterGuidByName
 
 local function ServerTime()
     return GetServerTime and GetServerTime() or time()
-end
-
----------------------------------------------------------------------------
--- Guild roster
----------------------------------------------------------------------------
--- { [guid] = { name, level, classFile, online, rank } } of everyone in the guild roster.
-function M.Roster()
-    if roster then return roster end
-    local r = {}
-    for i = 1, (GetNumGuildMembers and GetNumGuildMembers() or 0) do
-        local name, _, rank, level, _, _, note, officerNote, online, _, classFile, _, _, _, _, _, guid = GetGuildRosterInfo(i)
-        if Readable(name) and Readable(guid) and type(guid) == "string" and name then
-            r[guid] = { name = Ambiguate(name, "none"), level = Readable(level) and level or 0,
-                classFile = Readable(classFile) and classFile or nil, online = Readable(online) and online and true or false,
-                rank = Readable(rank) and tonumber(rank) or 99,
-                note = Readable(note) and type(note) == "string" and note or "",
-                officerNote = Readable(officerNote) and type(officerNote) == "string" and officerNote or "" }
-        end
-    end
-    roster = r
-    return r
-end
-
--- "Name-Realm", lowercased; adds our realm when name has none. Accepts "Name Realm" (Forever's sender).
-local function FullName(name)
-    local base, realm = name:match("^([^%-%s]+)[%-%s](.+)$")
-    if not base then base, realm = name, GetNormalizedRealmName and GetNormalizedRealmName() or "" end
-    return (base .. "-" .. realm:gsub("%s", "")):lower()
-end
-
--- The roster GUID of a sender. nil when no member or (by name alone) several members match.
-local function RosterGuidByName(name)
-    local short, found, count = ShortName(name), nil, 0
-    for guid, member in pairs(M.Roster()) do
-        if ShortName(member.name) == short then found, count = guid, count + 1 end
-    end
-    if count <= 1 then return found end
-    local full = FullName(name)
-    found, count = nil, 0
-    for guid, member in pairs(M.Roster()) do
-        if FullName(member.name) == full then found, count = guid, count + 1 end
-    end
-    if count == 1 then return found end
 end
 
 ---------------------------------------------------------------------------
@@ -82,7 +45,7 @@ function M.OnChanged(fn)
 end
 
 local function Changed()
-    index, effective = nil, nil
+    index, effective, selfIndex = nil, nil, nil
     ns.RosterColumn.Refresh()
     for _, fn in ipairs(listeners) do fn() end
 end
@@ -101,7 +64,9 @@ end
 
 -- A main or alt of a group the player's own client sent (assignments don't apply to it).
 function M.IsSelfReported(guid)
-    return guid ~= nil and G.Index(M.db.groups)[guid] ~= nil
+    if not guid then return false end
+    selfIndex = selfIndex or G.Index(M.db.groups)
+    return selfIndex[guid] ~= nil
 end
 
 ---------------------------------------------------------------------------
@@ -139,6 +104,8 @@ local function Signature(group)
 end
 
 -- Builds your group; any change to it gets a new time stamp, so guild mates replace the old one.
+-- The group goes into db.groups once per session and again whenever it changes (received groups can't
+-- touch your characters in between, see G.Merge).
 local function OwnGroup()
     local view, key = M.OwnView()
     if not key then return nil end
@@ -150,8 +117,11 @@ local function OwnGroup()
         state.t, state.sig = math.max(ServerTime(), (state.t or 0) + 1), sig
         group.t = state.t
     end
-    G.Claim(M.db.groups, view.chars)
-    G.Merge(M.db.groups, group, view.chars, time())
+    if mergedSig ~= key .. "|" .. sig then
+        mergedSig = key .. "|" .. sig
+        G.Claim(M.db.groups, view.chars)
+        G.Merge(M.db.groups, group, view.chars, time())
+    end
     return group, state
 end
 
@@ -231,7 +201,7 @@ M:RegisterComm(PREFIX, function(text, channel, sender)
     local from = Readable(sender) and type(sender) == "string" and sender or nil
     if channel ~= "GUILD" or not from then return end
     if text == REQUEST then
-        M:Debug("request from " .. from)
+        M:Debug("request from %s", from)
         if GetTime() - lastSentAt > REPLY_COOLDOWN then QueueBroadcast(math.random(2, 10)) end
         M.QueueShareAssignments(math.random(2, 10))
         return
@@ -242,11 +212,11 @@ M:RegisterComm(PREFIX, function(text, channel, sender)
     end
     local group = G.Decode(text)
     if not group then
-        M:Debug(("from %s dropped: invalid data: %s"):format(from, text))
+        M:Debug("from %s dropped: invalid data: %s", from, text)
         return
     end
     if group.t > ServerTime() + MAX_CLOCK_SKEW then
-        M:Debug(("from %s dropped: time stamp in the future: %s"):format(from, text))
+        M:Debug("from %s dropped: time stamp in the future: %s", from, text)
         return
     end
     -- Only accept a group from one of its own characters.
@@ -256,12 +226,12 @@ M:RegisterComm(PREFIX, function(text, channel, sender)
         if guid == senderGuid then member = true end
     end
     if not member then
-        M:Debug(("from %s dropped: sender is not in the group: %s"):format(from, text))
+        M:Debug("from %s dropped: sender is not in the group: %s", from, text)
         return
     end
-    G.Merge(M.db.groups, group, M.OwnView().chars, time(), senderGuid)
-    M:Debug(("stored group from %s: %s"):format(from, text))
-    Changed()
+    local changed = G.Merge(M.db.groups, group, M.OwnView().chars, time(), senderGuid)
+    M:Debug("%s group from %s: %s", changed and "stored" or "already had", from, text)
+    if changed then Changed() end
 end)
 
 ---------------------------------------------------------------------------
@@ -276,14 +246,35 @@ function M.CanAssign()
 end
 
 -- Sends queued assignment messages one per second (the server throttles bursts of addon messages).
+-- A message the game refuses (raid lockdown, throttle) stays in the queue and is tried again later,
+-- at most MAX_ASSIGN_TRIES times.
+local MAX_ASSIGN_TRIES = 5
+local assignTries = 0
+
 local function SendNextAssign()
-    local msg = table.remove(assignQueue, 1)
+    local msg = assignQueue[1]
     if not msg then
         assignSending, assignSharing = false, false
         return
     end
-    M:SendGuild(msg)
-    After(1, SendNextAssign)
+    local ok, reason = M:SendGuild(msg)
+    if ok then
+        table.remove(assignQueue, 1)
+        assignTries = 0
+        After(1, SendNextAssign)
+        return
+    end
+    assignTries = assignTries + 1
+    if reason == "NotInGuild" or reason == "NoAPI" then -- nobody to send to: give up on everything queued
+        assignQueue, assignTries = {}, 0
+        assignSending, assignSharing = false, false
+        return
+    end
+    if assignTries >= MAX_ASSIGN_TRIES then -- this one doesn't get through: go on with the next
+        table.remove(assignQueue, 1)
+        assignTries = 0
+    end
+    After(reason == "AddonMessageThrottle" and 15 or 60, SendNextAssign)
 end
 
 local function QueueAssign(msgs)
@@ -320,21 +311,21 @@ end
 function M.ReceiveAssign(text, from)
     local list = G.DecodeAssign(text)
     if not list then
-        M:Debug(("from %s dropped: invalid data: %s"):format(from, text))
+        M:Debug("from %s dropped: invalid data: %s", from, text)
         return
     end
     local senderGuid = RosterGuidByName(from)
     if senderGuid and senderGuid == UnitGUID("player") then return end -- our own message coming back
     local sender = senderGuid and M.Roster()[senderGuid]
     if not sender or sender.rank > MAX_ASSIGN_RANK then
-        M:Debug(("from %s dropped: sender may not assign: %s"):format(from, text))
+        M:Debug("from %s dropped: sender may not assign: %s", from, text)
         return
     end
     local changed, limit = false, ServerTime() + MAX_CLOCK_SKEW
     for _, e in ipairs(list) do
         if e.t <= limit and G.MergeAssign(M.db.assigned, e, time()) then changed = true end
     end
-    M:Debug(("assignments from %s: %s"):format(from, text))
+    M:Debug("assignments from %s: %s", from, text)
     if changed then Changed() end
 end
 
@@ -400,12 +391,18 @@ end)
 ---------------------------------------------------------------------------
 -- Events
 ---------------------------------------------------------------------------
-M:RegisterEvent("GUILD_ROSTER_UPDATE", function()
-    roster = nil
+-- The game sends roster updates in bursts (and every few seconds while the roster is open). The first
+-- one is handled right away, later ones within ROSTER_INTERVAL together when the interval is over.
+local ROSTER_INTERVAL = 2
+local rosterCooling, rosterDirty = false, false
+
+local function ProcessRoster()
     if not UpdateOwnChars() then return end
     if not rosterSeen then
         rosterSeen = true
+        pendingBroadcast = true -- further roster updates in the meantime don't queue a second one
         After(5, function()
+            pendingBroadcast = false
             Broadcast()
             ShareAssignments()
             M:SendGuild(REQUEST)
@@ -416,7 +413,25 @@ M:RegisterEvent("GUILD_ROSTER_UPDATE", function()
         if state and state.sig ~= lastSentSig then QueueBroadcast(5) end
     end
     Changed()
-end)
+end
+
+local function OnRosterUpdate()
+    if rosterCooling then -- ns.Roster() is fresh at once (Core.lua); only the work above waits
+        rosterDirty = true
+        return
+    end
+    rosterCooling = true
+    ProcessRoster()
+    After(ROSTER_INTERVAL, function()
+        rosterCooling = false
+        if rosterDirty then
+            rosterDirty = false
+            if M:IsEnabled() then OnRosterUpdate() end
+        end
+    end)
+end
+
+M:RegisterEvent("GUILD_ROSTER_UPDATE", OnRosterUpdate)
 
 ---------------------------------------------------------------------------
 -- Roster column and tooltip
@@ -425,7 +440,7 @@ local GREY = "|cff707070"
 local CROWN = "|TInterface\\GroupFrame\\UI-Group-LeaderIcon:12:12|t"
 local MAX_TOOLTIP_CHARS = 6
 
-local function PlainName(name) return (name:match("^[^%-]+") or name) end
+local PlainName = ns.PlainName
 
 -- The name in the class colour of its character (grey when the class is unknown).
 local function Colored(member)
@@ -554,9 +569,6 @@ M:RegisterSlash("alts", function(msg, cmd)
         if me then db.noHint[me] = nil end
         M:Print(L.ALTS_HINT_ON)
         M.ShowLoginHint()
-    elseif word == "debug" then
-        db.debug = not db.debug
-        M:Print(L.DEBUG_TOGGLED:format(ns.OnOff(db.debug)))
     else
         M:Print(L.ALTS_UNKNOWN_COMMAND:format("/bia alts help"))
     end
@@ -567,7 +579,6 @@ end, {
     "tooltip – " .. L.ALTS_HELP_TOOLTIP,
     "sync – " .. L.ALTS_HELP_SYNC,
     "hint – " .. L.ALTS_HELP_HINT,
-    "debug – " .. L.ALTS_HELP_DEBUG,
 })
 
 M.options = {
@@ -579,9 +590,6 @@ M.options = {
 ---------------------------------------------------------------------------
 function M:OnLogin()
     G.PruneAssign(self.db.assigned, time(), STALE_SECONDS)
-    self.db.own.chars = self.db.own.chars or {}
-    self.db.own.guilds = self.db.own.guilds or {} -- defaults only fill missing top-level keys
-    self.db.noHint = self.db.noHint or {}
     G.Prune(self.db.groups, time(), STALE_SECONDS)
     if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
 end

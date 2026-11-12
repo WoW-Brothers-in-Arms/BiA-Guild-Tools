@@ -46,11 +46,14 @@ end
 function RC.Choice()
     local stored = Stored()
     if stored == false then return false end
-    local columns = RC.Columns()
-    for _, def in ipairs(columns) do
-        if def.key == stored then return stored end
+    local first
+    for _, def in ipairs(defs) do -- runs for every painted row: no table from RC.Columns() here
+        if def.enabled() then
+            if def.key == stored then return stored end
+            first = first or def.key
+        end
     end
-    return columns[1] and columns[1].key or false
+    return first or false
 end
 
 local function ActiveDef()
@@ -81,12 +84,13 @@ local function ActiveColumn()
     if def and IsGuildRoster(list) and list:GetGuildColumnIndex() == nil then return def end
 end
 
-local function PaintRow(row)
+-- def: the result of ActiveColumn() when the caller already has it (false for none); nil looks it up.
+local function PaintRow(row, def)
     if not row then return end
     local note, extra = row.Note, row.GuildInfo
     if not note or not extra or not row.Rank then return end
 
-    local def = ActiveColumn()
+    if def == nil then def = ActiveColumn() end
     if def and row.expanded and row.memberInfo and not row.isInvitation then
         note:ClearAllPoints()
         note:SetPoint("LEFT", row.Rank, "RIGHT", 8, 0)
@@ -107,21 +111,28 @@ local function PaintRow(row)
     end
 end
 
+-- For hooks: Blizzard's functions pass further arguments, which must not end up as PaintRow's def.
+local function PaintHookedRow(row)
+    PaintRow(row)
+end
+
 local function HookRow(row)
     if hookedRows[row] then return end
     hookedRows[row] = true
     if type(row.SetMember) == "function" then
-        hooksecurefunc(row, "SetMember", PaintRow)
+        hooksecurefunc(row, "SetMember", PaintHookedRow)
     end
     if type(row.RefreshExpandedColumns) == "function" then
-        hooksecurefunc(row, "RefreshExpandedColumns", PaintRow)
+        hooksecurefunc(row, "RefreshExpandedColumns", PaintHookedRow)
     end
 end
 
 function RC.Refresh()
     local list = MemberList()
     local scroll = list and list.ScrollBox
-    if scroll and scroll:IsVisible() then scroll:ForEachFrame(PaintRow) end
+    if not scroll or not scroll:IsVisible() then return end
+    local def = ActiveColumn() or false -- once for all rows
+    scroll:ForEachFrame(function(row) PaintRow(row, def) end)
 end
 
 ---------------------------------------------------------------------------

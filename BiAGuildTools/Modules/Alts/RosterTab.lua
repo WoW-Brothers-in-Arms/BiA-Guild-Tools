@@ -41,9 +41,4 @@ end
 
 M.OnWindowShownChanged = Update
 ns.OnAddOnLoaded("Blizzard_Communities", Create)
-
-local onToggle = M.OnToggle
-function M:OnToggle(on)
-    if onToggle then onToggle(self, on) end
-    Update()
-end
+M:OnToggled(function() Update() end)
