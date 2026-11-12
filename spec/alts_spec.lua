@@ -755,7 +755,7 @@ describe("Alts", function()
             local _, tab, info = tabGame()
             assert.is_true(tab.shown)
             assert.equal(info, tab.point[2])
-            assert.equal("Interface\\Icons\\inv_misc_groupneedmore", tab.Icon.texture)
+            assert.equal("Interface\\AddOns\\BiAGuildTools\\Media\\IconAlts", tab.Icon.texture)
             info.shown = false
             info.scripts.OnHide()
             assert.is_false(tab.shown)

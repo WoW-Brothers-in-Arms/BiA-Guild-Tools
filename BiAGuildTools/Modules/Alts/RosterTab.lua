@@ -4,7 +4,7 @@ local _, ns = ...
 local L = ns.L
 local M = ns.modules.alts
 
-local ICON = "Interface\\Icons\\inv_misc_groupneedmore"
+local ICON = "Interface\\AddOns\\BiAGuildTools\\Media\\IconAlts" -- the same crown as in the window's header
 local tab
 
 local function Update()
