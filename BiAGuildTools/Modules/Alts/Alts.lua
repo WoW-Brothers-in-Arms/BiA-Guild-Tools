@@ -480,12 +480,7 @@ local MAX_TOOLTIP_CHARS = 6
 
 local PlainName = ns.PlainName
 
--- The name in the class colour of its character (grey when the class is unknown).
-local function Colored(member)
-    local color = member.classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[member.classFile]
-    local code = color and color.colorStr and ("|c" .. color.colorStr) or "|cffffffff"
-    return code .. PlainName(member.name) .. "|r"
-end
+local Colored = ns.ColoredName
 M.ColoredName = Colored
 
 local function MemberGuid(info)

@@ -161,6 +161,7 @@ describe("Core", function()
 
     describe("windows", function()
         local function windowGame()
+            local painted = {} -- the last list's row painter and rows, to run the painting code too
             local game = Wow.new({ globals = {
                 GetNumGuildMembers = function() return 1 end,
                 GetGuildRosterInfo = function()
@@ -169,13 +170,18 @@ describe("Core", function()
                 end,
                 GetGuildInfo = function() return "BiA", "Member", 1, nil end,
                 CreateScrollBoxListLinearView = function()
-                    return { SetElementExtent = function() end, SetElementInitializer = function() end }
+                    return { SetElementExtent = function() end,
+                        SetElementInitializer = function(_, _, init) painted.init = init end }
                 end,
                 ScrollUtil = { InitScrollBoxListWithScrollBar = function() end },
                 ScrollBoxConstants = {},
-                CreateDataProvider = function(rows) return rows end,
+                CreateDataProvider = function(rows)
+                    painted.rows = rows
+                    return rows
+                end,
             } })
             game:login()
+            game.painted = painted
             return game
         end
         local function frame(game, name)
@@ -191,6 +197,10 @@ describe("Core", function()
                 local f = frame(game, name)
                 assert.is_true(f:IsShown())
                 f.scripts.OnShow(f)
+                assert.is_true(#game.painted.rows > 0)
+                if tool == "alts" then -- TASK5: paint the version rows too
+                    for _, row in ipairs(game.painted.rows) do game.painted.init(game.env.CreateFrame("Button"), row) end
+                end
                 function f:GetPoint() return "TOPLEFT", nil, "TOPLEFT", 12, -34 end
                 f.scripts.OnDragStop(f)
                 assert.same({ point = "TOPLEFT", relPoint = "TOPLEFT", x = 12, y = -34 }, game:DB().modules[tool].window)

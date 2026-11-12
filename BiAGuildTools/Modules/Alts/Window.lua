@@ -1,35 +1,27 @@
--- Window.lua: the Alts overview (/bia alts). Your own characters on top (the crown picks your main),
--- below the guild grouped by player, members without BiA Guild Tools at the end. Guild master and
--- officers assign mains for others with a right-click on a guild row (entries: MainPicker.lua).
+-- Window.lua: the Alts overview (/bia alts). On the left one row per player – your own characters on
+-- top, then the guild, members without BiA Guild Tools at the end; on the right the characters of the
+-- chosen player. In your own group the crowns pick your main. Guild master and officers assign mains
+-- for others with a right-click on a player or character (entries: MainPicker.lua).
+--
+-- M.WindowModel() builds everything the window shows from the stored data, so it is tested without
+-- frames; the code below it only paints that model.
 local _, ns = ...
 local L = ns.L
 local G = ns.AltGroups
 local M = ns.modules.alts
+local UI = ns.UI
 
-local ROW_HEIGHT = 18
+local ROW_HEIGHT = 26
+local PANE_WIDTH = 290
+local MAX_CHARS = 14 -- characters of one player the pane has room for
 local CROWN = "Interface\\GroupFrame\\UI-Group-LeaderIcon"
-local ONLINE = "Interface\\FriendsFrame\\StatusIcon-Online"
 local window
-local GUILD_ROWS = { main = true, alt = true, nodata = true }
-local TREE_X = 10 -- x of the line joining a main and its alts (under the main's online dot)
+local selected -- key of the chosen player
+local search   -- text of the search box
 
-local function NameOf(guid)
-    local member = M.Roster()[guid]
-    return member and ns.PlainName(member.name) or "?"
-end
-
-local function OnRowClick(row, button)
-    local data = row.data
-    if data and data.section and button == "LeftButton" then
-        M.ToggleSection(data.section)
-    elseif data and button == "RightButton" and GUILD_ROWS[data.kind] and M.CanAssign() then
-        MenuUtil.CreateContextMenu(row, function(_, root)
-            root:CreateTitle(NameOf(data.guid))
-            M.AddAssignEntries(root, data.guid)
-        end)
-    end
-end
-
+---------------------------------------------------------------------------
+-- Model
+---------------------------------------------------------------------------
 -- Sections of the list; each header expands or collapses its rows (stored in db.expanded).
 local EXPANDED_BY_DEFAULT = { own = true, guild = true, nodata = false }
 
@@ -39,154 +31,213 @@ local function IsExpanded(section)
     return stored
 end
 
--- Adds a section header and, while the section is expanded, its rows.
-local function AddSection(rows, section, text, sectionRows)
-    local expanded = IsExpanded(section)
-    rows[#rows + 1] = { kind = "header", text = text, section = section, expanded = expanded }
-    if expanded then
-        for _, row in ipairs(sectionRows) do rows[#rows + 1] = row end
-    end
+local function NameOf(roster, guid)
+    return ns.PlainName(roster[guid].name)
 end
 
-local function Rows()
+local function StatusText(player, roster)
+    if not player.online then return L.ALTS_STATUS_OFFLINE end
+    if player.online == player.key then return L.ALTS_STATUS_ONLINE end
+    return L.ALTS_STATUS_ONLINE_ON:format(NameOf(roster, player.online))
+end
+
+local function AltsText(player)
+    local n = #player.chars - 1
+    if n == 0 then return L.ALTS_NO_ALTS end
+    return n == 1 and L.ALTS_ONE_ALT or L.ALTS_N_ALTS:format(n)
+end
+
+local function ClassName(classFile)
+    return classFile and LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[classFile] or classFile or "?"
+end
+
+-- { stats, rows, detail }:
+--   rows:   { kind = "header", section, text, expanded } and
+--           { kind = "player", key, name, classFile, alts, status, online, nodata, selected, band }
+--   detail: the chosen player – { key, name, classFile, sub, own, hint,
+--           chars = { { guid, name, classFile, level, online, isMain, band }, ... } }; nil when no player
+--           is listed.
+function M.WindowModel()
     local roster, own = M.Roster(), M.OwnView()
-    local rows = {}
+    local ownMain, chosen = G.EffectiveMain(own, roster)
+    local res = G.BuildPlayers(M.Groups(), roster, { onlyOnline = M.db.onlyOnline, search = search,
+        own = { chars = own.chars, main = ownMain } })
 
-    local mine, ownRows = {}, {}
-    for guid in pairs(own.chars) do
-        if roster[guid] then mine[#mine + 1] = guid end
-    end
-    table.sort(mine, function(a, b) return roster[a].level > roster[b].level end)
-    local main, chosen = G.EffectiveMain(own, roster)
-    for _, guid in ipairs(mine) do
-        ownRows[#ownRows + 1] = { kind = "own", guid = guid, isMain = chosen and guid == main }
-    end
-    if not chosen then ownRows[#ownRows + 1] = { kind = "hint", text = L.ALTS_PICK_MAIN_HINT } end
-    AddSection(rows, "own", L.ALTS_YOUR_CHARS, ownRows)
-
-    -- Members without the addon come last, in a section of their own.
-    local guildRows, noData = {}, {}
-    for _, row in ipairs(G.BuildList(M.Groups(), roster, M.db.onlyOnline)) do
-        if row.kind == "nodata" then
-            noData[#noData + 1] = row
-        else
-            row.band = row.group % 2 == 1
-            local previous = guildRows[#guildRows]
-            local sameGroup = previous ~= nil and previous.group == row.group
-            if row.kind == "alt" and sameGroup and previous.kind == "main" then previous.hasAlts = true end
-            row.first = row.kind == "alt" and not sameGroup -- alt of a group whose main isn't listed
-            guildRows[#guildRows + 1] = row
+    local rows, listed = {}, {}
+    local function AddSection(section, text, players)
+        local expanded = IsExpanded(section)
+        rows[#rows + 1] = { kind = "header", section = section, text = text, expanded = expanded }
+        if not expanded then return end
+        for _, player in ipairs(players) do
+            local lead = roster[player.key]
+            local row = { kind = "player", key = player.key, name = NameOf(roster, player.key), classFile = lead.classFile,
+                alts = AltsText(player), status = StatusText(player, roster), online = player.online ~= nil,
+                nodata = player.nodata or false, selected = false }
+            rows[#rows + 1] = row
+            listed[#listed + 1] = { row = row, player = player, own = section == "own" }
         end
     end
-    AddSection(rows, "guild", L.ALTS_GUILD, guildRows)
-    if #noData > 0 then
-        AddSection(rows, "nodata", ("%s (%d)"):format(L.ALTS_NO_DATA, #noData), noData)
+    AddSection("own", L.ALTS_YOUR_CHARS, res.own and { res.own } or {})
+    AddSection("guild", L.ALTS_GUILD_COUNT:format(#res.players), res.players)
+    if #res.nodata > 0 then AddSection("nodata", ("%s (%d)"):format(L.ALTS_NO_DATA, #res.nodata), res.nodata) end
+    UI.Stripe(rows, function(row) return row.kind == "header" end)
+
+    local pick = listed[1]
+    for _, entry in ipairs(listed) do
+        if entry.row.key == selected then pick = entry end
     end
-    return rows
+    local detail
+    if pick then
+        pick.row.selected = true
+        local player, lead = pick.player, roster[pick.player.key]
+        local hasMain = pick.own and chosen or (not pick.own and player.main ~= nil)
+        local chars = {}
+        for _, guid in ipairs(player.chars) do
+            local member = roster[guid]
+            chars[#chars + 1] = { guid = guid, name = NameOf(roster, guid), classFile = member.classFile, level = member.level,
+                online = member.online, isMain = hasMain and guid == player.key or false }
+        end
+        UI.Stripe(chars, function() return false end)
+        detail = { key = player.key, name = NameOf(roster, player.key), classFile = lead.classFile, own = pick.own, chars = chars,
+            sub = (hasMain and L.ALTS_DETAIL_SUB or L.ALTS_DETAIL_SUB_NO_MAIN):format(ClassName(lead.classFile), lead.level,
+                StatusText(player, roster)),
+            hint = pick.own and L.ALTS_HINT_OWN or (M.CanAssign() and L.ALTS_HINT_OFFICER or "") }
+    end
+
+    return { stats = L.ALTS_STATS:format(res.counts.players, res.counts.chars, res.counts.reachable), rows = rows, detail = detail }
 end
-M.WindowRows = Rows
+
+---------------------------------------------------------------------------
+-- Painting
+---------------------------------------------------------------------------
+local function ClassIcon(texture, classFile)
+    local atlas = classFile and UI.Atlas("classicon-" .. classFile:lower())
+    texture:SetShown(atlas ~= nil)
+    if atlas then texture:SetAtlas(atlas) end
+end
+
+local function AssignMenu(owner, guid, title)
+    MenuUtil.CreateContextMenu(owner, function(_, root)
+        root:CreateTitle(title)
+        M.AddAssignEntries(root, guid)
+    end)
+end
+
+local function OnRowClick(row, button)
+    local data = row.data
+    if not data then return end
+    if data.kind == "header" then
+        if button == "LeftButton" then M.ToggleSection(data.section) end
+    elseif button == "RightButton" then
+        if M.CanAssign() then AssignMenu(row, data.key, data.name) end
+    else
+        M.SelectPlayer(data.key)
+    end
+end
 
 local function InitRow(row, data)
-    if not row.Name then
-        row.Dot = row:CreateTexture(nil, "ARTWORK")
-        row.Dot:SetSize(12, 12)
-        row.Name = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        row.Name:SetJustifyH("LEFT")
-        row.Level = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        row.Level:SetPoint("RIGHT", -4, 0)
-        row.Crown = CreateFrame("Button", nil, row)
-        row.Crown:SetSize(14, 14)
-        row.Crown:SetPoint("LEFT", 4, 0)
-        row.Crown:SetNormalTexture(CROWN)
-        row.Crown:SetScript("OnClick", function(self)
-            if self.isMain then M.ClearMain() else M.SetMain(self.guid) end
-        end)
-        row.Crown:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetText(self.isMain and L.ALTS_CLEAR_MAIN or L.ALTS_MAKE_MAIN)
-            GameTooltip:Show()
-        end)
-        row.Crown:SetScript("OnLeave", GameTooltip_Hide)
+    if row.isAltsRow ~= true then
+        row.isAltsRow = true
+        ns.StyleZebra(row)
+        ns.StyleSelectable(row)
+        ns.StyleHeader(row)
+        row.ClassIcon = row:CreateTexture(nil, "ARTWORK")
+        row.ClassIcon:SetSize(18, 18)
+        row.ClassIcon:SetPoint("LEFT", 8, 0)
+        row.Label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        row.Label:SetPoint("LEFT", 32, 0)
+        row.Alts = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+        row.Alts:SetPoint("LEFT", row.Label, "RIGHT", 8, 0)
+        row.Status = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        row.Status:SetPoint("RIGHT", -8, 0)
+        row.Dot = ns.AddStatusDot(row)
+        row.Dot:SetPoint("RIGHT", row.Status, "LEFT", -5, 0)
         row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         row:SetScript("OnClick", OnRowClick)
-        row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
-        -- Group look: every other group lightly shaded, a line from the main down to its alts.
-        row.Band = row:CreateTexture(nil, "BACKGROUND")
-        row.Band:SetAllPoints()
-        row.Band:SetColorTexture(1, 0.82, 0, 0.07)
-        row.TreeV = row:CreateTexture(nil, "BORDER") -- below the online dot
-        row.TreeV:SetColorTexture(0.55, 0.45, 0.27, 0.9)
-        row.TreeV:SetWidth(1)
-        row.TreeH = row:CreateTexture(nil, "BORDER")
-        row.TreeH:SetColorTexture(0.55, 0.45, 0.27, 0.9)
-        row.TreeH:SetSize(8, 1)
-        row.TreeH:SetPoint("LEFT", row, "LEFT", TREE_X, 0)
     end
     row.data = data
-    row.Band:SetShown(data.band == true)
-    -- Vertical line: main (with alts) from its middle down; alt from the top down to its middle (last
-    -- alt) or through (more alts follow). Alts also get the short branch to the right.
-    local isAlt, mainWithAlts = data.kind == "alt", data.kind == "main" and data.hasAlts
-    row.TreeV:SetShown(isAlt or mainWithAlts)
-    row.TreeH:SetShown(isAlt)
-    if isAlt or mainWithAlts then
-        row.TreeV:ClearAllPoints()
-        row.TreeV:SetPoint("TOPLEFT", row, (mainWithAlts or data.first) and "LEFT" or "TOPLEFT", TREE_X, 0)
-        row.TreeV:SetPoint("BOTTOMLEFT", row, (isAlt and data.last) and "LEFT" or "BOTTOMLEFT", TREE_X, 0)
-    end
-    -- Only rows an officer can click (to assign) light up on hover.
-    local clickable = data.section or (GUILD_ROWS[data.kind] and M.CanAssign())
-    row:GetHighlightTexture():SetAlpha(clickable and 1 or 0)
-
-    local member = data.guid and M.Roster()[data.guid]
-    if data.guid and not member then -- stale row (roster changed since the list was built)
-        row.Crown:Hide()
-        row.Dot:Hide()
-        row.Name:SetText("")
-        row.Level:SetText("")
+    local isHeader = data.kind == "header"
+    for _, part in ipairs({ row.Bar, row.Name, row.State, row.StateText }) do part:SetShown(isHeader) end
+    for _, part in ipairs({ row.Label, row.Alts, row.Status, row.Dot }) do part:SetShown(not isHeader) end
+    ns.SetZebra(row, data.band)
+    row:SetSelected(data.selected)
+    if isHeader then
+        row.ClassIcon:Hide()
+        ns.SetHeader(row, data.text, data.expanded)
         return
     end
-    row.Crown:SetShown(data.kind == "own")
-    row.Dot:SetShown(member ~= nil and member.online)
-    row.Level:SetText(member and member.level or "")
-    row.Name:ClearAllPoints()
-    row.Name:SetPoint("RIGHT", row.Level, "LEFT", -6, 0)
+    ClassIcon(row.ClassIcon, data.classFile)
+    row.Label:SetText(ns.ColoredName({ name = data.name, classFile = data.online and data.classFile or nil }))
+    row.Alts:SetText(data.nodata and "" or data.alts)
+    row.Status:SetText(data.status)
+    ns.SetStatusDot(row.Dot, data.online)
+end
 
-    if data.kind == "header" or data.kind == "hint" then
-        row.Name:SetPoint("LEFT", 4, 0)
-        row.Name:SetFontObject(data.kind == "header" and "GameFontNormalSmall" or "GameFontDisableSmall")
-        if data.section then
-            local icon = data.expanded and "Interface\\Buttons\\UI-MinusButton-Up" or "Interface\\Buttons\\UI-PlusButton-Up"
-            row.Name:SetText(("|T%s:12:12|t %s"):format(icon, data.text))
-        else
-            row.Name:SetText(data.text)
-        end
-        return
-    end
-    row.Name:SetFontObject("GameFontHighlightSmall")
+local function CharRow(pane, i)
+    local row = CreateFrame("Button", nil, pane)
+    row:SetHeight(24)
+    row:SetPoint("TOPLEFT", 8, -92 - (i - 1) * 24)
+    row:SetPoint("TOPRIGHT", -8, -92 - (i - 1) * 24)
+    ns.StyleZebra(row)
+    row.Crown = CreateFrame("Button", nil, row)
+    row.Crown:SetSize(16, 16)
+    row.Crown:SetPoint("LEFT", 4, 0)
+    row.Crown:SetNormalTexture(CROWN)
+    row.Crown:SetScript("OnClick", function(self)
+        if self.isMain then M.ClearMain() else M.SetMain(self.guid) end
+    end)
+    row.Crown:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(self.isMain and L.ALTS_CLEAR_MAIN or L.ALTS_MAKE_MAIN)
+        GameTooltip:Show()
+    end)
+    row.Crown:SetScript("OnLeave", GameTooltip_Hide)
+    row.Dot = ns.AddStatusDot(row)
+    row.Dot:SetPoint("LEFT", 26, 0)
+    row.Name = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    row.Name:SetPoint("LEFT", 42, 0)
+    row.Info = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    row.Info:SetPoint("RIGHT", -4, 0)
+    row:RegisterForClicks("RightButtonUp")
+    row:SetScript("OnClick", function(self)
+        if self.guid and not self.own and M.CanAssign() then AssignMenu(self, self.guid, self.name) end
+    end)
+    return row
+end
 
-    local indent = (data.kind == "alt") and 22 or 4
-    if data.kind == "own" then
-        indent = 22
-        row.Crown.guid, row.Crown.isMain = data.guid, data.isMain
-        row.Crown:GetNormalTexture():SetDesaturated(not data.isMain)
-        row.Crown:SetAlpha(data.isMain and 1 or 0.4)
-    end
-    row.Dot:SetTexture(ONLINE)
-    row.Dot:ClearAllPoints()
-    row.Dot:SetPoint("LEFT", indent, 0)
-    row.Name:SetPoint("LEFT", indent + 14, 0)
-
-    if member.online and data.kind ~= "nodata" then
-        row.Name:SetText(M.ColoredName(member))
-    else
-        row.Name:SetText("|cff808080" .. ns.PlainName(member.name) .. "|r")
+local function PaintDetail(pane, detail)
+    for _, part in ipairs({ pane.Icon, pane.Name, pane.Sub, pane.Heading, pane.Hint }) do part:SetShown(detail ~= nil) end
+    for _, row in ipairs(pane.rows) do row:Hide() end
+    if not detail then return end
+    ClassIcon(pane.Icon, detail.classFile)
+    pane.Name:SetText(ns.ColoredName(detail))
+    pane.Sub:SetText(detail.sub)
+    pane.Hint:SetText(detail.hint)
+    for i, char in ipairs(detail.chars) do
+        if i > MAX_CHARS then break end
+        local row = pane.rows[i] or CharRow(pane, i)
+        pane.rows[i] = row
+        row.guid, row.name, row.own = char.guid, char.name, detail.own
+        ns.SetZebra(row, char.band)
+        -- Your own crowns are buttons; for others only the main's crown shows.
+        row.Crown:SetShown(detail.own or char.isMain)
+        row.Crown:EnableMouse(detail.own)
+        row.Crown.guid, row.Crown.isMain = char.guid, char.isMain
+        row.Crown:GetNormalTexture():SetDesaturated(not char.isMain)
+        row.Crown:SetAlpha(char.isMain and 1 or 0.4)
+        ns.SetStatusDot(row.Dot, char.online)
+        row.Name:SetText(ns.ColoredName({ name = char.name, classFile = char.online and char.classFile or nil }))
+        row.Info:SetText(("%s · %d"):format(ClassName(char.classFile), char.level))
+        row:Show()
     end
 end
 
 local function Refresh()
     if not window or not window:IsShown() then return end
-    window.Scroll:SetDataProvider(CreateDataProvider(Rows()), ScrollBoxConstants.RetainScrollPosition)
+    local model = M.WindowModel()
+    window.Header:SetStats(model.stats)
+    window.Scroll:SetDataProvider(CreateDataProvider(model.rows), ScrollBoxConstants.RetainScrollPosition)
+    PaintDetail(window.Pane, model.detail)
 end
 
 function M.ToggleSection(section)
@@ -195,10 +246,42 @@ function M.ToggleSection(section)
     Refresh()
 end
 
+function M.SelectPlayer(key)
+    selected = key
+    Refresh()
+end
+
+function M.SetSearch(text)
+    search = text
+    Refresh()
+end
+
 local function CreateWindow()
-    local f = ns.CreateWindow("BiAGuildToolsAltsFrame", { width = 300, height = 440, title = L.ALTS_WINDOW_TITLE, db = M.db })
-    f.Online = ns.AddOnlineCheckbox(f, M.db, L.ALTS_ONLY_ONLINE, Refresh)
-    f.Scroll = ns.AddScrollList(f, { top = -56, bottom = 12, rowType = "Button", rowHeight = ROW_HEIGHT, init = InitRow })
+    local f = ns.CreateWindow("BiAGuildToolsAltsFrame", { width = 760, height = 540, db = M.db })
+    f.Header = ns.AddHeader(f, { icon = CROWN, title = L.ALTS_WINDOW_TITLE, search = M.SetSearch,
+        online = { db = M.db, onChange = Refresh } })
+
+    local pane = ns.AddDetailPane(f, { width = PANE_WIDTH })
+    pane.rows = {}
+    pane.Icon = pane:CreateTexture(nil, "ARTWORK")
+    pane.Icon:SetSize(36, 36)
+    pane.Icon:SetPoint("TOP", 0, -10)
+    pane.Name = pane:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    pane.Name:SetPoint("TOP", 0, -50)
+    pane.Sub = pane:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    pane.Sub:SetPoint("TOP", 0, -70)
+    pane.Sub:SetWidth(PANE_WIDTH - 16)
+    pane.Heading = pane:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    pane.Heading:SetPoint("TOP", 0, -80)
+    pane.Heading:SetText(L.ALTS_CHARACTERS)
+    pane.Hint = pane:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    pane.Hint:SetPoint("BOTTOMLEFT", 8, 8)
+    pane.Hint:SetPoint("BOTTOMRIGHT", -8, 8)
+    pane.Hint:SetJustifyH("LEFT")
+    f.Pane = pane
+
+    f.Scroll = ns.AddScrollList(f, { top = UI.CONTENT_TOP, bottom = 12, right = PANE_WIDTH + 36, rowType = "Button",
+        rowHeight = ROW_HEIGHT, init = InitRow })
 
     f:SetScript("OnShow", function()
         if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end

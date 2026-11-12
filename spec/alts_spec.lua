@@ -784,58 +784,105 @@ describe("Alts", function()
         end)
     end)
 
-    describe("window rows", function()
+    describe("window", function()
         local function kinds(rows)
             local out = {}
             for _, r in ipairs(rows) do out[#out + 1] = r.kind end
             return out
         end
+        local OTHER_GROUP = "G|1|1-0000BBBB|1|1700000000|1-0000CCCC"
 
-        it("keeps members without the addon collapsed until the header is clicked", function()
+        it("lists your own group and the guild's players, members without the addon collapsed", function()
             local game = ready()
-            local rows = M(game).WindowRows()
-            local header = rows[#rows]
-            assert.equal("Without BiA Guild Tools (3)", header.text) -- you (no echo of your own group here), Other, Otheralt
-            assert.equal("nodata", header.section)
-            assert.is_false(header.expanded)
+            game:receive("BiaAlts", OTHER_GROUP, "Other Realm")
+            db(game).onlyOnline = false
+            local m = M(game).WindowModel()
+            assert.same({ "header", "player", "header", "player", "header" }, kinds(m.rows))
+            assert.equal("Your characters", m.rows[1].text)
+            assert.equal("Guild (1 players)", m.rows[3].text)
+            assert.equal("Other", m.rows[4].name)
+            assert.equal("1 alt", m.rows[4].alts)
+            assert.equal("online", m.rows[4].status)
+            assert.is_false(m.rows[4].band) -- the first row under a header is never striped
+            assert.equal("Without BiA Guild Tools (1)", m.rows[5].text) -- Twinky
+            assert.is_false(m.rows[5].expanded)
+            assert.equal("2 players · 3 characters · 2 reachable", m.stats)
+        end)
+
+        it("leaves out the section without the addon when it has nobody", function()
+            local game = ready()
+            game:receive("BiaAlts", OTHER_GROUP, "Other Realm")
+            assert.same({ "header", "player", "header", "player" }, kinds(M(game).WindowModel().rows)) -- Twinky is offline
+        end)
+
+        it("selects your own group first and shows its characters", function()
+            local game = ready()
+            local m = M(game).WindowModel()
+            assert.is_true(m.rows[2].selected)
+            assert.is_true(m.detail.own)
+            assert.equal("Click a crown to choose your main.", m.detail.hint)
+            assert.equal(ME, m.detail.chars[1].guid)
+            assert.is_false(m.detail.chars[1].isMain) -- no main chosen yet
+            M(game).SetMain(ME)
+            assert.is_true(M(game).WindowModel().detail.chars[1].isMain)
+        end)
+
+        it("shows another player's characters after selecting them", function()
+            local game = ready()
+            game:receive("BiaAlts", OTHER_GROUP, "Other Realm")
+            M(game).SelectPlayer(OTHER)
+            local m = M(game).WindowModel()
+            assert.is_true(m.rows[4].selected)
+            assert.is_false(m.detail.own)
+            assert.equal("Other", m.detail.name)
+            assert.equal("Main · MAGE · level 60 · online", m.detail.sub)
+            assert.equal(2, #m.detail.chars)
+            assert.is_true(m.detail.chars[1].isMain)
+            assert.is_false(m.detail.chars[1].band)
+            assert.is_true(m.detail.chars[2].band)
+            assert.equal("", m.detail.hint) -- not an officer
+        end)
+
+        it("says on which character a player is online", function()
+            local members = guild()
+            members[3].online = false -- Other, the main
+            local game = ready(members)
+            game:receive("BiaAlts", OTHER_GROUP, "Otheralt Realm")
+            assert.equal("online on Otheralt", M(game).WindowModel().rows[4].status)
+        end)
+
+        it("narrows the guild's players by search and falls back to the first row", function()
+            local game = ready()
+            game:receive("BiaAlts", OTHER_GROUP, "Other Realm")
+            M(game).SelectPlayer(OTHER)
+            M(game).SetSearch("zzz")
+            local m = M(game).WindowModel()
+            assert.same({ "header", "player", "header" }, kinds(m.rows))
+            assert.equal("Guild (0 players)", m.rows[3].text)
+            assert.is_true(m.rows[2].selected)
+            M(game).SetSearch("otheralt")
+            assert.equal("Other", M(game).WindowModel().rows[4].name)
+        end)
+
+        it("opens and closes sections", function()
+            local game = ready()
+            db(game).onlyOnline = false
             M(game).ToggleSection("nodata")
             assert.is_true(db(game).expanded.nodata)
-            rows = M(game).WindowRows()
-            assert.same({ "header", "nodata", "nodata", "nodata" }, { unpack(kinds(rows), #rows - 3) })
-            assert.is_true(rows[#rows - 3].expanded)
-        end)
-
-        it("shows your characters and the guild expanded until collapsed", function()
-            local game = ready()
-            local rows = M(game).WindowRows()
-            assert.same({ "header", "own", "hint", "header", "header" }, kinds(rows))
-            assert.equal("own", rows[1].section)
-            assert.is_true(rows[1].expanded)
-            assert.equal("guild", rows[4].section)
-            assert.is_true(rows[4].expanded)
+            local rows = M(game).WindowModel().rows
+            assert.same({ "player", true }, { rows[#rows].kind, rows[#rows].nodata })
             M(game).ToggleSection("own")
             assert.is_false(db(game).expanded.own)
-            assert.same({ "header", "header", "header" }, kinds(M(game).WindowRows()))
+            assert.equal("header", M(game).WindowModel().rows[2].kind)
         end)
 
-        it("hides the guild's groups while the guild section is collapsed", function()
-            local game = ready()
-            game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Other Realm")
-            assert.same({ "header", "own", "hint", "header", "main", "alt", "header" }, kinds(M(game).WindowRows()))
-            M(game).ToggleSection("guild")
-            assert.same({ "header", "own", "hint", "header", "header" }, kinds(M(game).WindowRows()))
-        end)
-
-        it("shades every other group of the guild", function()
-            local game = ready()
-            game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Other Realm")
-            game:receive("BiaAlts", "G|1|1-0000A2A2|1|1700000000|", "Twinky Realm")
-            db(game).onlyOnline = false
-            local bands = {}
-            for _, row in ipairs(M(game).WindowRows()) do
-                if row.kind == "main" or row.kind == "alt" then bands[#bands + 1] = row.kind .. ":" .. tostring(row.band) end
-            end
-            assert.same({ "main:true", "alt:true", "main:false" }, bands)
+        it("opens with an empty roster", function()
+            local game = ready({})
+            local m = M(game).WindowModel()
+            assert.equal("0 players · 0 characters · 0 reachable", m.stats)
+            assert.same({ "header", "header" }, kinds(m.rows))
+            assert.is_nil(m.detail)
+            assert.same({}, game.errors)
         end)
     end)
 

@@ -80,6 +80,14 @@ function ns.PlainName(name)
     return name:match("^[^%-]+") or name
 end
 
+-- The character's name in its class colour (white when the class is unknown).
+-- member: { name, classFile }.
+function ns.ColoredName(member)
+    local color = member.classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[member.classFile]
+    local code = color and color.colorStr and ("|c" .. color.colorStr) or "|cffffffff"
+    return code .. ns.PlainName(member.name) .. "|r"
+end
+
 function ns.InChatLockdown()
     return C_ChatInfo and C_ChatInfo.InChatMessagingLockdown and C_ChatInfo.InChatMessagingLockdown() or false
 end
