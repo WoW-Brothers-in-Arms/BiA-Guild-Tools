@@ -54,6 +54,7 @@ local function NewFrame(game, name, template)
         self.points[(...)] = { ... } -- by anchor
     end
     function frame:SetTexture(texture) self.texture = texture end
+    function frame:SetAlpha(alpha) self.alpha = alpha end
     function frame:SetVertexColor(r, g, b) self.vertex = { r, g, b } end
     function frame:SetText(text) self.text = text end
     function frame:GetText() return self.text end

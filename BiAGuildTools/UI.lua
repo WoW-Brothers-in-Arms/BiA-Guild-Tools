@@ -461,9 +461,21 @@ function ns.AddSectionList(f, opts)
     list.Sticky = sticky
 
     local shown -- index of the header the sticky one shows
+    -- In game a row reaching above the list still showed a few pixels over its top edge, although the
+    -- list cuts its rows off there (seen with /fstack). While a header sticks to the top, any such
+    -- row lies under it anyway, so it is made invisible.
+    local function HideRowsAbove(sticking)
+        local top = list.Scroll:GetTop()
+        if type(top) ~= "number" or type(list.Scroll.ForEachFrame) ~= "function" then return end
+        list.Scroll:ForEachFrame(function(frame)
+            local frameTop = frame:GetTop()
+            frame:SetAlpha((sticking and type(frameTop) == "number" and frameTop > top + 0.5) and 0 or 1)
+        end)
+    end
     local function UpdateSticky()
         local offset = list.Scroll.GetDerivedScrollOffset and list.Scroll:GetDerivedScrollOffset()
         local index = type(offset) == "number" and UI.StickyHeader(list.rows, opts.isHeader, offset, opts.rowHeight) or nil
+        HideRowsAbove(index ~= nil)
         if index ~= shown or (index and sticky.row ~= list.rows[index]) then
             shown = index
             sticky.row = index and list.rows[index] or nil

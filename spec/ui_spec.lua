@@ -160,6 +160,34 @@ describe("UI", function()
         assert.same({ "keep", "discard" }, how)
     end)
 
+    it("hides a row sticking out above the list while a header sticks to the top", function()
+        local game, ns = start()
+        game.env.CreateScrollBoxListLinearView = function()
+            return { SetElementExtent = function() end, SetElementInitializer = function() end }
+        end
+        game.env.ScrollUtil = { InitScrollBoxListWithScrollBar = function() end }
+        game.env.ScrollBoxConstants = {}
+        game.env.CreateDataProvider = function(rows) return rows end
+        local f = ns.CreateWindow("TestWin", { width = 500, height = 300 })
+        local list = ns.AddSectionList(f, { top = -100, bottom = 12, rowType = "Button", rowHeight = 20,
+            isHeader = function(row) return row.h end, initHeader = function() end, initRow = function() end })
+        list:SetRows({ { h = true }, { n = 1 }, { n = 2 }, { h = true }, { n = 3 } })
+        function list.Scroll:GetTop() return 500 end
+        local above, inside = game.env.CreateFrame("Frame"), game.env.CreateFrame("Frame")
+        function above:GetTop() return 512 end
+        function inside:GetTop() return 492 end
+        function list.Scroll:ForEachFrame(fn) fn(above); fn(inside) end
+        local offset = 28
+        function list.Scroll:GetDerivedScrollOffset() return offset end
+        list.scripts.OnUpdate(list)
+        assert.is_true(list.Sticky.shown)
+        assert.equal(0, above.alpha) -- under the header anyway; the game didn't cut off what stuck out
+        assert.equal(1, inside.alpha)
+        offset = 0 -- at the top: no header sticks, nothing is hidden
+        list.scripts.OnUpdate(list)
+        assert.equal(1, above.alpha)
+    end)
+
     it("puts a header right of a rail and tints a symbol", function()
         local _, ns = start()
         local f = ns.CreateWindow("TestWin", { width = 500, height = 300 })
