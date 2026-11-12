@@ -120,4 +120,84 @@ describe("Version", function()
             assert.equal(1, #game:sentWith("BiaSync"))
         end)
     end)
+    describe("window model", function()
+        -- Tester (you), Anna, Bert (offline), Cora, Dora in the guild roster.
+        local function ready(members)
+            members = members or { { "Tester-Realm", "Player-1-0000AAAA" }, { "Anna-Realm", "Player-1-0000BBBB" },
+                { "Bert-Realm", "Player-1-0000CCCC", online = false }, { "Cora-Realm", "Player-1-0000DDDD" },
+                { "Dora-Realm", "Player-1-0000EEEE" } }
+            local game = Wow.new({ globals = {
+                GetNumGuildMembers = function() return #members end,
+                GetGuildRosterInfo = function(i)
+                    local m = members[i]
+                    return m[1], "Member", 2, 60, "Mage", "Zone", "", "", m.online ~= false, 0, "MAGE", 0, 0, false, false, 0, m[2]
+                end,
+                GetGuildInfo = function() return "BiA", "Member", 1, nil end,
+            } })
+            game:login()
+            game:fire("GUILD_ROSTER_UPDATE")
+            game:advance(20)
+            game:DB().modules.version.onlyOnline = false
+            return game
+        end
+        local function V(game) return game.ns.modules.version end
+        local function summary(rows)
+            local out = {}
+            for _, r in ipairs(rows) do
+                out[#out + 1] = r.kind == "header" and ("%s/%s/%d"):format(r.section, tostring(r.tag), r.count) or r.name
+            end
+            return out
+        end
+        local function reports(game)
+            game:receive("BiaSync", "S|2|0|v=99.0.0", "Anna Realm")
+            game:receive("BiaSync", "S|2|0|v=99.0.0", "Bert Realm")
+            game:DB().modules.version.members.cora = { name = "Cora-Realm", v = "weird", t = game.clock }
+        end
+
+        it("groups members by version, newest first, without addon last and collapsed", function()
+            local game = ready()
+            reports(game)
+            local own = game.ns.Version
+            local m = V(game).WindowModel()
+            assert.same({ "99.0.0/current/2", "Anna", "Bert", own .. "/outdated/1", "Tester", "?/outdated/1", "Cora", "none/nil/1" },
+                summary(m.rows))
+            assert.equal("Newest: 99.0.0 · 4 of 5 with addon · 2 outdated", m.stats)
+            assert.equal("Without addon", m.rows[#m.rows].text)
+            assert.is_false(m.rows[2].band) -- Anna, first under the header
+            assert.is_true(m.rows[3].band)  -- Bert
+        end)
+
+        it("opens and closes a section", function()
+            local game = ready()
+            V(game).ToggleSection("none")
+            local rows = V(game).WindowModel().rows
+            assert.equal("Dora", rows[#rows].name)
+            V(game).ToggleSection(game.ns.Version)
+            assert.same({ game.ns.Version .. "/current/1", "none/nil/4", "Anna", "Bert", "Cora", "Dora" },
+                summary(V(game).WindowModel().rows))
+        end)
+
+        it("notes online or when a member was last seen", function()
+            local game = ready()
+            reports(game)
+            for _, r in ipairs(V(game).WindowModel().rows) do
+                if r.name == "Bert" then assert.matches("^last seen ", r.note) end
+                if r.name == "Tester" then assert.equal("online", r.note) end
+            end
+        end)
+
+        it("leaves out offline members with only-online", function()
+            local game = ready()
+            reports(game)
+            game:DB().modules.version.onlyOnline = true
+            assert.equal("99.0.0/current/1", summary(V(game).WindowModel().rows)[1])
+        end)
+
+        it("opens with an empty roster", function()
+            local game = ready({})
+            local m = V(game).WindowModel()
+            assert.same({}, m.rows)
+            assert.equal("Newest: " .. game.ns.Version .. " · 0 of 0 with addon · 0 outdated", m.stats)
+        end)
+    end)
 end)

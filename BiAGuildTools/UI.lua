@@ -329,23 +329,6 @@ function ns.SetStatusDot(dot, online)
     dot:SetTexture(dot.online and "Interface\\COMMON\\Indicator-Green" or "Interface\\COMMON\\Indicator-Gray")
 end
 
--- The "only online" checkbox at the top left of a list window. Keeps db.onlyOnline and calls onChange
--- after a click.
-function ns.AddOnlineCheckbox(f, db, label, onChange)
-    local box = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
-    box:SetSize(24, 24)
-    box:SetPoint("TOPLEFT", 10, -28)
-    box:SetChecked(db.onlyOnline)
-    box:SetScript("OnClick", function(self)
-        db.onlyOnline = self:GetChecked() and true or false
-        onChange()
-    end)
-    box.Label = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    box.Label:SetPoint("LEFT", box, "RIGHT", 2, 0)
-    box.Label:SetText(label)
-    return box
-end
-
 -- A scrolling list with a scroll bar on the right that fills the window between top and bottom.
 -- opts: top, bottom, left (default 14), right (default 30; all offsets from the window's edges),
 --       rowType (frame type of a row), rowHeight,

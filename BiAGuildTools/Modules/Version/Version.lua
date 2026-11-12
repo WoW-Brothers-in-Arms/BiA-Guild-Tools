@@ -137,67 +137,136 @@ end)
 ---------------------------------------------------------------------------
 local window
 
--- One row per guild member from the roster, with the last version they reported.
-local function CollectRows()
-    local rows, me = {}, ShortName(ns.PlayerFullName())
+-- Everything the window shows, built from the stored data (tested without frames):
+--   { stats, rows } with rows
+--     { kind = "header", section, text, tag = "current"|"outdated"|nil, count, expanded } and
+--     { kind = "member", name, classFile, online, note, band }
+-- One section per version, the newest first; then members whose version can't be read ("?"), then
+-- members without the addon ("none", collapsed until opened). db.expanded[section] keeps what the
+-- player opened or closed.
+local function IsExpanded(section)
+    local stored = M.db.expanded and M.db.expanded[section]
+    if stored == nil then return section ~= "none" end
+    return stored
+end
+
+function M.WindowModel()
+    local newest, me = NewestVersion(), ShortName(ns.PlayerFullName())
+    local sections, order = {}, {}
+    local total, withAddon, outdated = 0, 0, 0
     for _, member in pairs(ns.Roster()) do
         if member.online or not M.db.onlyOnline then
             local key = ShortName(member.name)
             local entry = M.db.members[key]
             local v = key == me and ns.Version or (entry and entry.v)
-            rows[#rows + 1] = { name = member.name, v = v, online = member.online, sortable = ParseVersion(v) ~= nil }
+            local id = (not v and "none") or (ParseVersion(v) and v) or "?"
+            local section = sections[id]
+            if not section then
+                section = { id = id, members = {} }
+                sections[id] = section
+                order[#order + 1] = section
+            end
+            local note = ""
+            if member.online then
+                note = L.VER_ONLINE
+            elseif entry and entry.t then
+                note = L.VER_LAST_SEEN:format(date(L.DATE_TIME_FORMAT, entry.t))
+            end
+            section.members[#section.members + 1] = { kind = "member", name = ns.PlainName(member.name),
+                classFile = member.classFile, online = member.online, note = note }
+            total = total + 1
+            if v then
+                withAddon = withAddon + 1
+                if id == "?" or Compare(v, newest) == -1 then outdated = outdated + 1 end
+            end
         end
     end
-    -- Readable versions first (newest on top), then by name.
-    table.sort(rows, function(a, b)
-        if a.sortable ~= b.sortable then return a.sortable end
-        if a.sortable then
-            local c = Compare(a.v, b.v)
-            if c ~= 0 then return c == 1 end
-        end
-        return a.name < b.name
+    local rank = { ["?"] = 1, none = 2 }
+    table.sort(order, function(a, b)
+        local ra, rb = rank[a.id] or 0, rank[b.id] or 0
+        if ra ~= rb then return ra < rb end
+        if ra ~= 0 then return false end
+        local c = Compare(a.id, b.id)
+        if c ~= 0 then return c == 1 end
+        return a.id < b.id -- written differently, same version
     end)
-    return rows
+
+    local rows = {}
+    for _, section in ipairs(order) do
+        local id = section.id
+        local tag
+        if id ~= "none" then tag = (id == "?" or Compare(id, newest) == -1) and "outdated" or "current" end
+        local expanded = IsExpanded(id)
+        rows[#rows + 1] = { kind = "header", section = id, tag = tag, count = #section.members, expanded = expanded,
+            text = (id == "none" and L.VER_NO_ADDON) or (id == "?" and L.VER_UNREADABLE) or id }
+        if expanded then
+            table.sort(section.members, function(a, b) return a.name < b.name end)
+            for _, member in ipairs(section.members) do rows[#rows + 1] = member end
+        end
+    end
+    ns.UI.Stripe(rows, function(row) return row.kind == "header" end)
+    return { stats = L.VER_STATS:format(newest, withAddon, total, outdated), rows = rows }
 end
 
-local ROW_HEIGHT = 18
+function M.ToggleSection(section)
+    M.db.expanded = M.db.expanded or {}
+    M.db.expanded[section] = not IsExpanded(section)
+    RefreshWindow()
+end
+
+local ROW_HEIGHT = 22
+local TAG_COLORS = { current = { 0.11, 0.42, 0.11 }, outdated = { 0.48, 0.36, 0.06 } }
 
 local function InitRow(row, data)
-    if not row.NameText then
-        row.NameText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        row.NameText:SetPoint("LEFT", 4, 0)
-        row.NameText:SetWidth(170)
-        row.NameText:SetJustifyH("LEFT")
-        row.VersionText = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        row.VersionText:SetPoint("LEFT", row.NameText, "RIGHT", 8, 0)
-        row.VersionText:SetJustifyH("LEFT")
+    if row.isVersionRow ~= true then
+        row.isVersionRow = true
+        ns.StyleZebra(row)
+        ns.StyleHeader(row)
+        row.TagBg = row:CreateTexture(nil, "BORDER")
+        row.Tag = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+        row.Tag:SetPoint("LEFT", row.Name, "RIGHT", 12, 0)
+        row.TagBg:SetPoint("TOPLEFT", row.Tag, "TOPLEFT", -5, 3)
+        row.TagBg:SetPoint("BOTTOMRIGHT", row.Tag, "BOTTOMRIGHT", 5, -3)
+        row.Count = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+        row.Count:SetPoint("RIGHT", -28, 0)
+        row.Dot = ns.AddStatusDot(row)
+        row.Dot:SetPoint("LEFT", 12, 0)
+        row.Label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        row.Label:SetPoint("LEFT", 28, 0)
+        row.Note = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+        row.Note:SetPoint("RIGHT", -8, 0)
+        row:SetScript("OnClick", function(self)
+            if self.data and self.data.kind == "header" then M.ToggleSection(self.data.section) end
+        end)
     end
-    row.NameText:SetText(data.name)
-    if data.online then row.NameText:SetTextColor(1, 1, 1) else row.NameText:SetTextColor(0.6, 0.6, 0.6) end
-    row.VersionText:SetText(data.v or "–")
-    row.VersionText:SetTextColor(VersionColor(data.v, window.newest))
+    row.data = data
+    local isHeader = data.kind == "header"
+    for _, part in ipairs({ row.Bar, row.Name, row.State, row.StateText, row.Count }) do part:SetShown(isHeader) end
+    for _, part in ipairs({ row.Dot, row.Label, row.Note }) do part:SetShown(not isHeader) end
+    row.Tag:SetShown(isHeader and data.tag ~= nil)
+    row.TagBg:SetShown(isHeader and data.tag ~= nil)
+    ns.SetZebra(row, data.band)
+    if isHeader then
+        ns.SetHeader(row, data.text, data.expanded)
+        row.Count:SetText(("(%d)"):format(data.count))
+        if data.tag then
+            local color = TAG_COLORS[data.tag]
+            row.Tag:SetText(data.tag == "current" and L.VER_TAG_CURRENT or L.VER_TAG_OUTDATED)
+            row.TagBg:SetColorTexture(color[1], color[2], color[3], 1)
+        end
+        return
+    end
+    ns.SetStatusDot(row.Dot, data.online)
+    row.Label:SetText(ns.ColoredName({ name = data.name, classFile = data.online and data.classFile or nil }))
+    row.Note:SetText(data.note)
 end
 
 local function CreateWindow()
-    local f = ns.CreateWindow("BiAGuildToolsVersionFrame", { width = 300, height = 380, title = L.VER_WINDOW_TITLE, db = M.db })
-    ns.AddOnlineCheckbox(f, M.db, L.VER_ONLY_ONLINE, RefreshWindow)
-
-    f.Newest = f:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    f.Newest:SetPoint("TOPRIGHT", -14, -34)
-
-    local nameHeader = f:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    nameHeader:SetPoint("TOPLEFT", 18, -58)
-    nameHeader:SetText(L.VER_COLUMN_NAME)
-    local versionHeader = f:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    versionHeader:SetPoint("LEFT", nameHeader, "LEFT", 178, 0)
-    versionHeader:SetText(L.VER_COLUMN_VERSION)
-
-    f.Footer = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    f.Footer:SetPoint("BOTTOMLEFT", 14, 12)
-    f.Footer:SetPoint("BOTTOMRIGHT", -14, 12)
-    f.Footer:SetJustifyH("LEFT")
-
-    f.Scroll = ns.AddScrollList(f, { top = -74, bottom = 32, rowType = "Frame", rowHeight = ROW_HEIGHT, init = InitRow })
+    local f = ns.CreateWindow("BiAGuildToolsVersionFrame", { width = 540, height = 540, db = M.db })
+    f.Header = ns.AddHeader(f, { icon = "Interface\\Icons\\INV_Misc_Note_01", title = L.VER_WINDOW_TITLE,
+        online = { db = M.db, onChange = function() RefreshWindow() end } })
+    f.Scroll = ns.AddScrollList(f, { top = ns.UI.CONTENT_TOP, bottom = 12, rowType = "Button", rowHeight = ROW_HEIGHT,
+        init = InitRow })
 
     f:SetScript("OnShow", function()
         if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
@@ -208,18 +277,9 @@ end
 
 function RefreshWindow()
     if not window or not window:IsShown() then return end
-    window.newest = NewestVersion()
-    local rows = CollectRows()
-    local withAddon, outdated = 0, 0
-    for _, r in ipairs(rows) do
-        if r.v then
-            withAddon = withAddon + 1
-            if Compare(r.v, window.newest) == -1 then outdated = outdated + 1 end
-        end
-    end
-    window.Newest:SetText(L.VER_NEWEST:format(window.newest))
-    window.Footer:SetText(L.VER_FOOTER:format(withAddon, #rows, outdated))
-    window.Scroll:SetDataProvider(CreateDataProvider(rows), ScrollBoxConstants.RetainScrollPosition)
+    local model = M.WindowModel()
+    window.Header:SetStats(model.stats)
+    window.Scroll:SetDataProvider(CreateDataProvider(model.rows), ScrollBoxConstants.RetainScrollPosition)
 end
 
 local function ToggleWindow()

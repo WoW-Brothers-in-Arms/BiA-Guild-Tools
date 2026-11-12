@@ -198,9 +198,7 @@ describe("Core", function()
                 assert.is_true(f:IsShown())
                 f.scripts.OnShow(f)
                 assert.is_true(#game.painted.rows > 0)
-                if tool == "alts" then -- TASK5: paint the version rows too
-                    for _, row in ipairs(game.painted.rows) do game.painted.init(game.env.CreateFrame("Button"), row) end
-                end
+                for _, row in ipairs(game.painted.rows) do game.painted.init(game.env.CreateFrame("Button"), row) end
                 function f:GetPoint() return "TOPLEFT", nil, "TOPLEFT", 12, -34 end
                 f.scripts.OnDragStop(f)
                 assert.same({ point = "TOPLEFT", relPoint = "TOPLEFT", x = 12, y = -34 }, game:DB().modules[tool].window)
