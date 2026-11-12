@@ -6,6 +6,8 @@ and CurseForge and stops if it is missing.
 
 ## Unreleased
 
+- Far fewer addon messages: after login everyone sends one short status (version, a checksum of the professions, the time the alts group last changed, for officers a checksum of their assignments) instead of all their data. Only what is missing or outdated is asked for and sent. Officers no longer send all their assignments at every login.
+- This changes how the tools talk to each other: players on 1.2.x and on this version don't see each other's professions and alts reliably until everyone has updated. Players on 1.2.x still get the update notice.
 - Less work in the background, mostly noticeable in large guilds: Alts handles bursts of guild roster updates together and no longer redraws when a guild mate sends a group it already has; Professions no longer searches all stored members for every roster row without data.
 - Fixed: Alts could send your group twice right after login.
 - Professions: unchanged professions are no longer sent again every few minutes.

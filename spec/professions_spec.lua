@@ -18,45 +18,106 @@ end
 
 describe("Professions", function()
     describe("sending", function()
-        it("shares your professions and asks for everyone's 10 seconds after login", function()
+        it("reports a checksum of your professions in the status after login instead of sending them", function()
             local game = Wow.new({ globals = WithProfessions() })
             game:login()
+            game:advance(20)
             assert.same({}, game:sentWith("BiaGProf"))
-
-            game:advance(10)
-            assert.same({
-                "P|1|Player-1-0000AAAA|Tester-Realm|171:300:300,182:275:300",
-                "R|1",
-            }, game:sentWith("BiaGProf"))
+            assert.matches("^S|2|1|p=%d+", game:sentWith("BiaSync")[1])
             assert.equal(2, #members(game)["Player-1-0000AAAA"].profs)
+        end)
+
+        it("sends your professions when a guild mate asks for them", function()
+            local game = Wow.new({ globals = WithProfessions() })
+            game:login()
+            game:advance(20)
+            game:receive("BiaSync", "Q|2|p|1-0000AAAA", "Other Realm")
+            assert.same({ "P|1|Player-1-0000AAAA|Tester-Realm|171:300:300,182:275:300" }, game:sentWith("BiaGProf"))
         end)
 
         it("sends nothing outside a guild", function()
             local game = Wow.new({ globals = WithProfessions(), inGuild = false })
             game:login()
-            game:advance(10)
+            game:advance(30)
             assert.same({}, game:sentWith("BiaGProf"))
+            assert.same({}, game:sentWith("BiaSync"))
         end)
 
-        it("doesn't send unchanged professions again when skills fire", function()
-            local game = Wow.new({ globals = WithProfessions() })
+        it("sends your professions when they change, not when skills fire without a change", function()
+            local globals = WithProfessions()
+            local game = Wow.new({ globals = globals })
             game:login()
             game:advance(400)
-            assert.equal(2, #game:sentWith("BiaGProf"))
             game:fire("SKILL_LINES_CHANGED")
             game:advance(120)
-            assert.equal(2, #game:sentWith("BiaGProf"))
+            assert.same({}, game:sentWith("BiaGProf"))
+
+            local info = globals.GetProfessionInfo
+            game.env.GetProfessionInfo = function(slot)
+                local name, icon, rank, max, a, b, id = info(slot)
+                return name, icon, slot == 2 and 280 or rank, max, a, b, id
+            end
+            game:fire("SKILL_LINES_CHANGED")
+            game:advance(120)
+            assert.same({ "P|1|Player-1-0000AAAA|Tester-Realm|171:300:300,182:280:300" }, game:sentWith("BiaGProf"))
+        end)
+    end)
+
+    describe("status of a guild mate", function()
+        local function withRoster()
+            local roster = { { "Other-Realm", "Player-1-0000BBBB" } }
+            local game = Wow.new({ globals = {
+                GetNumGuildMembers = function() return #roster end,
+                GetGuildRosterInfo = function(i)
+                    return roster[i][1], "Member", 2, 60, "Mage", "Zone", "", "", true, 0, "MAGE", 0, 0, false, false, 0, roster[i][2]
+                end,
+            } })
+            game:login()
+            game:advance(30)
+            return game
+        end
+        local function asks(game)
+            local out = {}
+            for _, m in ipairs(game:sentWith("BiaSync")) do
+                if m:sub(1, 2) == "Q|" then out[#out + 1] = m end
+            end
+            return out
+        end
+        local function stampOf(payload)
+            return ("%.0f"):format(Wow.new().ns.Hash(payload))
+        end
+
+        it("asks for professions it doesn't have", function()
+            local game = withRoster()
+            game:receive("BiaSync", "S|2|0|p=" .. stampOf("164:150:225"), "Other Realm")
+            game:advance(10)
+            assert.same({ "Q|2|p|1-0000BBBB" }, asks(game))
         end)
 
-        it("answers a request after a random delay", function()
-            local game = Wow.new({ globals = WithProfessions() })
-            game:login()
-            game:advance(60)
-            game:receive("BiaGProf", "R|1", "Other Realm")
+        it("doesn't ask for professions it has, and keeps them from going stale", function()
+            local game = withRoster()
+            game:receive("BiaGProf", "P|1|Player-1-0000BBBB|Other-Realm|164:150:225", "Other Realm")
+            game.clock = game.clock + 1000
+            game:receive("BiaSync", "S|2|0|p=" .. stampOf("164:150:225"), "Other Realm")
             game:advance(10)
-            local sent = game:sentWith("BiaGProf")
-            assert.equal(3, #sent)
-            assert.matches("^P|1|", sent[3])
+            assert.same({}, asks(game))
+            assert.equal(game.clock, members(game)["Player-1-0000BBBB"].t)
+        end)
+
+        it("asks again when the professions changed", function()
+            local game = withRoster()
+            game:receive("BiaGProf", "P|1|Player-1-0000BBBB|Other-Realm|164:150:225", "Other Realm")
+            game:receive("BiaSync", "S|2|0|p=" .. stampOf("164:155:225"), "Other Realm")
+            game:advance(10)
+            assert.same({ "Q|2|p|1-0000BBBB" }, asks(game))
+        end)
+
+        it("doesn't ask when the data arrives before its turn", function()
+            local game = withRoster()
+            game:receive("BiaSync", "S|2|0|p=" .. stampOf("164:150:225"), "Other Realm")
+            game:receive("BiaGProf", "P|1|Player-1-0000BBBB|Other-Realm|164:150:225", "Other Realm")
+            game:advance(10)
+            assert.same({}, asks(game))
         end)
     end)
 

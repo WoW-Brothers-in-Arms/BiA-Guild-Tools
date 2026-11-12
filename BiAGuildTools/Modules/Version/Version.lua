@@ -3,6 +3,7 @@
 local _, ns = ...
 local L = ns.L
 local Readable, After, ShortName = ns.Readable, ns.After, ns.ShortName
+local Sync = ns.Sync
 
 local M = ns:NewModule("version", {
     title = L.VER_TITLE,
@@ -11,12 +12,10 @@ local M = ns:NewModule("version", {
     slashAllowsEmpty = true, -- /bia version without argument opens the window
 })
 
-local PREFIX = "BiaVer"           -- addon message prefix (max 16 chars)
+local LEGACY_PREFIX = "BiaVer"    -- addon message prefix of 1.2.x (see "Players still on 1.2.x")
 local STALE_SECONDS = 90 * 24 * 3600
 local NEWEST_MAX_AGE = 14 * 24 * 3600 -- only recent reports count as "newest version"
-local REPLY_COOLDOWN = 15
 
-local lastReplyAt, replyPending, helloPending = -REPLY_COOLDOWN, false, false
 local updateNoticeShown = false
 
 ---------------------------------------------------------------------------
@@ -72,40 +71,9 @@ local function NewestVersion()
 end
 
 ---------------------------------------------------------------------------
--- Wire format: "H|<version>" (hello: here is mine, please answer) and "V|<version>" (answer)
+-- Everyone's version travels in the status of Sync.lua (key "v"), so it needs no messages of its own.
 ---------------------------------------------------------------------------
 local RefreshWindow -- forward declaration
-
-local function Store(name, version)
-    local key = ShortName(name)
-    if not key then return end
-    M.db.members[key] = { name = name, v = version, t = time() }
-end
-
--- Sends a hello; if the game refuses (raid lockdown, throttle) one retry chain tries again later.
-local function SendHello()
-    if helloPending then return end
-    local ok, reason = M:SendGuild("H|" .. ns.Version)
-    if not ok and reason ~= "NotInGuild" and reason ~= "NoAPI" then
-        helloPending = true
-        After(reason == "AddonMessageThrottle" and 15 or 60, function()
-            helloPending = false
-            SendHello()
-        end)
-    end
-end
-
--- Everyone online answers a hello after a random delay, to spread the traffic. A hello arriving
--- during the cooldown is still answered once the cooldown is over.
-local function QueueReply()
-    if replyPending then return end
-    replyPending = true
-    local wait = math.max(math.random(1, 5), REPLY_COOLDOWN - (GetTime() - lastReplyAt))
-    After(wait, function()
-        replyPending = false
-        if M:SendGuild("V|" .. ns.Version) then lastReplyAt = GetTime() end
-    end)
-end
 
 local function CheckForUpdate(version, from)
     if updateNoticeShown or not IsRelease(version) or Compare(version, ns.Version) ~= 1 then return end
@@ -114,22 +82,33 @@ local function CheckForUpdate(version, from)
     M:Debug("newer version reported by %s", from)
 end
 
-M:RegisterComm(PREFIX, function(text, channel, sender)
-    if channel ~= "GUILD" then return end
-    local from = Readable(sender) and type(sender) == "string" and sender or nil
-    local kind, version = text:match("^(%a)|(.+)$")
-    if (kind ~= "H" and kind ~= "V") or not ValidVersion(version) or not from then
-        M:Debug("from %s dropped: %s", tostring(from), text)
-        return
-    end
-    if ShortName(from) == ShortName(ns.PlayerFullName()) then return end -- our own message
+-- sender: as the game reports it (Forever: "Name Realm").
+local function Received(version, sender)
+    if not ValidVersion(version) then return end
+    if ShortName(sender) == ShortName(ns.PlayerFullName()) then return end -- our own message
+    local name = Ambiguate(sender:gsub(" ", "-"), "none")
+    local key = ShortName(name)
+    local stored = M.db.members[key]
+    M.db.members[key] = { name = name, v = version, t = time() }
+    CheckForUpdate(version, sender)
+    if not stored or stored.v ~= version then RefreshWindow() end
+end
 
-    M:Debug("%s from %s: %s", kind, from, version)
-    local display = from:gsub(" ", "-") -- Forever sends "Name Realm"
-    Store(Ambiguate(display, "none"), version)
-    CheckForUpdate(version, from)
-    if kind == "H" then QueueReply() end
-    RefreshWindow()
+Sync.Register(M, {
+    key = "v",
+    stamp = function() return ns.Version end,
+    onStatus = Received,
+})
+
+---------------------------------------------------------------------------
+-- Players still on 1.2.x: they announce their version with "H|<version>" / "V|<version>" on their
+-- own prefix and learn about a newer release from an "H". We send one at login, so they get the
+-- update notice, and list what they send. Can go once nobody runs 1.2.x any more.
+---------------------------------------------------------------------------
+M:RegisterComm(LEGACY_PREFIX, function(text, channel, sender)
+    if channel ~= "GUILD" or not Readable(sender) or type(sender) ~= "string" then return end
+    local kind, version = text:match("^(%a)|(.+)$")
+    if kind == "H" or kind == "V" then Received(version, sender) end
 end)
 
 ---------------------------------------------------------------------------
@@ -253,7 +232,7 @@ local function ToggleWindow()
         window:Hide()
     else
         window:Show()
-        SendHello() -- ask everyone online for a fresh answer
+        Sync.Hello() -- ask everyone online for a fresh answer
     end
 end
 
@@ -278,7 +257,7 @@ function M:OnLogin()
     for key, entry in pairs(self.db.members) do
         if type(entry) ~= "table" or (entry.t or 0) < cutoff then self.db.members[key] = nil end
     end
-    After(10, SendHello)
+    After(10, function() M:SendGuild("H|" .. ns.Version, LEGACY_PREFIX) end)
 end
 
 function M:OnToggle(on)

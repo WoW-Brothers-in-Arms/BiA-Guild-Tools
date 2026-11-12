@@ -18,6 +18,7 @@ local L = ns.L
 _G.BiAGuildTools = ns
 
 ns.modules, ns.moduleOrder = {}, {}
+local hiddenModules = {} -- internal parts built as modules (hidden = true): no settings, no saved data
 
 -- This addon's version from the TOC ("## Version:").
 local getMetadata = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
@@ -66,6 +67,14 @@ function ns.ShortName(name)
     return (name:match("^([^%-%s]+)") or name):lower()
 end
 
+-- A checksum of a string (a number below 2^32), for telling cheaply whether two clients hold the
+-- same data.
+function ns.Hash(s)
+    local h = 5381
+    for i = 1, #s do h = (h * 33 + s:byte(i)) % 4294967296 end
+    return h
+end
+
 -- Character name without realm, as shown to players ("Tester-Realm" -> "Tester").
 function ns.PlainName(name)
     return name:match("^[^%-]+") or name
@@ -86,9 +95,9 @@ end
 local roster, rosterByShort
 
 -- { [guid] = { name, level, classFile, online, rank, note, officerNote } } of everyone in the guild
--- roster. Second result: { [short name] = guid }, false for a name several members share.
+-- roster. (rosterByShort: { [short name] = guid }, false for a name several members share.)
 function ns.Roster()
-    if roster then return roster, rosterByShort end
+    if roster then return roster end
     local r, byShort = {}, {}
     for i = 1, (GetNumGuildMembers and GetNumGuildMembers() or 0) do
         local name, _, rank, level, _, _, note, officerNote, online, _, classFile, _, _, _, _, _, guid = GetGuildRosterInfo(i)
@@ -104,7 +113,7 @@ function ns.Roster()
         end
     end
     roster, rosterByShort = r, byShort
-    return r, byShort
+    return r
 end
 
 -- "Name-Realm", lowercased; adds our realm when name has none. Accepts "Name Realm" (Forever's sender).
@@ -117,8 +126,8 @@ end
 -- The roster GUID of a character name (e.g. an addon message's sender). nil when no member or (by
 -- name alone) several members match.
 function ns.RosterGuidByName(name)
-    local members, byShort = ns.Roster()
-    local hit = byShort[ns.ShortName(name) or ""]
+    local members = ns.Roster()
+    local hit = rosterByShort[ns.ShortName(name) or ""]
     if hit ~= false then return hit end -- nobody, or the only member of that name
     local full, found, count = FullName(name), nil, 0
     for guid, member in pairs(members) do
@@ -148,7 +157,7 @@ function ns:NewModule(key, info)
     m.title = m.title or key
     m.commands = {}
     ns.modules[key] = m
-    table.insert(ns.moduleOrder, m)
+    table.insert(m.hidden and hiddenModules or ns.moduleOrder, m)
     return m
 end
 
@@ -180,6 +189,7 @@ function Module:RegisterComm(prefix, fn)
     assert(#prefix <= 16, "BiAGuildTools: prefix too long: " .. prefix)
     commHandlers[prefix] = { self, fn }
     self.commPrefix = self.commPrefix or prefix
+    self.usesComm = true -- gets /bia <tool> debug
     if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then C_ChatInfo.RegisterAddonMessagePrefix(prefix) end
     if not eventHandlers.CHAT_MSG_ADDON then
         eventHandlers.CHAT_MSG_ADDON = {}
@@ -254,7 +264,7 @@ local RESERVED = { options = true, settings = true, help = true }
 
 -- Creates the chat command /bia <name> (one /bia command; the first word picks the tool).
 -- help: list of lines shown by /bia <name> help. "on", "off" and "help" are handled here for every module,
--- "debug" for modules that send addon messages.
+-- "debug" for modules that send addon messages (RegisterComm or ns.Sync.Register).
 function Module:RegisterSlash(name, handler, help)
     name = name:lower()
     assert(not slashTools[name] and not RESERVED[name], "BiAGuildTools: command taken: " .. name)
@@ -274,11 +284,11 @@ function Module:RegisterSlash(name, handler, help)
         if lower == "help" or (lower == "" and not self.slashAllowsEmpty) then
             self:Print(L.COMMANDS)
             for _, line in ipairs(help or {}) do DEFAULT_CHAT_FRAME:AddMessage("  " .. cmd .. " " .. line) end
-            if self.commPrefix then DEFAULT_CHAT_FRAME:AddMessage("  " .. cmd .. " debug – " .. L.HELP_DEBUG) end
+            if self.usesComm then DEFAULT_CHAT_FRAME:AddMessage("  " .. cmd .. " debug – " .. L.HELP_DEBUG) end
             DEFAULT_CHAT_FRAME:AddMessage("  " .. cmd .. " on | off – " .. L.HELP_ON_OFF)
             return
         end
-        if lower == "debug" and self.commPrefix then
+        if lower == "debug" and self.usesComm then
             self.db.debug = not self.db.debug
             self:Print(L.DEBUG_TOGGLED:format(ns.OnOff(self.db.debug)))
             return
@@ -388,6 +398,7 @@ local function InitModules()
     for _, m in ipairs(ns.moduleOrder) do
         if m:IsEnabled() then StartModule(m) end
     end
+    for _, m in ipairs(hiddenModules) do StartModule(m) end
     if ns.CreateSettingsPanel then ns.CreateSettingsPanel() end
 end
 

@@ -106,7 +106,9 @@ local function Without(list, remove)
     return out
 end
 
+-- A group with nothing to show: a single character whose player has not chosen a main.
 local function Empty(group) return #group.alts == 0 and not group.chosen end
+G.IsEmpty = Empty
 
 -- Of two groups sharing characters, the newer one keeps them. A group that loses its main is dropped.
 local function Resolve(groups, newer, older)

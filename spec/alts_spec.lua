@@ -28,6 +28,11 @@ local function guild()
 end
 
 local function db(game) return game:DB().modules.alts end
+
+-- A guild mate asks this character (Tester) for its data of one kind (Sync.lua).
+local function askFor(game, key)
+    game:receive("BiaSync", "Q|2|" .. key .. "|1-0000AAAA", "Other Realm")
+end
 local function M(game) return game.ns.modules.alts end
 
 -- Logged in with the roster loaded and the first broadcast done.
@@ -46,7 +51,18 @@ describe("Alts", function()
             assert.equal("BiA-Realm", db(game).own.chars[ME])
             local sent = game:sentWith("BiaAlts")
             assert.matches("^G|1|1%-0000AAAA|0|%d+|$", sent[1])
-            assert.equal("R|1", sent[2])
+            assert.equal(1, #sent)
+        end)
+
+        it("doesn't send the group again at the next login, only its time stamp in the status", function()
+            local first = ready()
+            local game = ready(nil, first:DB())
+            assert.same({}, game:sentWith("BiaAlts"))
+            assert.matches("^S|2|1|.*g=0", game:sentWith("BiaSync")[1])
+            game:slash("alts main")
+            game:slash("alts sync")
+            local status = game:sentWith("BiaSync")
+            assert.matches("g=" .. db(game).own.guilds["BiA-Realm"].t, status[#status], 1, true)
         end)
 
         it("waits for roster data instead of pruning your characters", function()
@@ -255,23 +271,57 @@ describe("Alts", function()
             assert.equal(OTHER, M(game).GroupOf(OTHER_ALT).main)
         end)
 
-        it("answers a request after a random delay", function()
+        it("sends the group when a guild mate asks for it, but not twice in a row", function()
             local game = ready()
-            game:advance(60)
             local before = #game:sentWith("BiaAlts")
-            game:receive("BiaAlts", "R|1", "Other Realm")
-            game:advance(10)
+            askFor(game, "g")
+            askFor(game, "g")
             local sent = game:sentWith("BiaAlts")
             assert.equal(before + 1, #sent)
             assert.matches("^G|1|", sent[#sent])
+            game:advance(31)
+            askFor(game, "g")
+            assert.equal(before + 2, #game:sentWith("BiaAlts"))
         end)
 
-        it("doesn't answer a request right after sending", function()
+        it("doesn't answer a question meant for someone else", function()
             local game = ready()
             local before = #game:sentWith("BiaAlts")
-            game:receive("BiaAlts", "R|1", "Other Realm")
-            game:advance(10)
+            game:receive("BiaSync", "Q|2|g|1-0000BBBB", "Third Realm")
             assert.equal(before, #game:sentWith("BiaAlts"))
+        end)
+
+        it("asks a guild mate for a group it doesn't have, once", function()
+            local game = ready()
+            game:receive("BiaSync", "S|2|0|g=1700000000", "Other Realm")
+            game:receive("BiaSync", "S|2|0|g=1700000000", "Other Realm")
+            game:advance(10)
+            local asks = {}
+            for _, m in ipairs(game:sentWith("BiaSync")) do
+                if m:sub(1, 2) == "Q|" then asks[#asks + 1] = m end
+            end
+            assert.same({ "Q|2|g|1-0000BBBB" }, asks)
+        end)
+
+        it("doesn't ask for a group it has, and keeps it from going stale", function()
+            local game = ready()
+            game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Other Realm")
+            game.clock = game.clock + 1000
+            local before = #game:sentWith("BiaSync")
+            game:receive("BiaSync", "S|2|0|g=1700000000", "Otheralt Realm") -- any character of the group
+            game:receive("BiaSync", "S|2|0|g=0", "Stranger Realm")
+            game:advance(10)
+            assert.equal(before, #game:sentWith("BiaSync"))
+            assert.equal(game.clock, db(game).groups[OTHER].seen)
+        end)
+
+        it("keeps quiet when someone else already asked", function()
+            local game = ready()
+            local before = #game:sentWith("BiaSync")
+            game:receive("BiaSync", "S|2|0|g=1700000000", "Other Realm")
+            game:receive("BiaSync", "Q|2|g|1-0000BBBB", "Otheralt Realm")
+            game:advance(10)
+            assert.equal(before, #game:sentWith("BiaSync"))
         end)
     end)
 
@@ -281,9 +331,10 @@ describe("Alts", function()
         local before = #game:sentWith("BiaAlts")
         game:slash("alts sync")
         local sent = game:sentWith("BiaAlts")
-        assert.equal(before + 2, #sent)
+        assert.equal(before + 1, #sent)
         assert.matches("^G|1|", sent[before + 1])
-        assert.equal("R|1", sent[before + 2])
+        local status = game:sentWith("BiaSync")
+        assert.matches("^S|2|1|", status[#status])
     end)
 
     describe("roster column", function()
@@ -417,8 +468,32 @@ describe("Alts", function()
             assert.is_nil(M(game).GroupOf(OTHER_ALT))
         end)
 
-        it("shares stored assignments after login as an officer", function()
+        local function entriesSent(game)
+            local n = 0
+            for _, m in ipairs(sentKind(game, "A")) do n = n + #game.ns.AltGroups.DecodeAssign(m) end
+            return n
+        end
+        local function asks(game)
+            local out = {}
+            for _, m in ipairs(game:sentWith("BiaSync")) do
+                if m:sub(1, 2) == "Q|" then out[#out + 1] = m end
+            end
+            return out
+        end
+        local function digestOf(game)
+            local status = game:sentWith("BiaSync")
+            return status[#status]:match("a=([%d%.]+)")
+        end
+
+        it("puts a checksum of the assignments into an officer's status instead of sending them", function()
             local game = ready(withStored(2), { modules = { alts = { assigned = stored(2) } } })
+            assert.same({}, sentKind(game, "A"))
+            assert.matches("^2%.%d+$", digestOf(game))
+        end)
+
+        it("sends the stored assignments when asked", function()
+            local game = ready(withStored(2), { modules = { alts = { assigned = stored(2) } } })
+            askFor(game, "a")
             local sent = sentKind(game, "A")
             assert.equal(1, #sent)
             assert.matches("1%-0000E001:1%-0000BBBB:", sent[1])
@@ -427,43 +502,64 @@ describe("Alts", function()
 
         it("doesn't share assignments as a normal member", function()
             local game = ready(guild(), { modules = { alts = { assigned = stored(2) } } })
+            assert.is_nil(digestOf(game))
+            askFor(game, "a")
             assert.same({}, sentKind(game, "A"))
         end)
 
+        it("asks an officer whose checksum differs, and nobody else", function()
+            local officer = ready(withStored(2), { modules = { alts = { assigned = stored(2) } } })
+            local digest = digestOf(officer)
+
+            local game = ready(withStored(2)) -- a member (Other is an officer there) without the assignments
+            game:receive("BiaSync", "S|2|0|a=" .. digest, "Otheralt Realm") -- not an officer
+            game:advance(10)
+            assert.same({}, asks(game))
+            game:receive("BiaSync", "S|2|0|a=" .. digest, "Other Realm")
+            game:advance(10)
+            assert.same({ "Q|2|a|1-0000BBBB" }, asks(game))
+        end)
+
+        it("doesn't ask an officer whose checksum matches, and keeps the entries from going stale", function()
+            local saved = { modules = { alts = { assigned = stored(2) } } }
+            local digest = digestOf(ready(withStored(2), saved))
+            local members = withStored(2)
+            members[1].rank = 2 -- Tester is a normal member here
+            local game = ready(members, saved)
+            game.clock = game.clock + 1000
+            game:receive("BiaSync", "S|2|0|a=" .. digest, "Other Realm")
+            game:advance(10)
+            assert.same({}, asks(game))
+            assert.equal(game.clock, db(game).assigned["Player-1-0000E001"].seen)
+        end)
+
         it("spreads many assignments over time", function()
-            local game = Wow.new({ globals = Roster(withStored(30)), savedVariables = { modules = { alts = { assigned = stored(30) } } } })
-            game:login()
-            game:fire("GUILD_ROSTER_UPDATE")
-            game:advance(5)
+            local game = ready(withStored(30), { modules = { alts = { assigned = stored(30) } } })
+            askFor(game, "a")
             assert.equal(1, #sentKind(game, "A"))
             game:advance(15)
-            local n = 0
-            for _, m in ipairs(sentKind(game, "A")) do n = n + #game.ns.AltGroups.DecodeAssign(m) end
-            assert.equal(30, n)
+            assert.equal(30, entriesSent(game))
         end)
 
         it("keeps assignments the game refused to send and sends them later", function()
-            local game = Wow.new({ globals = Roster(withStored(30)), savedVariables = { modules = { alts = { assigned = stored(30) } } } })
+            local game = ready(withStored(30), { modules = { alts = { assigned = stored(30) } } })
             local locked = false
             game.env.C_ChatInfo.InChatMessagingLockdown = function() return locked end
-            game:login()
-            game:fire("GUILD_ROSTER_UPDATE")
-            game:advance(5)
+            askFor(game, "a")
             assert.equal(1, #sentKind(game, "A"))
             locked = true
             game:advance(30)
             assert.equal(1, #sentKind(game, "A"))
             locked = false
             game:advance(120)
-            local n = 0
-            for _, m in ipairs(sentKind(game, "A")) do n = n + #game.ns.AltGroups.DecodeAssign(m) end
-            assert.equal(30, n)
+            assert.equal(30, entriesSent(game))
         end)
 
-        it("shares assignments again on request", function()
+        it("shares assignments again when asked later", function()
             local game = ready(withStored(2), { modules = { alts = { assigned = stored(2) } } })
+            askFor(game, "a")
             game:advance(60)
-            game:receive("BiaAlts", "R|1", "Other Realm")
+            askFor(game, "a")
             game:advance(15)
             assert.equal(2, #sentKind(game, "A"))
         end)
@@ -488,20 +584,19 @@ describe("Alts", function()
         end)
 
         it("doesn't restart a running share when asked again", function()
-            local game = Wow.new({ globals = Roster(withStored(200)),
-                savedVariables = { modules = { alts = { assigned = stored(200) } } } })
-            game:login()
-            game:fire("GUILD_ROSTER_UPDATE")
-            game:advance(40)
-            game:receive("BiaAlts", "R|1", "Other Realm")
-            game:advance(200)
-            local n = 0
-            for _, m in ipairs(sentKind(game, "A")) do n = n + #game.ns.AltGroups.DecodeAssign(m) end
-            assert.equal(200, n)
+            local game = ready(withStored(400), { modules = { alts = { assigned = stored(400) } } })
+            askFor(game, "a")
+            game:advance(40) -- past the cooldown, but the 400 entries are still on their way
+            assert.is_true(entriesSent(game) < 400)
+            askFor(game, "a")
+            game:advance(400)
+            assert.equal(400, entriesSent(game))
         end)
 
         it("doesn't share assignments of characters that left the guild", function()
             local game = ready(withStored(1), { modules = { alts = { assigned = stored(2) } } })
+            assert.matches("^1%.", digestOf(game))
+            askFor(game, "a")
             local sent = sentKind(game, "A")
             assert.equal(1, #sent)
             assert.is_nil(sent[1]:find("1-0000E002", 1, true))
@@ -510,6 +605,7 @@ describe("Alts", function()
         it("ignores its own assignment messages coming back", function()
             local assigned = stored(1)
             local game = ready(withStored(1), { modules = { alts = { assigned = assigned } } })
+            askFor(game, "a")
             local seen = db(game).assigned["Player-1-0000E001"].seen
             game.clock = game.clock + 1000
             game:receive("BiaAlts", sentKind(game, "A")[1], "Tester Realm")

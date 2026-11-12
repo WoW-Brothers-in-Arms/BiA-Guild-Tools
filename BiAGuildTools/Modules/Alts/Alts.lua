@@ -1,6 +1,11 @@
 -- Alts.lua: shows which characters belong to the same player. Every player marks one character as
 -- main; the addon remembers the other characters of the account that logged in while in the guild and
 -- shares the group with guild mates who use BiA Guild Tools. Data logic: Groups.lua.
+--
+-- Addon messages (prefix BiaAlts): "G|1|..." a player's group, "A|1|..." officer assignments (formats
+-- in Groups.lua). Both are sent when they change and when someone asks for them: the status of
+-- Sync.lua carries the time your group last changed (key "g") and, for officers, a checksum of their
+-- assignments (key "a"); who has something else stored asks.
 local _, ns = ...
 local L = ns.L
 local G = ns.AltGroups
@@ -15,17 +20,14 @@ local M = ns:NewModule("alts", {
 })
 
 local PREFIX = "BiaAlts"           -- addon message prefix (max 16 chars)
-local REQUEST = "R|1"
 local STALE_SECONDS = 90 * 24 * 3600
-local REPLY_COOLDOWN = 30
 local MAX_ASSIGN_RANK = 1         -- guild master (0) and officers (1) may assign mains for others
 
 local index, effective -- caches, rebuilt on demand
 local selfIndex        -- G.Index of the self-reported groups (db.groups)
+local assignDigest     -- checksum of the assignments (see AssignDigest)
 local rosterSeen = false      -- a non-empty roster arrived since login
-local lastSentAt = -REPLY_COOLDOWN
 local pendingBroadcast = false
-local lastSentSig           -- signature of the group last sent
 local mergedSig             -- guild and signature of the own group last merged into db.groups
 local listeners = {}
 
@@ -45,7 +47,7 @@ function M.OnChanged(fn)
 end
 
 local function Changed()
-    index, effective, selfIndex = nil, nil, nil
+    index, effective, selfIndex, assignDigest = nil, nil, nil, nil
     ns.RosterColumn.Refresh()
     for _, fn in ipairs(listeners) do fn() end
 end
@@ -106,6 +108,7 @@ end
 -- Builds your group; any change to it gets a new time stamp, so guild mates replace the old one.
 -- The group goes into db.groups once per session and again whenever it changes (received groups can't
 -- touch your characters in between, see G.Merge).
+-- Returns the group, its saved state and whether it changed since it was last built.
 local function OwnGroup()
     local view, key = M.OwnView()
     if not key then return nil end
@@ -113,7 +116,8 @@ local function OwnGroup()
     local group = G.OwnGroup(view, M.Roster(), state.t or 0)
     if not group then return nil end
     local sig = Signature(group)
-    if sig ~= state.sig or not state.t then
+    local changed = sig ~= state.sig or not state.t
+    if changed then
         state.t, state.sig = math.max(ServerTime(), (state.t or 0) + 1), sig
         group.t = state.t
     end
@@ -122,11 +126,11 @@ local function OwnGroup()
         G.Claim(M.db.groups, view.chars)
         G.Merge(M.db.groups, group, view.chars, time())
     end
-    return group, state
+    return group, state, changed
 end
 
 local function Broadcast()
-    local group, state = OwnGroup()
+    local group = OwnGroup()
     if not group then return end
     for _, msg in ipairs(G.Encode(group, UnitGUID("player"))) do
         local ok, reason = M:SendGuild(msg)
@@ -141,7 +145,6 @@ local function Broadcast()
             return
         end
     end
-    lastSentAt, lastSentSig = GetTime(), state.sig
 end
 
 local function QueueBroadcast(delay)
@@ -200,12 +203,6 @@ local MAX_CLOCK_SKEW = 300 -- seconds a received time stamp may lie in the futur
 M:RegisterComm(PREFIX, function(text, channel, sender)
     local from = Readable(sender) and type(sender) == "string" and sender or nil
     if channel ~= "GUILD" or not from then return end
-    if text == REQUEST then
-        M:Debug("request from %s", from)
-        if GetTime() - lastSentAt > REPLY_COOLDOWN then QueueBroadcast(math.random(2, 10)) end
-        M.QueueShareAssignments(math.random(2, 10))
-        return
-    end
     if text:sub(1, 2) == "A|" then
         M.ReceiveAssign(text, from)
         return
@@ -238,7 +235,6 @@ end)
 -- Officer assignments
 ---------------------------------------------------------------------------
 local assignQueue, assignSending, assignSharing = {}, false, false
-local lastAssignAt, assignPending = -REPLY_COOLDOWN, false
 
 function M.CanAssign()
     local me = M.Roster()[UnitGUID("player") or ""]
@@ -296,16 +292,22 @@ local function ShareAssignments()
     table.sort(list, function(a, b) return a.char < b.char end)
     assignSharing = true
     QueueAssign(G.EncodeAssign(list))
-    lastAssignAt = GetTime()
 end
 
-function M.QueueShareAssignments(delay)
-    if assignPending or not M.CanAssign() or GetTime() - lastAssignAt <= REPLY_COOLDOWN then return end
-    assignPending = true
-    After(delay, function()
-        assignPending = false
-        ShareAssignments()
-    end)
+-- "<count>.<checksum>" of the assignments in force for characters in the guild. Officers put theirs
+-- into their status; whoever computes another one from their own data is missing something (or
+-- still has an assignment that was removed) and asks that officer for the list.
+local function AssignDigest()
+    if assignDigest then return assignDigest end
+    local members, count, sum = M.Roster(), 0, 0
+    for char, e in pairs(M.db.assigned) do
+        if e.main and members[char] then
+            count = count + 1
+            sum = (sum + ns.Hash(char .. e.main .. e.t)) % 4294967296
+        end
+    end
+    assignDigest = ("%d.%.0f"):format(count, sum)
+    return assignDigest
 end
 
 function M.ReceiveAssign(text, from)
@@ -400,18 +402,12 @@ local function ProcessRoster()
     if not UpdateOwnChars() then return end
     if not rosterSeen then
         rosterSeen = true
-        pendingBroadcast = true -- further roster updates in the meantime don't queue a second one
-        After(5, function()
-            pendingBroadcast = false
-            Broadcast()
-            ShareAssignments()
-            M:SendGuild(REQUEST)
-            M.ShowLoginHint()
-        end)
-    else
-        local _, state = OwnGroup()
-        if state and state.sig ~= lastSentSig then QueueBroadcast(5) end
+        After(5, M.ShowLoginHint)
     end
+    -- Your group as guild mates know it stays as it is until it changes (a character joined or left);
+    -- they learn about anything they missed from the status (below).
+    local _, _, changed = OwnGroup()
+    if changed then QueueBroadcast(5) end
     Changed()
 end
 
@@ -432,6 +428,48 @@ local function OnRosterUpdate()
 end
 
 M:RegisterEvent("GUILD_ROSTER_UPDATE", OnRosterUpdate)
+
+---------------------------------------------------------------------------
+-- Status (Sync.lua): what guild mates compare to find out whether they are up to date
+---------------------------------------------------------------------------
+ns.Sync.Register(M, {
+    key = "g",
+    -- The time your group last changed; "0" while there is nothing to show (one character, no main).
+    stamp = function()
+        if not rosterSeen then return nil end
+        local group = OwnGroup()
+        if not group then return nil end
+        return G.IsEmpty(group) and "0" or ("%d"):format(group.t)
+    end,
+    has = function(stamp, guid)
+        selfIndex = selfIndex or G.Index(M.db.groups)
+        local group = selfIndex[guid]
+        if stamp == "0" then return group == nil end
+        if not group or group.t ~= tonumber(stamp) then return false end
+        group.seen = time() -- still current: keeps the group from being forgotten as stale
+        return true
+    end,
+    send = Broadcast,
+})
+
+ns.Sync.Register(M, {
+    key = "a",
+    stamp = function()
+        return rosterSeen and M.CanAssign() and AssignDigest() or nil
+    end,
+    has = function(stamp, guid)
+        local members = M.Roster()
+        local sender = members[guid]
+        if not sender or sender.rank > MAX_ASSIGN_RANK then return true end -- may not assign: nothing to ask for
+        if AssignDigest() ~= stamp then return false end
+        local now = time()
+        for char, e in pairs(M.db.assigned) do
+            if e.main and members[char] then e.seen = now end
+        end
+        return true
+    end,
+    send = ShareAssignments,
+})
 
 ---------------------------------------------------------------------------
 -- Roster column and tooltip
@@ -562,7 +600,7 @@ M:RegisterSlash("alts", function(msg, cmd)
         M:Print(L.ALTS_TOOLTIP_TOGGLED:format(ns.OnOff(db.showInTooltip)))
     elseif word == "sync" then
         Broadcast()
-        M:SendGuild(REQUEST)
+        ns.Sync.Hello(true)
         M:Print(L.ALTS_SYNC_SENT)
     elseif word == "hint" then
         local me = UnitGUID("player")

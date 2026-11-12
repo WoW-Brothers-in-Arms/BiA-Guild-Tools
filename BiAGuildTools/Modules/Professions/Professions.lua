@@ -16,7 +16,7 @@ local PREFIX = "BiaGProf"        -- addon message prefix (max 16 chars)
 local PROTOCOL = "1"
 local STALE_SECONDS = 90 * 24 * 3600
 
-local lastSentPayload, lastSentAt = nil, 0
+local lastSentPayload
 local pendingBroadcast, pendingForce = false, false
 
 ---------------------------------------------------------------------------
@@ -62,7 +62,9 @@ local function ScanOwn()
 end
 
 ---------------------------------------------------------------------------
--- Wire format: "P|1|<guid>|<name>|<id>:<rank>:<max>,..." and "R|1" (request)
+-- Wire format: "P|1|<guid>|<name>|<id>:<rank>:<max>,...". Sent when your professions change and when
+-- someone asks for them: a checksum of the list travels in the status of Sync.lua (key "p"), and who
+-- has another one stored asks.
 ---------------------------------------------------------------------------
 local function Encode(list)
     local parts = {}
@@ -81,9 +83,14 @@ local function Decode(str)
     return list
 end
 
-local function Store(guid, name, list)
+local function Stamp(payload)
+    return ("%.0f"):format(ns.Hash(payload))
+end
+
+-- payload: the list as it was sent; its checksum (h) tells later whether a member's data is current.
+local function Store(guid, name, list, payload)
     if type(guid) ~= "string" or guid == "" then return end
-    M.db.members[guid] = { name = name, profs = list, t = time() }
+    M.db.members[guid] = { name = name, profs = list, t = time(), h = Stamp(payload) }
 end
 
 local RefreshRoster, QueueBroadcast -- forward declarations
@@ -93,22 +100,22 @@ local function Broadcast(force)
     local list = ScanOwn()
     local guid = UnitGUID("player")
     local name = ns.PlayerFullName()
-    Store(guid, name, list)
+    local payload = Encode(list)
+    Store(guid, name, list, payload)
     RefreshRoster()
 
-    local payload = Encode(list)
     if not force and payload == lastSentPayload then return end -- nothing new (skill events fire often)
     local ok, reason = M:SendGuild("P|" .. PROTOCOL .. "|" .. guid .. "|" .. name .. "|" .. payload)
     if ok then
-        lastSentPayload, lastSentAt = payload, GetTime()
+        lastSentPayload = payload
     elseif reason ~= "NotInGuild" then
         -- In a dungeon/raid, throttled or otherwise refused: try again later.
         QueueBroadcast(reason == "AddonMessageThrottle" and 15 or 60, force)
     end
 end
 
--- Only one broadcast is scheduled at a time. A forced request (e.g. answering "R") upgrades an
--- already scheduled one, so it is not skipped as "unchanged since the last send".
+-- Only one broadcast is scheduled at a time. A forced one upgrades an already scheduled one, so it
+-- is not skipped as "unchanged since the last send".
 function QueueBroadcast(delay, force)
     if force then pendingForce = true end
     if pendingBroadcast then return end
@@ -124,38 +131,32 @@ M:RegisterComm(PREFIX, function(text, channel, sender)
     local from = Readable(sender) and tostring(sender) or "?"
     if channel ~= "GUILD" then return end
     local kind, version, rest = text:match("^(%a)|(%d+)|?(.*)$")
-    if version ~= PROTOCOL then
+    if version ~= PROTOCOL or kind ~= "P" then
         M:Debug("from %s dropped: unknown format/version: %s", from, text)
         return
     end
 
-    if kind == "R" then
-        M:Debug("request from %s", from)
-        -- Someone asked for everyone's data; answer with a random delay to spread the traffic.
-        if GetTime() - lastSentAt > 30 then QueueBroadcast(math.random(2, 10), true) end
-    elseif kind == "P" then
-        local guid, name, profs = rest:match("^([^|]+)|([^|]+)|(.*)$")
-        if not guid or not guid:match("^Player%-") then
-            M:Debug("from %s dropped: invalid data: %s", from, text)
-            return
-        end
-        -- Only accept data a character sends about itself (when the client lets us read the sender).
-        -- Names are compared without realm, since sender and payload may spell the realm differently.
-        if Readable(sender) and type(sender) == "string" and ShortName(sender) ~= ShortName(name) then
-            M:Debug("from %s dropped: name does not match (%s)", from, name)
-            return
-        end
-        -- The GUID must be the sender's own too, or anyone could overwrite someone else's professions.
-        -- Skipped while the roster doesn't tell who the sender is (not loaded yet, name not unique).
-        local senderGuid = Readable(sender) and type(sender) == "string" and ns.RosterGuidByName(sender) or nil
-        if senderGuid and senderGuid ~= guid then
-            M:Debug("from %s dropped: GUID is not the sender's (%s)", from, guid)
-            return
-        end
-        Store(guid, name, Decode(profs))
-        M:Debug("stored professions of %s: %s", name, profs)
-        RefreshRoster()
+    local guid, name, profs = rest:match("^([^|]+)|([^|]+)|(.*)$")
+    if not guid or not guid:match("^Player%-") then
+        M:Debug("from %s dropped: invalid data: %s", from, text)
+        return
     end
+    -- Only accept data a character sends about itself (when the client lets us read the sender).
+    -- Names are compared without realm, since sender and payload may spell the realm differently.
+    if Readable(sender) and type(sender) == "string" and ShortName(sender) ~= ShortName(name) then
+        M:Debug("from %s dropped: name does not match (%s)", from, name)
+        return
+    end
+    -- The GUID must be the sender's own too, or anyone could overwrite someone else's professions.
+    -- Skipped while the roster doesn't tell who the sender is (not loaded yet, name not unique).
+    local senderGuid = Readable(sender) and type(sender) == "string" and ns.RosterGuidByName(sender) or nil
+    if senderGuid and senderGuid ~= guid then
+        M:Debug("from %s dropped: GUID is not the sender's (%s)", from, guid)
+        return
+    end
+    Store(guid, name, Decode(profs), profs)
+    M:Debug("stored professions of %s: %s", name, profs)
+    RefreshRoster()
 end)
 
 ---------------------------------------------------------------------------
@@ -190,6 +191,25 @@ local function MemberProfessions(info)
 end
 
 M.MemberProfessions = MemberProfessions
+
+ns.Sync.Register(M, {
+    key = "p",
+    -- Also the moment your own professions are read after login.
+    stamp = function()
+        local list = ScanOwn()
+        local payload = Encode(list)
+        Store(UnitGUID("player"), ns.PlayerFullName(), list, payload)
+        lastSentPayload = lastSentPayload or payload -- whoever lacks it asks; no need to send it unasked
+        return Stamp(payload)
+    end,
+    has = function(stamp, guid)
+        local entry = M.db.members[guid]
+        if not entry or entry.h ~= stamp then return false end
+        entry.t = time() -- still current: keeps the entry from being forgotten as stale
+        return true
+    end,
+    send = function() Broadcast(true) end,
+})
 
 local function SortedForDisplay(list, includeSecondary)
     local out = {}
@@ -281,7 +301,7 @@ M:RegisterSlash("prof", function(msg, cmd)
         M:Print(L.PROF_STATUS_COUNT:format(n))
     elseif cmd == "sync" then
         Broadcast(true)
-        M:SendGuild("R|" .. PROTOCOL)
+        ns.Sync.Hello(true)
         M:Print(L.PROF_SYNC_SENT)
     else
         M:Print(L.PROF_UNKNOWN_COMMAND:format("/bia prof help"))
@@ -308,10 +328,6 @@ function M:OnLogin()
     for guid, entry in pairs(self.db.members) do
         if type(entry) ~= "table" or (entry.t or 0) < cutoff then self.db.members[guid] = nil end
     end
-    After(10, function()
-        Broadcast(true)
-        M:SendGuild("R|" .. PROTOCOL)
-    end)
 end
 
 -- Called by /bia prof on | off: show or hide the column right away.
@@ -321,8 +337,4 @@ end
 
 M:RegisterEvent("SKILL_LINES_CHANGED", function()
     QueueBroadcast(60, false) -- skill-ups fire often; send at most once a minute
-end)
-
-M:RegisterEvent("PLAYER_GUILD_UPDATE", function()
-    QueueBroadcast(5, true)
 end)
