@@ -23,7 +23,7 @@ end
 -- The colours parts are drawn with when the game's own art for them is missing.
 UI.COLORS = {
     ground = { Hex("15100c") }, border = { Hex("6b4f2a") }, bar = { Hex("2b1c10") }, barBorder = { Hex("6b4f2a") },
-    gold = { Hex("f0c030") }, selected = { Hex("4b4a47") }, close = { Hex("8f1d14") },
+    gold = { Hex("f0c030") }, close = { Hex("8f1d14") },
 }
 local COLORS = UI.COLORS
 
@@ -309,10 +309,10 @@ function ns.StyleSelectable(row)
     if row.isSelectable == true then return end
     row.isSelectable = true
     -- Plain colours: the game's line-highlight atlas turns into a solid white bar when stretched
-    -- over a row (seen in game), so it isn't used.
+    -- over a row (seen in game), so it isn't used. The chosen row gets a light golden tint.
     row.Sel = row:CreateTexture(nil, "BACKGROUND", nil, 1) -- above the stripe
     row.Sel:SetAllPoints()
-    row.Sel:SetColorTexture(COLORS.selected[1], COLORS.selected[2], COLORS.selected[3], 0.9)
+    row.Sel:SetColorTexture(COLORS.gold[1], COLORS.gold[2], COLORS.gold[3], 0.16) -- a light golden tint
     row.Sel:Hide()
     local hover = row:CreateTexture(nil, "HIGHLIGHT")
     hover:SetAllPoints()
