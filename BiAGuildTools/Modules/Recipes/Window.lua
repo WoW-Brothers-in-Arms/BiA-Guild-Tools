@@ -13,9 +13,11 @@ local UI = ns.UI
 
 local ICON = "Interface\\AddOns\\BiAGuildTools\\Media\\IconRecipes"
 local ROW_HEIGHT = 26
-local RAIL_BUTTON, RAIL_WIDTH = 46, 56
+local RAIL_BUTTON, RAIL_WIDTH, RAIL_GAP = 46, 56, 6
 local PANE_WIDTH = 300
-local MAX_REAGENTS, MAX_CRAFTERS = 8, 10
+local CONTENT_HEIGHT = 540 + UI.CONTENT_TOP - UI.PANE_MARGIN -- of rail and card, below the header
+local MAX_REAGENTS = 8
+local LINE_HEIGHT = 22
 local GREY = { 0.6, 0.57, 0.53 }
 
 local window
@@ -54,6 +56,7 @@ function M.WindowModel()
     local alts, professions = ns.modules.alts, ns.modules.professions
     local model = ns.RecipeBrowse.Build({
         members = M.db.members, roster = ns.Roster(), names = NAMES, otherText = L.RCP_OTHER,
+        isProfession = D.IsCrafting, -- whatever else a record may claim
         groupOf = alts and alts:IsEnabled() and alts.GroupOf or nil,
         professionsOf = professions and professions:IsEnabled() and professions.ProfessionsOf or nil,
         skill = M.db.skill, recipe = chosenRecipe, search = search, onlyOnline = M.db.onlyOnline,
@@ -68,11 +71,15 @@ end
 -- Item data: the client loads items on demand, so a line shows what is known and is painted again
 -- when the rest arrives.
 ---------------------------------------------------------------------------
+local wanted = {} -- [itemID] = true: asked the client for it; stays set if it never arrives
 local function ItemInfo(itemID)
     if type(itemID) ~= "number" then return nil end
     local icon, quality, name = Try(Item.GetItemIconByID, itemID), Try(Item.GetItemQualityByID, itemID),
         Text(Try(Item.GetItemNameByID, itemID))
-    if (not quality or not name) and Item.RequestLoadItemDataByID then pcall(Item.RequestLoadItemDataByID, itemID) end
+    if (not quality or not name) and not wanted[itemID] and Item.RequestLoadItemDataByID then
+        wanted[itemID] = true
+        pcall(Item.RequestLoadItemDataByID, itemID)
+    end
     return icon, quality, name
 end
 
@@ -97,7 +104,10 @@ local function Reagents(recipeID)
     for _, slot in ipairs(type(schematic) == "table" and type(schematic.reagentSlotSchematics) == "table"
         and schematic.reagentSlotSchematics or {}) do
         local first = type(slot) == "table" and type(slot.reagents) == "table" and slot.reagents[1]
-        if type(first) == "table" and type(first.itemID) == "number" and type(slot.quantityRequired) == "number"
+        -- Only what the recipe needs, not optional or finishing reagents (where the client tells them apart).
+        local basic = Enum and Enum.CraftingReagentType and Enum.CraftingReagentType.Basic
+        local required = type(slot) ~= "table" or basic == nil or slot.reagentType == nil or slot.reagentType == basic
+        if required and type(first) == "table" and type(first.itemID) == "number" and type(slot.quantityRequired) == "number"
             and slot.quantityRequired > 0 and #out < MAX_REAGENTS then
             out[#out + 1] = { itemID = first.itemID, count = slot.quantityRequired }
         end
@@ -119,8 +129,11 @@ end
 local function ShowItemTooltip(owner, itemID, spellID)
     if not itemID and not spellID then return end
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
-    if itemID then GameTooltip:SetItemByID(itemID) else GameTooltip:SetSpellByID(spellID) end
-    GameTooltip:Show()
+    -- The IDs came from guild mates: an unknown one must not raise an error.
+    local ok = pcall(function()
+        if itemID then GameTooltip:SetItemByID(itemID) else GameTooltip:SetSpellByID(spellID) end
+    end)
+    if ok then GameTooltip:Show() else GameTooltip:Hide() end
 end
 
 ---------------------------------------------------------------------------
@@ -174,12 +187,12 @@ end
 
 -- The profession buttons on the left.
 local function PaintRail(rail, professions)
+    -- All of them fit: with many professions the buttons get smaller.
+    local size = math.max(24, math.min(RAIL_BUTTON, math.floor((CONTENT_HEIGHT + RAIL_GAP) / math.max(#professions, 1)) - RAIL_GAP))
     for i, profession in ipairs(professions) do
         local button = rail.buttons[i]
         if not button then
             button = CreateFrame("Button", nil, rail)
-            button:SetSize(RAIL_BUTTON, RAIL_BUTTON)
-            button:SetPoint("TOPLEFT", 0, -(i - 1) * (RAIL_BUTTON + 6))
             button.Frame, button.Icon = AddIcon(button, RAIL_BUTTON)
             button.Frame:SetPoint("CENTER")
             button.Count = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
@@ -193,6 +206,11 @@ local function PaintRail(rail, professions)
             button:SetScript("OnLeave", GameTooltip_Hide)
             rail.buttons[i] = button
         end
+        button:SetSize(size, size)
+        button:ClearAllPoints()
+        button:SetPoint("TOPLEFT", 0, -(i - 1) * (size + RAIL_GAP))
+        button.Frame:SetSize(size, size)
+        button.Icon:SetSize(size - 2, size - 2)
         button.skill, button.name = profession.skill, profession.name
         local data = D.PROFESSIONS[profession.skill]
         button.Icon:SetTexture(data and data.icon or ICON)
@@ -206,7 +224,8 @@ end
 
 local function PaneLine(pane)
     local line = CreateFrame("Frame", nil, pane)
-    line:SetHeight(22)
+    line:SetHeight(LINE_HEIGHT)
+    line:EnableMouse(true) -- for the item tooltip
     ns.StyleZebra(line)
     line.IconFrame, line.Icon = AddIcon(line, 20)
     line.IconFrame:SetPoint("LEFT", 6, 0)
@@ -270,21 +289,24 @@ local function PaintDetail(pane, model)
             line.IconFrame:Show()
             line.Icon:Show()
             line.Icon:SetTexture(reagentIcon)
+            line.Icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- a class icon's atlas may have left its own behind
             line.IconFrame:SetColorTexture(qr, qg, qb, 1)
             line.Count:SetText(reagent.count)
             line.Text:SetText(name or ("#" .. reagent.itemID))
             line.Text:SetTextColor(qr, qg, qb)
             line.Note:SetText("")
             ns.SetZebra(line, i % 2 == 0)
-            y = y + 22
+            y = y + LINE_HEIGHT
         end
         y = y + 10
     end
 
     pane.CraftHead:SetPoint("TOP", 0, -y)
     y = y + 18
+    local room = math.max(1, math.floor((CONTENT_HEIGHT - 8 - y) / LINE_HEIGHT)) -- lines that fit in the card
+    local shown = #detail.crafters > room and room - 1 or #detail.crafters
     for i, crafter in ipairs(detail.crafters) do
-        if i > MAX_CRAFTERS then break end
+        if i > shown then break end
         used = used + 1
         local line = LineAt(pane, used, y)
         line.itemID = nil
@@ -298,7 +320,18 @@ local function PaintDetail(pane, model)
         line.Note:SetText(STATUS[crafter.status](crafter))
         if crafter.reachable then line.Note:SetTextColor(1, 1, 1) else line.Note:SetTextColor(GREY[1], GREY[2], GREY[3]) end
         ns.SetZebra(line, crafter.band)
-        y = y + 22
+        y = y + LINE_HEIGHT
+    end
+    if shown < #detail.crafters then
+        local line = LineAt(pane, used + 1, y)
+        line.itemID = nil
+        line.IconFrame:Hide()
+        line.Icon:Hide()
+        line.Count:SetText("")
+        line.Text:SetText(L.RCP_MORE:format(#detail.crafters - shown))
+        line.Text:SetTextColor(GREY[1], GREY[2], GREY[3])
+        line.Note:SetText("")
+        ns.SetZebra(line, false)
     end
 end
 
@@ -425,7 +458,13 @@ function M.ToggleWindow()
 end
 
 M.OnStoreChanged(function() QueueRefresh(0.2) end)
-M:RegisterEvent("GET_ITEM_INFO_RECEIVED", function() QueueRefresh(0.2) end)
+M:RegisterEvent("GET_ITEM_INFO_RECEIVED", function(itemID, success)
+    -- Only for items this window waits for; other addons and the bags load items all the time.
+    if success and wanted[itemID] then
+        wanted[itemID] = nil
+        QueueRefresh(0.2)
+    end
+end)
 M:RegisterEvent("GUILD_ROSTER_UPDATE", function() QueueRefresh(1) end)
 if ns.modules.alts and ns.modules.alts.OnChanged then ns.modules.alts.OnChanged(function() QueueRefresh(0.2) end) end
 

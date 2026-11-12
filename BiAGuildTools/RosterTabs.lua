@@ -24,31 +24,37 @@ function Tabs.Update()
     if not (below and below:IsShown()) then below = info end
     for _, def in ipairs(defs) do
         local tab = def.tab
-        local shown = info:IsShown() and def.enabled() and true or false
-        tab:ClearAllPoints()
-        tab:SetPoint("TOPLEFT", below, "BOTTOMLEFT", 0, -20) -- Blizzard's spacing between its tabs
-        tab:SetShown(shown)
-        tab:SetChecked(def.checked())
-        if shown then below = tab end
+        if tab then
+            local shown = info:IsShown() and def.enabled() and true or false
+            tab:ClearAllPoints()
+            tab:SetPoint("TOPLEFT", below, "BOTTOMLEFT", 0, -20) -- Blizzard's spacing between its tabs
+            tab:SetShown(shown)
+            tab:SetChecked(def.checked())
+            if shown then below = tab end
+        end
     end
 end
 
+local function CreateTab(def)
+    local frame = CommunitiesFrame
+    local tab = CreateFrame("CheckButton", def.name, frame, "RightSideTabTemplate")
+    tab:SetFrameLevel(frame.GuildInfoTab:GetFrameLevel()) -- Blizzard's tabs sit high above the frame
+    tab.tooltip = def.tooltip
+    tab.Icon:SetTexture(def.icon)
+    -- Our own click: no Blizzard display mode, just the tool's window (the template would check the tab).
+    tab:SetScript("OnClick", function()
+        def.onClick()
+        Tabs.Update()
+    end)
+    def.tab = tab
+end
+
+-- Runs when the guild window's addon is loaded – which may be before the tools added their tabs.
 local function Create()
     local frame = CommunitiesFrame
     if created or not frame or not frame.GuildInfoTab then return end
     created = true
-    for _, def in ipairs(defs) do
-        local tab = CreateFrame("CheckButton", def.name, frame, "RightSideTabTemplate")
-        tab:SetFrameLevel(frame.GuildInfoTab:GetFrameLevel()) -- Blizzard's tabs sit high above the frame
-        tab.tooltip = def.tooltip
-        tab.Icon:SetTexture(def.icon)
-        -- Our own click: no Blizzard display mode, just the tool's window (the template would check the tab).
-        tab:SetScript("OnClick", function()
-            def.onClick()
-            Tabs.Update()
-        end)
-        def.tab = tab
-    end
+    for _, def in ipairs(defs) do CreateTab(def) end
     for _, blizzardTab in ipairs({ frame.GuildInfoTab, frame.GuildPreferredPlaySettingsTab }) do
         if blizzardTab then
             blizzardTab:HookScript("OnShow", Tabs.Update)
@@ -60,6 +66,10 @@ end
 
 function Tabs.Add(def)
     defs[#defs + 1] = def
+    if created then
+        CreateTab(def)
+        Tabs.Update()
+    end
 end
 
 ns.OnAddOnLoaded("Blizzard_Communities", Create)

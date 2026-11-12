@@ -10,6 +10,7 @@ describe("RecipeStore", function()
         local m = {}
         assert.is_true(S.Put(m, A, "Anna-Realm", 100, profs, 5000))
         assert.same({ name = "Anna-Realm", t = 100, h = S.Checksum(profs), seen = 5000, profs = profs }, m[A])
+        assert.is_true(ns.RecipeCodec.WithinLimits(profs))
         assert.is_false(S.Put(m, A, "Anna-Realm", 100, profs, 6000))
         assert.equal(6000, m[A].seen)
         assert.is_true(S.Put(m, A, "Anna-Realm", 200, { [165] = { [2552] = { 3760, 9198 } } }, 7000))
@@ -45,6 +46,34 @@ describe("RecipeStore", function()
         assert.same(after, m[A].profs)
         assert.same({ 200, S.Checksum(after), 8000 }, { m[A].t, m[A].h, m[A].seen })
         assert.is_false(S.Add(m, B, 200, S.Checksum(after), additions, 8000))
+    end)
+
+    it("refuses additions that would grow a record beyond the limits", function()
+        local m, ids = {}, {}
+        for i = 1, 1500 do ids[i] = i end
+        local full = { [165] = { [1] = ids } }
+        S.Put(m, A, "Anna-Realm", 100, full, 5000)
+        local more = { [165] = { [1] = { 2000 } } }
+        assert.is_false(S.Add(m, A, 200, S.Checksum(ns.RecipeCodec.Merge(full, more)), more, 6000))
+        assert.equal(100, m[A].t)
+
+        local twelve = {}
+        for skill = 1, 12 do twelve[skill] = { [1] = { 5 } } end
+        S.Put(m, B, "Bert-Realm", 100, twelve, 5000)
+        local thirteenth = { [13] = { [1] = { 5 } } }
+        assert.is_false(S.Add(m, B, 200, S.Checksum(ns.RecipeCodec.Merge(twelve, thirteenth)), thirteenth, 6000))
+        assert.is_nil(m[B].profs[13])
+    end)
+
+    it("keeps the records of another guild's members while you are in this one", function()
+        local m = {}
+        S.Put(m, A, "Anna-Realm", 100, profs, 1000, "Other Guild")
+        S.Put(m, B, "Bert-Realm", 100, profs, 1000, "BiA")
+        assert.equal("Other Guild", m[A].g)
+        assert.equal(1, S.Prune(m, { ["Player-1-0000CCCC"] = {} }, 1500, 1000, "BiA")) -- Bert left BiA
+        assert.is_table(m[A])
+        assert.is_nil(m[B])
+        assert.equal(1, S.Prune(m, { ["Player-1-0000CCCC"] = {} }, 9000, 1000, "BiA")) -- but nothing is kept forever
     end)
 
     it("forgets records of members who left and of ones not seen for long", function()

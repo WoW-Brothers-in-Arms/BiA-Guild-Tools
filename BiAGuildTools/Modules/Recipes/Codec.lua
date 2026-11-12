@@ -129,6 +129,18 @@ function C.Count(profs)
     return professions, recipes
 end
 
+-- Whether a record stays within what one character may have (MAX_PROFS, MAX_RECIPES).
+function C.WithinLimits(profs)
+    local professions = 0
+    for _, cats in pairs(profs) do
+        professions = professions + 1
+        local recipes = 0
+        for _, ids in pairs(cats) do recipes = recipes + #ids end
+        if professions > C.MAX_PROFS or recipes > C.MAX_RECIPES then return false end
+    end
+    return true
+end
+
 -- A new record with the recipes of both.
 function C.Merge(a, b)
     local sets = {}

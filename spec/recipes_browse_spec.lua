@@ -118,7 +118,10 @@ describe("RecipeBrowse", function()
         i.names = { profession = function() end, category = function() end, recipe = function() end }
         local m = Build(i)
         assert.equal("#165", m.name)
-        assert.same({ "# Other (2)", "#3760 2/2", "#9198 1/1", "# Other (1)", "#2149 1/2" }, lines(m.rows))
+        assert.same({ "# Other (3)", "#2149 1/2", "#3760 2/2", "#9198 1/1" }, lines(m.rows)) -- one section for all of them
+        assert.equal("other", m.rows[1].category)
+        i.collapsed = { other = true }
+        assert.same({ "# Other (3)" }, lines(Build(i).rows))
     end)
 
     it("copes with an empty store and an empty roster", function()
@@ -131,6 +134,13 @@ describe("RecipeBrowse", function()
             assert.same({ recipes = 0, crafters = 0, reachable = 0 }, m.stats)
             assert.same({}, m.unknown)
         end
+    end)
+
+    it("lists only professions it is told are real ones", function()
+        local i = input({ isProfession = function(skill) return skill == 165 end })
+        local m = Build(i)
+        assert.equal(1, #m.professions)
+        assert.equal(165, m.professions[1].skill)
     end)
 
     it("skips a broken record", function()

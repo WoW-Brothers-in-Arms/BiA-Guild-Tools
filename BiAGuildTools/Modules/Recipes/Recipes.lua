@@ -18,8 +18,8 @@ local After = ns.After
 local M = ns:NewModule("recipes", {
     title = L.RCP_TITLE,
     desc = L.RCP_DESC,
-    -- catalog[skillLine][recipeID] = categoryID; own[guid] = { t = revision of that character's record }
-    defaults = { members = {}, catalog = {}, own = {}, onlyOnline = true },
+    -- catalog[skillLine][recipeID] = categoryID
+    defaults = { members = {}, catalog = {}, onlyOnline = true },
     slashAllowsEmpty = true, -- /bia recipes without argument opens the window
 })
 
@@ -38,6 +38,12 @@ function M.OnStoreChanged(fn) storeListeners[#storeListeners + 1] = fn end
 
 function M.StoreChanged()
     for _, fn in ipairs(storeListeners) do fn() end
+end
+
+-- The guild this character is in (records are kept per guild, see Store.lua); nil in none.
+local function GuildName()
+    local name = IsInGuild() and GetGuildInfo and GetGuildInfo("player")
+    return ns.Readable(name) and type(name) == "string" and name or nil
 end
 
 function M.OwnRecord()
@@ -117,13 +123,12 @@ local function SaveOwn(profs)
     if type(old) ~= "table" or type(old.profs) ~= "table" then old = nil end
     if not old and next(profs) == nil then return end -- nothing known yet: no record
     if old and S.Checksum(profs) == S.Checksum(old.profs) then
-        S.Put(M.db.members, guid, ns.PlayerFullName(), old.t, profs, time())
+        S.Put(M.db.members, guid, ns.PlayerFullName(), old.t, profs, time(), GuildName())
         return
     end
     local t = GetServerTime and GetServerTime() or time()
-    M.db.own[guid] = { t = t }
     local additions = old and Additions(old.profs, profs) or nil
-    S.Put(M.db.members, guid, ns.PlayerFullName(), t, profs, time())
+    S.Put(M.db.members, guid, ns.PlayerFullName(), t, profs, time(), GuildName())
     for _, fn in ipairs(ownListeners) do fn(additions) end
     M.StoreChanged()
 end
@@ -137,19 +142,26 @@ local function Rebuild(windowSkill, windowLearned)
     for skill in pairs(skills) do
         local catalog = M.db.catalog[skill]
         if catalog then
-            local learned = windowLearned
-            if skill ~= windowSkill then
-                learned = {}
+            if skill == windowSkill then
+                -- The window is the authority; but finding nothing is no proof (data may still be loading).
+                if #windowLearned > 0 then profs[skill] = ByCategory(catalog, windowLearned) end
+            else
+                -- Without the window the game may not answer for every recipe yet, and recipes are only
+                -- lost together with their profession: add what it reports to what was known.
+                local known = {}
                 for id in pairs(catalog) do
-                    if IsKnown(id) then learned[#learned + 1] = id end
+                    if #known < C.MAX_RECIPES and IsKnown(id) then known[#known + 1] = id end
+                end
+                if #known > 0 then
+                    local merged = C.Merge({ [skill] = profs[skill] or {} }, { [skill] = ByCategory(catalog, known) })
+                    if C.WithinLimits(merged) then profs[skill] = merged[skill] end
                 end
             end
-            -- Finding nothing is no proof (data may still be loading): keep what was known.
-            if #learned > 0 then profs[skill] = ByCategory(catalog, learned) end
         end
     end
-    -- A profession you no longer have – but right after login the game may not list all of them yet.
-    if loginAt and GetTime() - loginAt >= SETTLE_SECONDS then
+    -- A profession you no longer have – but right after login the game may not list all of them yet,
+    -- and a list without any profession is more likely a hiccup than the truth.
+    if next(skills) ~= nil and loginAt and GetTime() - loginAt >= SETTLE_SECONDS then
         for skill in pairs(profs) do
             if not skills[skill] then profs[skill] = nil end
         end
@@ -225,12 +237,16 @@ local PREFIX, PROTOCOL = "BiaRcp", "1"
 local MAX_MESSAGE = 250
 
 -- Outgoing messages leave one per second. One the game refuses stays first in line and is tried again.
+-- outbox entries: { msg, tag } – tag: the checksum of the record a chunk belongs to.
 local outbox, pumping = {}, false
 local function Pump()
     pumping = false
-    local msg = outbox[1]
-    if not msg then return end
-    local ok, reason = M:SendGuild(msg, PREFIX)
+    local entry = outbox[1]
+    if not entry or not M:IsEnabled() then
+        outbox = {}
+        return
+    end
+    local ok, reason = M:SendGuild(entry.msg, PREFIX)
     if ok then
         table.remove(outbox, 1)
     elseif reason == "NotInGuild" or reason == "NoAPI" then
@@ -243,8 +259,8 @@ local function Pump()
     end
 end
 
-function M.Queue(msg)
-    outbox[#outbox + 1] = msg
+function M.Queue(msg, tag)
+    outbox[#outbox + 1] = { msg = msg, tag = tag }
     if not pumping then
         pumping = true
         After(1, Pump)
@@ -260,6 +276,9 @@ local sentChecksum -- of the record that last went out whole
 local function SendRecord()
     local record = M.OwnRecord()
     if not M:IsEnabled() or type(record) ~= "table" then return end
+    for _, entry in ipairs(outbox) do
+        if entry.tag == record.h then return end -- already waiting to go out (asked for more than once)
+    end
     sentChecksum = record.h
     local head = ("D|%s|%s|%s|%s|"):format(PROTOCOL, ShortGuid(UnitGUID("player")), C.Text(record.t), record.h)
     local chunks = C.Chunks(C.EncodeRecord(record.profs), MAX_MESSAGE - #head - 6) -- 6: "<i>/<n>|"
@@ -268,7 +287,7 @@ local function SendRecord()
         return
     end
     for i, chunk in ipairs(chunks) do
-        M.Queue(("%s%s/%s|%s"):format(head, C.Text(i), C.Text(#chunks), chunk))
+        M.Queue(("%s%s/%s|%s"):format(head, C.Text(i), C.Text(#chunks), chunk), record.h)
     end
 end
 
@@ -301,8 +320,9 @@ M.OnOwnChanged(function(additions)
     After(pendingFull and 30 or 10, Flush)
 end)
 
--- Chunks of records that are arriving: [sender guid : t : h] = { n, count, parts }.
+-- Chunks of records that are arriving: [sender guid : t : h] = { n, count, at, [i] = chunk }.
 local arriving = {}
+local ARRIVAL_TIMEOUT = 75 -- seconds without a new chunk
 
 local function OnData(rest, senderGuid)
     local short, tText, h, iText, nText, chunk = rest:match("^([^|]+)|([^|]+)|(%d+)|([^/|]+)/([^|]+)|(.*)$")
@@ -318,13 +338,20 @@ local function OnData(rest, senderGuid)
     if not parts then
         parts = { n = n, count = 0 }
         arriving[key] = parts
-        After(60, function()
-            if arriving[key] == parts then arriving[key] = nil end -- a chunk never came
-        end)
+        -- Given up when no new chunk came for a minute (a sender in combat pauses that long at most
+        -- between two tries; n is limited, so this ends).
+        local function Check()
+            if arriving[key] ~= parts then return end
+            local idle = GetTime() - parts.at
+            if idle >= ARRIVAL_TIMEOUT then arriving[key] = nil else After(ARRIVAL_TIMEOUT - idle, Check) end
+        end
+        parts.at = GetTime()
+        After(ARRIVAL_TIMEOUT, Check)
     end
     if parts[i] ~= nil then return end -- sent twice
     parts[i] = chunk
     parts.count = parts.count + 1
+    parts.at = GetTime()
     if parts.count < n then return end
     arriving[key] = nil
     local text = C.Join(parts)
@@ -334,7 +361,9 @@ local function OnData(rest, senderGuid)
         return
     end
     local member = ns.Roster()[senderGuid]
-    if S.Put(M.db.members, senderGuid, member and member.name or senderGuid, t, profs, time()) then M.StoreChanged() end
+    if S.Put(M.db.members, senderGuid, member and member.name or senderGuid, t, profs, time(), GuildName()) then
+        M.StoreChanged()
+    end
 end
 
 local function OnAdditions(rest, senderGuid)
@@ -414,11 +443,17 @@ local lastPrune
 local function Prune()
     if not M:IsEnabled() then return end
     lastPrune = GetTime()
-    if S.Prune(M.db.members, ns.Roster(), time(), STALE_SECONDS) > 0 then M.StoreChanged() end
+    local roster = ns.Roster()
+    if not roster[UnitGUID("player")] then return end -- not the whole roster yet (or no guild)
+    if S.Prune(M.db.members, roster, time(), STALE_SECONDS, GuildName()) > 0 then M.StoreChanged() end
 end
 
 M:RegisterEvent("GUILD_ROSTER_UPDATE", function()
     if lastPrune and GetTime() - lastPrune >= 60 then Prune() end
+end)
+
+M:OnToggled(function(on)
+    if not on then outbox = {} end -- switched off: nothing more goes out
 end)
 
 function M:OnLogin()

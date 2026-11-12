@@ -7,12 +7,13 @@
 --     roster        { [guid] = { name, classFile, level, online } }; records of others are ignored
 --     groupOf       function(guid) -> { main, alts } or nil; optional (alt data of the Alts tool)
 --     professionsOf function(guid) -> { skill, ... } or nil; optional (for the "unknown" line)
+--     isProfession  function(skill) -> bool; optional: other skill lines in a record are left out
 --     names         { profession = fn(skill), category = fn(id), recipe = fn(id) } -> text or nil
---     otherText     name for a category without one
+--     otherText     name of the section for all categories without a name (its category is "other")
 --     skill, recipe the chosen profession and recipe (either may be nil or no longer listed)
 --     search        text; plain, case does not matter
 --     onlyOnline    only crafters who can be reached now, and only recipes one of them knows
---     collapsed     { [category] = true }
+--     collapsed     { [category] = true } (category: an ID, or "other")
 --   }
 --   model = {
 --     professions = { { skill, name, crafters, selected }, ... }   sorted by name
@@ -74,13 +75,15 @@ function B.Build(input)
             if person.reachable or not input.onlyOnline then
                 for skill, cats in pairs(record.profs) do
                     local any = false
-                    for cat, ids in pairs(cats) do
-                        for _, id in ipairs(ids) do
-                            skills[skill] = skills[skill] or {}
-                            skills[skill][cat] = skills[skill][cat] or {}
-                            skills[skill][cat][id] = skills[skill][cat][id] or {}
-                            table.insert(skills[skill][cat][id], person)
-                            any = true
+                    if not input.isProfession or input.isProfession(skill) then
+                        for cat, ids in pairs(cats) do
+                            for _, id in ipairs(ids) do
+                                skills[skill] = skills[skill] or {}
+                                skills[skill][cat] = skills[skill][cat] or {}
+                                skills[skill][cat][id] = skills[skill][cat][id] or {}
+                                table.insert(skills[skill][cat][id], person)
+                                any = true
+                            end
                         end
                     end
                     if any then crafterCount[skill] = (crafterCount[skill] or 0) + 1 end
@@ -108,9 +111,17 @@ function B.Build(input)
 
     -- Categories and recipes of the chosen profession.
     local needle = input.search and input.search ~= "" and input.search:lower() or nil
-    local cats, seen, listed = {}, {}, {}
+    -- Categories this client can't name share one section.
+    local cats, seen, listed, other = {}, {}, {}, nil
     for cat, recipes in pairs(skills[chosen.skill]) do
-        local entry = { category = cat, text = names.category(cat) or input.otherText or "?", recipes = {} }
+        local text = names.category(cat)
+        local entry
+        if text then
+            entry = { category = cat, text = text, recipes = {} }
+        else
+            other = other or { category = "other", text = input.otherText or "?", recipes = {}, isOther = true }
+            entry = other
+        end
         for id, crafters in pairs(recipes) do
             local name = names.recipe(id) or ("#" .. id)
             if not needle or name:lower():find(needle, 1, true) then
@@ -127,11 +138,12 @@ function B.Build(input)
                     selected = false, crafters = crafters, categoryText = entry.text }
             end
         end
-        if #entry.recipes > 0 then cats[#cats + 1] = entry end
+        if #entry.recipes > 0 and not entry.isOther then cats[#cats + 1] = entry end
     end
+    if other and #other.recipes > 0 then cats[#cats + 1] = other end
     table.sort(cats, function(a, b)
         if a.text ~= b.text then return a.text < b.text end
-        return a.category < b.category
+        return tostring(a.category) < tostring(b.category)
     end)
     for _, entry in ipairs(cats) do
         table.sort(entry.recipes, function(a, b)

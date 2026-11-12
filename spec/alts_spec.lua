@@ -791,6 +791,17 @@ describe("Alts", function()
             assert.is_false(recipes.shown)
         end)
 
+        it("creates a tab that is added after the guild window was loaded", function()
+            local game = tabGame()
+            game.ns.RosterTabs.Add({ name = "LateTab", icon = "icon", tooltip = "t", enabled = function() return true end,
+                checked = function() return false end, onClick = function() end })
+            game.ns.RosterTabs.Update()
+            local found = false
+            for _, f in ipairs(game.frames) do found = found or f.name == "LateTab" end
+            assert.is_true(found)
+            assert.same({}, game.errors)
+        end)
+
         it("hides while the Alts tool is off", function()
             local game, tab = tabGame()
             game:slash("alts off")

@@ -174,6 +174,33 @@ describe("Guild Recipes", function()
             assert.is_nil(db(game).members["Player-1-0000FFFF"])
         end)
 
+        it("keeps your professions when the game lists none for a moment", function()
+            local game = scanned()
+            local before = M(game).OwnRecord().h
+            game:advance(20)
+            for i = #game.skills, 1, -1 do game.skills[i] = nil end
+            M(game).ScanKnown()
+            assert.equal(before, M(game).OwnRecord().h)
+        end)
+
+        it("never loses a recipe to a scan without the window", function()
+            local game = scanned()
+            game:advance(20)
+            game.known[3760] = true -- the game answers for one of the two known recipes only
+            M(game).ScanKnown()
+            assert.same({ [165] = { [2552] = { 3760 }, [2560] = { 2149 } } }, M(game).OwnRecord().profs)
+        end)
+
+        it("keeps the other guild's recipes when you log in on a character elsewhere", function()
+            local elsewhere = { name = "Far-Realm", t = 5, h = "1", seen = 1700000000, g = "Other Guild",
+                profs = { [165] = { [1] = { 5 } } } }
+            local game = Game({ saved = { modules = { recipes = { members = { ["Player-1-0000EEEE"] = elsewhere } } } } })
+            game:login()
+            game:fire("GUILD_ROSTER_UPDATE")
+            game:advance(20)
+            assert.is_table(db(game).members["Player-1-0000EEEE"])
+        end)
+
         it("does nothing while the tool is off", function()
             local game = scanned({ saved = { enabled = { recipes = false } } })
             game:advance(40)
@@ -251,7 +278,7 @@ describe("Guild Recipes", function()
             local parts = { newer:sub(1, 4), newer:sub(5, 8), newer:sub(9) }
             game:receive("BiaRcp", ("D|1|1-0000BBBB|b|%s|1/3|%s"):format(h2, parts[1]), "Other Realm")
             game:receive("BiaRcp", ("D|1|1-0000BBBB|b|%s|3/3|%s"):format(h2, parts[3]), "Other Realm")
-            game:advance(61)
+            game:advance(80) -- given up after 75 seconds without a new chunk
             game:receive("BiaRcp", ("D|1|1-0000BBBB|b|%s|2/3|%s"):format(h2, parts[2]), "Other Realm")
             assert.same(PROFS, db(game).members[OTHER].profs)
         end)
@@ -266,6 +293,64 @@ describe("Guild Recipes", function()
             game:receive("BiaRcp", ("N|1|1-0000BBBB|b|%s|%s"):format(game.ns.Hash(Cd.EncodeRecord(after)), adds), "Other Realm")
             assert.same(after, db(game).members[OTHER].profs)
             assert.equal(11, db(game).members[OTHER].t)
+        end)
+
+        it("stores a long record that takes more than a minute to arrive", function()
+            local game = online()
+            local text, h = valid(game)
+            local parts = { text:sub(1, 3), text:sub(4, 6), text:sub(7) }
+            for i = 1, 3 do
+                game:receive("BiaRcp", ("D|1|1-0000BBBB|a|%s|%d/3|%s"):format(h, i, parts[i]), "Other Realm")
+                game:advance(40)
+            end
+            assert.same(PROFS, db(game).members[OTHER].profs)
+        end)
+
+        it("doesn't queue your record again while it is still waiting to go out", function()
+            local game = scanned({ skills = { 165 } })
+            game:fire("GUILD_ROSTER_UPDATE")
+            local send, blocked = game.env.C_ChatInfo.SendAddonMessage, true
+            game.env.C_ChatInfo.SendAddonMessage = function(prefix, ...)
+                if prefix == "BiaRcp" and blocked then return 11 end -- AddOnMessageLockdown
+                return send(prefix, ...)
+            end
+            for _ = 1, 4 do
+                game:receive("BiaSync", "Q|2|r|1-0000AAAA", "Other Realm")
+                game:advance(40)
+            end
+            blocked = false
+            game:advance(200)
+            assert.equal(1, #game:sentWith("BiaRcp"))
+        end)
+
+        it("sends nothing more after the tool is switched off", function()
+            local game = online()
+            M(game).Queue("x1")
+            M(game).Queue("x2")
+            game:slash("recipes off")
+            game:advance(10)
+            assert.same({}, game:sentWith("BiaRcp"))
+        end)
+
+        it("asks for many members' records one after the other, not all at once", function()
+            local members = { { "Tester-Realm", TESTER } }
+            for i = 1, 14 do members[#members + 1] = { ("M%02d-Realm"):format(i), ("Player-1-0000%04d"):format(i) } end
+            local game = Game({ skills = {}, roster = members })
+            game:login()
+            game:fire("GUILD_ROSTER_UPDATE")
+            game:advance(30)
+            local function questions()
+                local n = 0
+                for _, msg in ipairs(game:sentWith("BiaSync")) do
+                    if msg:match("^Q|2|r|") then n = n + 1 end
+                end
+                return n
+            end
+            for i = 1, 14 do game:receive("BiaSync", "S|2|0|r=a.123", ("M%02d Realm"):format(i)) end
+            game:advance(9)
+            assert.is_true(questions() <= 8, questions() .. " questions within 9 seconds")
+            game:advance(40)
+            assert.equal(14, questions())
         end)
 
         it("sends one message per second", function()
@@ -441,8 +526,8 @@ describe("Guild Recipes", function()
             M(game).SetSearch("#91")
             assert.same({ "#", "#9198" }, kinds(M(game).WindowModel().rows))
             M(game).SetSearch("")
-            M(game).ToggleCategory(2552)
-            assert.is_true(db(game).collapsed[2552])
+            M(game).ToggleCategory("other") -- the section of categories the client can't name
+            assert.is_true(db(game).collapsed.other)
             assert.same({ "#" }, kinds(M(game).WindowModel().rows))
         end)
 

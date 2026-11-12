@@ -103,6 +103,24 @@ local function QueueStatus()
     end)
 end
 
+-- Questions leave one per second, so a login into a big guild (everyone's data is missing) doesn't
+-- run into the game's limit for addon messages. One the game refuses is tried again.
+local askQueue, askPumping = {}, false
+local function PumpAsks()
+    askPumping = false
+    local msg = askQueue[1]
+    if not msg then return end
+    local ok, reason = S:SendGuild(msg)
+    if ok or reason == "NotInGuild" or reason == "NoAPI" then table.remove(askQueue, 1) end
+    askPumping = true -- also with nothing waiting: the next question keeps the distance
+    After(ok and 1 or 15, PumpAsks)
+end
+
+local function Ask(msg)
+    askQueue[#askQueue + 1] = msg
+    if not askPumping then PumpAsks() end
+end
+
 -- Asks guid for its data after a random delay. Everyone who lacks the data would ask, so whoever
 -- hears someone else's question (or the data itself) in the meantime keeps quiet.
 local function QueueAsk(part, guid, stamp)
@@ -113,7 +131,7 @@ local function QueueAsk(part, guid, stamp)
         pending[id] = nil
         if asked[id] == stamp or part.has(stamp, guid) then return end
         asked[id] = stamp -- once per stamp and session, also when the answer never matches
-        S:SendGuild(("Q|%s|%s|%s"):format(PROTOCOL, part.key, (guid:gsub("^Player%-", ""))))
+        Ask(("Q|%s|%s|%s"):format(PROTOCOL, part.key, (guid:gsub("^Player%-", ""))))
     end)
 end
 
