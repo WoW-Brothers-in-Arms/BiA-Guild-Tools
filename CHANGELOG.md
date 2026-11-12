@@ -4,7 +4,7 @@ New entries go under `## Unreleased`. Before tagging a release, rename that head
 (e.g. `## 1.1.0 (2026-11-12)`) – the release workflow uses that section as release notes on GitHub
 and CurseForge and stops if it is missing.
 
-## Unreleased
+## 1.3.0 (2026-11-12)
 
 - New tool **Fishing Pole**: cast Fishing without a fishing pole and the tool puts one on from your bags – cast Fishing again to fish. A movable **Switch back** button puts your weapons from before back on, also in combat (`/bia fishing back`).
 - New tool **Markers**: `/bia marker` shows a small one-row panel for target markers, ground markers (a switch picks which), ready check and pull timer, with the addon's own symbols. Right-click on its frame to move or lock it; right-click on the pull button for its duration. By default it shows only in a group.
