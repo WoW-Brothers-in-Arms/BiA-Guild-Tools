@@ -68,6 +68,10 @@ and atlases are used, so the result is more detailed than the mock-ups.
 3. **Ornament line** across the window.
 4. **Content:** a list, and for Guild Recipes and Alts a detail pane on the right for the chosen row.
 
+**Lists are zebra-striped:** every second data row is lightly shaded (white at 5 %). The count starts
+again after each section header, so the first row under a header is never shaded. The highlight of
+the chosen row wins over the stripe.
+
 The main picker and the login hint are small dialogs: they get the new frame and nothing else.
 
 ### Game assets
@@ -99,6 +103,7 @@ local pane = ns.AddDetailPane(f, { width = 300 })                         -- rig
 f.Scroll = ns.AddScrollList(f, { top, bottom, left, right, rowType, rowHeight, init })
 ns.StyleHeader(row)  ns.SetHeader(row, text, expanded)                    -- section-header look for a list row
 ns.StyleSelectable(row)                                                   -- highlight textures; row:SetSelected(bool)
+ns.StyleZebra(row)  ns.SetZebra(row, on)                                  -- the light stripe of every second row
 ns.AddStatusDot(row)  ns.SetStatusDot(row.Dot, online)                    -- filled green / hollow grey ring
 ns.AddCheckbox(f, { label, checked, onChange, point })
 ```
