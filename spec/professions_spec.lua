@@ -17,6 +17,15 @@ local function members(game)
 end
 
 describe("Professions", function()
+    it("tells crafting professions from gathering ones", function()
+        local D = Wow.new().ns.ProfessionData
+        assert.is_true(D.IsCrafting(165))   -- Leatherworking
+        assert.is_true(D.IsCrafting(185))   -- Cooking
+        assert.is_false(D.IsCrafting(393))  -- Skinning
+        assert.is_false(D.IsCrafting(356))  -- Fishing
+        assert.is_false(D.IsCrafting(99999))
+    end)
+
     describe("sending", function()
         it("reports a checksum of your professions in the status after login instead of sending them", function()
             local game = Wow.new({ globals = WithProfessions() })
