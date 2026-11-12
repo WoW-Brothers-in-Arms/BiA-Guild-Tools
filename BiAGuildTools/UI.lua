@@ -276,7 +276,7 @@ end
 function ns.StyleHeader(row)
     if row.isHeaderStyled == true then return end
     row.isHeaderStyled = true
-    local bar = row:CreateTexture(nil, "BACKGROUND")
+    local bar = row:CreateTexture(nil, "BACKGROUND", nil, 0)
     bar:SetAllPoints()
     if UI.Atlas("common-button-list-collapseExpand") then
         bar:SetAtlas("common-button-list-collapseExpand")
@@ -432,7 +432,11 @@ function ns.AddSectionList(f, opts)
     sticky:SetPoint("TOPRIGHT", list.Scroll, "TOPRIGHT")
     sticky:SetHeight(opts.rowHeight)
     sticky:SetFrameLevel((list.Scroll:GetFrameLevel() or 1) + 20) -- above the rows
-    UI.Fill(sticky, "BACKGROUND", COLORS.ground):SetAllPoints()   -- rows don't shine through
+    -- Rows don't shine through. The cover lies below the header bar's own art (same layer, lowest
+    -- sublevel); on one level the game drew it over the bar and the header looked dull.
+    local cover = sticky:CreateTexture(nil, "BACKGROUND", nil, -8)
+    cover:SetColorTexture(COLORS.ground[1], COLORS.ground[2], COLORS.ground[3], 1)
+    cover:SetAllPoints()
     sticky:Hide()
     list.Sticky = sticky
 
