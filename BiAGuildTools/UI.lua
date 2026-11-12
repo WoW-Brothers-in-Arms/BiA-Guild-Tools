@@ -75,15 +75,16 @@ end
 -- hidden. f.Title is its title text; f.fallback tells that the game's panel template was missing and
 -- the window is drawn with plain colours instead.
 -- opts: width, height, title (optional; default "BiA Guild Tools"), y (offset from the screen centre,
---       default 0), db (optional): a table whose .window remembers where the player dragged the window,
---       toplevel (optional): clicking the window raises it above other windows.
+--       default 0), db (optional): a table whose .window remembers where the player dragged the window.
 function ns.CreateWindow(name, opts)
     local f, templated = UI.TryFrame("Frame", name, UIParent, "DefaultPanelTemplate")
     f.fallback = not templated
     if f.fallback then DrawPlainPanel(f) end
     f:SetSize(opts.width, opts.height or 100)
     f:SetFrameStrata("DIALOG")
-    if opts.toplevel then f:SetToplevel(true) end
+    -- Raised above the other windows when shown or clicked; without this two open windows share one
+    -- level and their parts shine through each other.
+    f:SetToplevel(true)
     f:SetClampedToScreen(true)
     f:SetMovable(true)
     f:EnableMouse(true)

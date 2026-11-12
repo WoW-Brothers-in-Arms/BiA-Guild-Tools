@@ -86,7 +86,7 @@ end
 
 local function CreateDialog()
     local f = ns.CreateWindow("BiAGuildToolsMainPicker",
-        { width = 260, height = 70 + MAX_HITS * ROW_HEIGHT, y = 120, toplevel = true })
+        { width = 260, height = 70 + MAX_HITS * ROW_HEIGHT, y = 120 })
 
     local search = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
     search:SetSize(220, 20)

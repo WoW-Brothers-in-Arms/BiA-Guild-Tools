@@ -78,7 +78,7 @@ end
 
 local function CreateDialog()
     -- Esc closes it, like "Later". Layout() sets the height.
-    local f = ns.CreateWindow("BiAGuildToolsLoginHint", { width = WIDTH, y = 150, toplevel = true, title = L.ALTS_HINT_TITLE })
+    local f = ns.CreateWindow("BiAGuildToolsLoginHint", { width = WIDTH, y = 150, title = L.ALTS_HINT_TITLE })
 
     for _, key in ipairs({ "MainText", "NoteText" }) do
         local text = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
