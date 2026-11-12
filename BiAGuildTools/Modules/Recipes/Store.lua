@@ -13,8 +13,13 @@ local C = ns.RecipeCodec
 local S = {}
 ns.RecipeStore = S
 
+-- The checksum of a record's text, as it travels in messages: digits.
+function S.TextChecksum(text)
+    return ("%.0f"):format(ns.Hash(text))
+end
+
 function S.Checksum(profs)
-    return ns.Hash(C.EncodeRecord(profs))
+    return S.TextChecksum(C.EncodeRecord(profs))
 end
 
 -- Stores a record its owner sent (replacing what was there). Returns whether anything but `seen` and

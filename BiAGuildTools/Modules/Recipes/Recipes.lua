@@ -214,6 +214,188 @@ M:RegisterEvent("NEW_RECIPE_LEARNED", function(recipeID)
 end)
 
 ---------------------------------------------------------------------------
+-- Messages. Numbers are base 36, <guid> is the character's GUID without "Player-".
+--   D|1|<guid>|<t>|<h>|<i>/<n>|<chunk>   chunk i of n of that character's record text (Codec.lua)
+--   N|1|<guid>|<t>|<h>|<additions>       the owner learned recipes: a record of just those; t and h are
+--                                        the whole record's new revision and checksum
+-- Who needs a record learns it from the status of Sync.lua (key "r": "<t>.<h>"): whoever has another
+-- checksum stored asks, and the owner sends. Only the owner's own messages are accepted.
+---------------------------------------------------------------------------
+local PREFIX, PROTOCOL = "BiaRcp", "1"
+local MAX_MESSAGE = 250
+
+-- Outgoing messages leave one per second. One the game refuses stays first in line and is tried again.
+local outbox, pumping = {}, false
+local function Pump()
+    pumping = false
+    local msg = outbox[1]
+    if not msg then return end
+    local ok, reason = M:SendGuild(msg, PREFIX)
+    if ok then
+        table.remove(outbox, 1)
+    elseif reason == "NotInGuild" or reason == "NoAPI" then
+        outbox = {}
+        return
+    end
+    if outbox[1] then
+        pumping = true
+        After(ok and 1 or (reason == "AddonMessageThrottle" and 15 or 60), Pump)
+    end
+end
+
+function M.Queue(msg)
+    outbox[#outbox + 1] = msg
+    if not pumping then
+        pumping = true
+        After(1, Pump)
+    end
+end
+
+local function ShortGuid(guid)
+    return (guid:gsub("^Player%-", ""))
+end
+
+-- Queues this character's whole record.
+local sentChecksum -- of the record that last went out whole
+local function SendRecord()
+    local record = M.OwnRecord()
+    if not M:IsEnabled() or type(record) ~= "table" then return end
+    sentChecksum = record.h
+    local head = ("D|%s|%s|%s|%s|"):format(PROTOCOL, ShortGuid(UnitGUID("player")), C.Text(record.t), record.h)
+    local chunks = C.Chunks(C.EncodeRecord(record.profs), MAX_MESSAGE - #head - 6) -- 6: "<i>/<n>|"
+    if #chunks > C.MAX_CHUNKS then
+        M:Debug("record not sent: %d chunks are too many", #chunks)
+        return
+    end
+    for i, chunk in ipairs(chunks) do
+        M.Queue(("%s%s/%s|%s"):format(head, C.Text(i), C.Text(#chunks), chunk))
+    end
+end
+
+-- After a change: newly learned recipes go out as one short message a few seconds later (several in
+-- that time together); anything else – the first record, a dropped profession, too many additions
+-- for one message – as the whole record.
+local pendingAdditions, pendingFull, flushQueued = nil, false, false
+local function Flush()
+    flushQueued = false
+    local additions, full = pendingAdditions, pendingFull
+    pendingAdditions, pendingFull = nil, false
+    local record = M.OwnRecord()
+    if not M:IsEnabled() or type(record) ~= "table" then return end
+    if not full and additions then
+        local msg = ("N|%s|%s|%s|%s|%s"):format(PROTOCOL, ShortGuid(UnitGUID("player")), C.Text(record.t), record.h,
+            C.EncodeRecord(additions))
+        if #msg <= MAX_MESSAGE then return M.Queue(msg) end
+    end
+    if record.h ~= sentChecksum then SendRecord() end -- unless somebody asked for it in the meantime
+end
+
+M.OnOwnChanged(function(additions)
+    if additions and not pendingFull then
+        pendingAdditions = C.Merge(pendingAdditions or {}, additions)
+    else
+        pendingFull, pendingAdditions = true, nil
+    end
+    if flushQueued then return end
+    flushQueued = true
+    After(pendingFull and 30 or 10, Flush)
+end)
+
+-- Chunks of records that are arriving: [sender guid : t : h] = { n, count, parts }.
+local arriving = {}
+
+local function OnData(rest, senderGuid)
+    local short, tText, h, iText, nText, chunk = rest:match("^([^|]+)|([^|]+)|(%d+)|([^/|]+)/([^|]+)|(.*)$")
+    if not short or "Player-" .. short ~= senderGuid then return end -- only an owner's own record
+    local t, i, n = C.Num(tText), C.Num(iText), C.Num(nText)
+    if not t or not i or not n or n < 1 or n > C.MAX_CHUNKS or i < 1 or i > n then return end
+    local key = senderGuid .. ":" .. tText .. ":" .. h
+    local parts = arriving[key]
+    if parts and parts.n ~= n then
+        arriving[key] = nil
+        return
+    end
+    if not parts then
+        parts = { n = n, count = 0 }
+        arriving[key] = parts
+        After(60, function()
+            if arriving[key] == parts then arriving[key] = nil end -- a chunk never came
+        end)
+    end
+    if parts[i] ~= nil then return end -- sent twice
+    parts[i] = chunk
+    parts.count = parts.count + 1
+    if parts.count < n then return end
+    arriving[key] = nil
+    local text = C.Join(parts)
+    local profs = S.TextChecksum(text) == h and C.DecodeRecord(text) or nil
+    if not profs then
+        M:Debug("record of %s dropped: damaged", senderGuid)
+        return
+    end
+    local member = ns.Roster()[senderGuid]
+    if S.Put(M.db.members, senderGuid, member and member.name or senderGuid, t, profs, time()) then M.StoreChanged() end
+end
+
+local function OnAdditions(rest, senderGuid)
+    local short, tText, h, text = rest:match("^([^|]+)|([^|]+)|(%d+)|(.+)$")
+    if not short or "Player-" .. short ~= senderGuid then return end
+    local t, additions = C.Num(tText), C.DecodeRecord(text)
+    if not t or not additions then return end
+    if S.Add(M.db.members, senderGuid, t, h, additions, time()) then M.StoreChanged() end
+end
+
+M:RegisterComm(PREFIX, function(text, channel, sender)
+    if channel ~= "GUILD" or not ns.Readable(sender) or type(sender) ~= "string" or type(text) ~= "string" then return end
+    local kind, version, rest = text:match("^(%a)|(%d+)|(.*)$")
+    if version ~= PROTOCOL then return end
+    local senderGuid = ns.RosterGuidByName(sender)
+    if not senderGuid or senderGuid == UnitGUID("player") then return end -- not in the roster, or our own
+    if kind == "D" then OnData(rest, senderGuid) elseif kind == "N" then OnAdditions(rest, senderGuid) end
+end)
+
+ns.Sync.Register(M, {
+    key = "r",
+    stamp = function()
+        local record = M.OwnRecord()
+        if type(record) ~= "table" then return nil end
+        return C.Text(record.t) .. "." .. record.h
+    end,
+    -- Their stamp says what they have; if that is what we stored, it is still current.
+    has = function(stamp, guid)
+        return S.Confirm(M.db.members, guid, stamp:match("%.(%d+)$") or "", time())
+    end,
+    send = SendRecord,
+})
+
+---------------------------------------------------------------------------
+-- /bia recipes
+---------------------------------------------------------------------------
+M:RegisterSlash("recipes", function(_, cmd)
+    if cmd == "" then
+        if M.ToggleWindow then M.ToggleWindow() end
+    elseif cmd == "sync" then
+        ns.Sync.Hello(true)
+        M:Print(L.RCP_SYNC_SENT)
+    elseif cmd == "status" then
+        local members, recipes = 0, 0
+        for _, record in pairs(M.db.members) do
+            if type(record) == "table" and type(record.profs) == "table" then
+                members = members + 1
+                recipes = recipes + select(2, C.Count(record.profs))
+            end
+        end
+        M:Print(L.RCP_STATUS:format(members, recipes))
+    else
+        M:Print(L.RCP_UNKNOWN_COMMAND:format("/bia recipes help"))
+    end
+end, {
+    "– " .. L.RCP_HELP_WINDOW,
+    "sync – " .. L.RCP_HELP_SYNC,
+    "status – " .. L.RCP_HELP_STATUS,
+})
+
+---------------------------------------------------------------------------
 -- Lifecycle
 ---------------------------------------------------------------------------
 -- One chat line per session for crafting professions whose window was never opened on this account.

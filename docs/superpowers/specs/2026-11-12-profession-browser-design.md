@@ -253,7 +253,7 @@ character's GUID without `Player-`.
 | Message | Meaning |
 |---|---|
 | `D\|1\|<guid>\|<t>\|<h>\|<i>/<n>\|<chunk>` | chunk i of n of that character's record text |
-| `N\|1\|<guid>\|<t>\|<h>\|<skill>\|<cat>\|<id>,<id>…` | owner only: these recipes were added; `t` and `h` are the record's new revision and checksum |
+| `N\|1\|<guid>\|<t>\|<h>\|<additions>` | owner only: these recipes were added, written like a record text (so one message can carry several categories, as after a visit to a trainer); `t` and `h` are the record's new revision and checksum |
 | `M\|1\|<i>/<n>\|<guid>:<t>,<guid>:<t>…` | manifest: the records the sender holds, their own included |
 | `A\|1\|<guid>\|<t>` | whoever holds this record at revision `t` or newer: please send it |
 
