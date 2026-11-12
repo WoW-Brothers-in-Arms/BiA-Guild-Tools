@@ -18,7 +18,8 @@ D.PROFESSIONS = {
     [755] = { en = "Jewelcrafting",  de = "Juwelierskunst",    icon = "Interface\\Icons\\INV_Misc_Gem_01" },
     [773] = { en = "Inscription",    de = "Inschriftenkunde",  icon = "Interface\\Icons\\INV_Inscription_Tradeskill01" },
     [185] = { en = "Cooking",        de = "Kochkunst",         icon = "Interface\\Icons\\INV_Misc_Food_15",          secondary = true },
-    [356] = { en = "Fishing",        de = "Angeln",            icon = "Interface\\Icons\\Trade_Fishing", secondary = true, gathering = true },
+    [356] = { en = "Fishing",        de = "Angeln",            icon = "Interface\\Icons\\Trade_Fishing",
+        secondary = true, gathering = true },
     [129] = { en = "First Aid",      de = "Erste Hilfe",       icon = "Interface\\Icons\\Spell_Holy_SealOfSacrifice", secondary = true },
 }
 
