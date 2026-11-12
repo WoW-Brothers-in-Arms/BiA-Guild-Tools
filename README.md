@@ -107,6 +107,15 @@ Who may do what follows the game's raid manager: in a party everyone may mark, i
 - `/bia marker pull <seconds>`: the pull timer's duration (default 10)
 - Settings page: "Show the panel only in a group" (on by default)
 
+### Fishing Pole (`/bia fishing`)
+
+Cast **Fishing** without a fishing pole and the tool puts one on from your bags (the one you used last, else the first it finds). The game refuses that first cast, because Fishing needs an equipped pole; cast Fishing a second time to fish. A single click can't do both: addons may equip items but not cast spells, and even a macro with `/equip` and `/cast` needs two clicks in WoW: Forever, because the new pole doesn't count within the same click.
+
+Before putting the pole on, the tool remembers your main hand and off hand. A **Switch back** button then appears; a click puts both back on, also in combat. The game doesn't allow changing equipment while you fish, so a click during fishing waits until you stop and then switches back. Drag the button to move it; it remembers its place and the weapons to put back across a `/reload`. It disappears once you switch back or put on another weapon yourself.
+
+- `/bia fishing back`: put the weapons from before back on (same as the button)
+- `/bia fishing reset`: move the button back to its starting place
+- `/bia fishing on` / `off`: turn it on or off
 
 ## Checks and tests
 
@@ -156,7 +165,8 @@ BiAGuildTools/
     ├── Alts/             ← module "alts" (Groups.lua: data logic, Window.lua: overview)
     ├── Bank/             ← module "bank"
     ├── Bags/             ← module "bags"
-    └── Markers/          ← module "markers" (Markers.lua: rules and commands, Panel.lua: the panel)
+    ├── Markers/          ← module "markers" (Markers.lua: rules and commands, Panel.lua: the panel)
+    └── Fishing/          ← module "fishing"
 spec/                     ← busted tests (not part of the release zip)
 └── support/wow.lua       ← fake WoW client for the tests
 scripts/check.sh          ← luacheck + busted

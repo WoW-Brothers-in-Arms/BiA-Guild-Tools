@@ -39,3 +39,4 @@ Modules\Bank\Bank.lua
 Modules\Bags\Bags.lua
 Modules\Markers\Markers.lua
 Modules\Markers\Panel.lua
+Modules\Fishing\Fishing.lua

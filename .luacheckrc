@@ -50,6 +50,9 @@ read_globals = {
     "GetItemInfoInstant", "UseContainerItem", "NUM_BAG_SLOTS", "IsBagOpen", "OpenBag", "CloseBag",
     "ToggleBackpack", "CHARACTER_BANK_DEPOSIT_BUTTON_LABEL",
 
+    -- Equipment
+    "GetInventoryItemID", "GetInventoryItemLink", "UnitChannelInfo",
+
     -- Group, markers, ready check, pull timer
     "IsInGroup", "IsInRaid", "UnitIsGroupLeader", "UnitIsGroupAssistant", "UnitExists", "CanBeRaidTarget",
     "GetRaidTargetIndex", "IsRaidMarkerActive", "C_PartyInfo",
