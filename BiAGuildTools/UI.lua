@@ -145,6 +145,8 @@ end
 
 -- Where a window's content starts below the title bar and the header (y offset from the window's top).
 UI.CONTENT_TOP = -104
+-- The distance of a window's content (header, list, detail card) from its left, right and bottom edge.
+UI.PANE_MARGIN = 14
 
 -- The header every list window has: a large icon, the window's name, one line of key figures, on the
 -- right "Only online" and a search box, and an ornament line below.
@@ -153,8 +155,8 @@ UI.CONTENT_TOP = -104
 -- header:SetIcon(texture), header:SetTitle(text), header:SetStats(text); header.Search, header.Online.
 function ns.AddHeader(f, opts)
     local h = CreateFrame("Frame", nil, f)
-    h:SetPoint("TOPLEFT", 16, -34)
-    h:SetPoint("TOPRIGHT", -16, -34)
+    h:SetPoint("TOPLEFT", UI.PANE_MARGIN, -34) -- its ornament line ends flush with the list and the card below
+    h:SetPoint("TOPRIGHT", -UI.PANE_MARGIN, -34)
     h:SetHeight(60)
 
     local frame = UI.Fill(h, "BORDER", COLORS.border)
@@ -184,7 +186,9 @@ function ns.AddHeader(f, opts)
     end
     if opts.search then
         local box, templated = UI.TryFrame("EditBox", nil, h, "SearchBoxTemplate")
-        box:SetSize(190, 22)
+        -- The game's search box is 20 px high and can't be stretched; scaled up it is 25 px.
+        box:SetSize(170, 20)
+        box:SetScale(1.25)
         if not templated then
             box:SetAutoFocus(false)
             box:SetFontObject("ChatFontNormal")
@@ -192,7 +196,7 @@ function ns.AddHeader(f, opts)
             UI.Fill(box, "BACKGROUND", { 0, 0, 0 }, 0.5):SetAllPoints()
             box:SetScript("OnEscapePressed", box.ClearFocus)
         end
-        if right == h then box:SetPoint("RIGHT", h, "RIGHT", 0, 8) else box:SetPoint("RIGHT", right, "LEFT", -20, 0) end
+        if right == h then box:SetPoint("RIGHT", h, "RIGHT", 0, 6) else box:SetPoint("RIGHT", right, "LEFT", -16, 0) end
         box:HookScript("OnTextChanged", function(self) opts.search(strtrim(self:GetText() or "")) end)
         h.Search = box
     end
@@ -217,7 +221,6 @@ end
 -- A card on the right below the header, for the details of the chosen row: the game's inset panel,
 -- with the same distance to the window's right and bottom edge as the list has to the left one.
 -- opts: width. UI.PANE_MARGIN is that distance.
-UI.PANE_MARGIN = 14
 function ns.AddDetailPane(f, opts)
     local pane, templated = UI.TryFrame("Frame", nil, f, "InsetFrameTemplate")
     pane:SetWidth(opts.width)
@@ -329,22 +332,33 @@ function ns.SetStatusDot(dot, online)
     dot:SetTexture(dot.online and "Interface\\FriendsFrame\\StatusIcon-Online" or "Interface\\FriendsFrame\\StatusIcon-Offline")
 end
 
+local SCROLL_BAR_ROOM = 18 -- what the list gives up on its right while its scroll bar shows
+
 -- A scrolling list with a scroll bar on the right that fills the window between top and bottom.
--- opts: top, bottom, left (default 14), right (default 30; all offsets from the window's edges),
+-- opts: top, bottom, left, right (offsets from the window's edges; left and right default to
+--       UI.PANE_MARGIN; right is where the list ends while its scroll bar is hidden),
 --       rowType (frame type of a row), rowHeight,
 --       init = function(row, data) (sets a row up for its data; rows are reused).
 function ns.AddScrollList(f, opts)
+    local left, right = opts.left or UI.PANE_MARGIN, opts.right or UI.PANE_MARGIN
     local scroll = CreateFrame("Frame", nil, f, "WowScrollBoxList")
-    scroll:SetPoint("TOPLEFT", opts.left or 14, opts.top)
-    scroll:SetPoint("BOTTOMRIGHT", -(opts.right or 30), opts.bottom)
     local bar = CreateFrame("EventFrame", nil, f, "MinimalScrollBar")
-    bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 6, 0)
-    bar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 6, 0)
+    bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 4, 0)
+    bar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 4, 0)
     local view = CreateScrollBoxListLinearView()
     view:SetElementExtent(opts.rowHeight)
     view:SetElementInitializer(opts.rowType, opts.init)
     ScrollUtil.InitScrollBoxListWithScrollBar(scroll, bar, view)
-    -- The scroll bar only shows while there is something to scroll.
-    if ScrollUtil.AddManagedScrollBarVisibilityBehavior then ScrollUtil.AddManagedScrollBarVisibilityBehavior(scroll, bar) end
+    -- The scroll bar only shows while there is something to scroll; the list makes room for it then.
+    scroll:SetPoint("TOPLEFT", left, opts.top)
+    if ScrollUtil.AddManagedScrollBarVisibilityBehavior and CreateAnchor then
+        scroll:SetPoint("BOTTOMRIGHT", -right, opts.bottom)
+        local topLeft = CreateAnchor("TOPLEFT", f, "TOPLEFT", left, opts.top)
+        ScrollUtil.AddManagedScrollBarVisibilityBehavior(scroll, bar,
+            { topLeft, CreateAnchor("BOTTOMRIGHT", f, "BOTTOMRIGHT", -(right + SCROLL_BAR_ROOM), opts.bottom) },
+            { topLeft, CreateAnchor("BOTTOMRIGHT", f, "BOTTOMRIGHT", -right, opts.bottom) })
+    else
+        scroll:SetPoint("BOTTOMRIGHT", -(right + SCROLL_BAR_ROOM), opts.bottom)
+    end
     return scroll
 end

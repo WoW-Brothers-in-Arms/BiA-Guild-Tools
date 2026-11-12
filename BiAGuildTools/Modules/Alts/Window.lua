@@ -16,6 +16,7 @@ local PANE_WIDTH = 290
 local MAX_CHARS = 12 -- characters of one player the pane has room for
 local FIRST_CHAR_Y = 126 -- where the pane's character rows start, below icon, name, sub line and heading
 local CROWN = "Interface\\GroupFrame\\UI-Group-LeaderIcon"
+local WINDOW_ICON = "Interface\\Icons\\INV_Crown_02"
 local window
 local selected -- key of the chosen player
 local search   -- text of the search box
@@ -171,6 +172,7 @@ local function InitRow(row, data)
     row.Label:SetText(ns.MemberName(data))
     row.Alts:SetText(data.nodata and "" or data.alts)
     row.Status:SetText(data.status)
+    if data.online then row.Status:SetTextColor(1, 1, 1) else row.Status:SetTextColor(0.6, 0.57, 0.53) end
     ns.SetStatusDot(row.Dot, data.online)
 end
 
@@ -259,7 +261,7 @@ end
 
 local function CreateWindow()
     local f = ns.CreateWindow("BiAGuildToolsAltsFrame", { width = 760, height = 540, db = M.db })
-    f.Header = ns.AddHeader(f, { icon = CROWN, title = L.ALTS_WINDOW_TITLE, search = M.SetSearch,
+    f.Header = ns.AddHeader(f, { icon = WINDOW_ICON, title = L.ALTS_WINDOW_TITLE, search = M.SetSearch,
         online = { db = M.db, onChange = Refresh } })
 
     local pane = ns.AddDetailPane(f, { width = PANE_WIDTH })
@@ -281,7 +283,7 @@ local function CreateWindow()
     pane.Hint:SetJustifyH("LEFT")
     f.Pane = pane
 
-    f.Scroll = ns.AddScrollList(f, { top = UI.CONTENT_TOP, bottom = UI.PANE_MARGIN, right = PANE_WIDTH + UI.PANE_MARGIN + 30,
+    f.Scroll = ns.AddScrollList(f, { top = UI.CONTENT_TOP, bottom = UI.PANE_MARGIN, right = PANE_WIDTH + UI.PANE_MARGIN + 12,
         rowType = "Button", rowHeight = ROW_HEIGHT, init = InitRow })
 
     f:SetScript("OnShow", function()
