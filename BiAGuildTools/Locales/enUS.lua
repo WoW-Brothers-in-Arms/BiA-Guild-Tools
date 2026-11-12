@@ -141,3 +141,7 @@ L.ALTS_HINT_OFFICER = "Officers: right-click a character to assign it."
 L.UI_ONLY_ONLINE = "Only online"
 L.UI_NO_HITS = "Nothing found for \"%s\"."
 L.UI_RESET_SEARCH = "Reset search"
+
+L.RCP_TITLE = "Guild Recipes"
+L.RCP_DESC = "Which recipes guild members know, with reagents and who can craft them"
+L.RCP_HINT_OPEN = "Open your %s window once so the guild can see your recipes."

@@ -141,3 +141,7 @@ L.ALTS_HINT_OFFICER = "Offiziere: Rechtsklick auf einen Charakter, um ihn zuzuwe
 L.UI_ONLY_ONLINE = "Nur online"
 L.UI_NO_HITS = "Nichts gefunden für „%s“."
 L.UI_RESET_SEARCH = "Suche zurücksetzen"
+
+L.RCP_TITLE = "Gildenrezepte"
+L.RCP_DESC = "Welche Rezepte Gildenmitglieder können, mit Zutaten und Herstellern"
+L.RCP_HINT_OPEN = "Öffne einmal dein Fenster für %s, damit die Gilde deine Rezepte sieht."
