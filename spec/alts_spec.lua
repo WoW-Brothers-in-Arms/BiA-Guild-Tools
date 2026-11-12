@@ -861,7 +861,8 @@ describe("Alts", function()
             assert.is_true(m.rows[4].selected)
             assert.is_false(m.detail.own)
             assert.equal("Other", m.detail.name)
-            assert.equal("Main · MAGE · level 60 · online", m.detail.sub)
+            assert.equal("Main · MAGE · level 60", m.detail.sub)
+            assert.equal("online", m.detail.status) -- a line of its own: "online on <character>" is long
             assert.equal(2, #m.detail.chars)
             assert.is_true(m.detail.chars[1].isMain)
             assert.is_false(m.detail.chars[1].band)
@@ -874,7 +875,7 @@ describe("Alts", function()
             game:receive("BiaAlts", "G|1|1-0000BBBB|0|1700000000|1-0000CCCC", "Other Realm")
             M(game).SelectPlayer(OTHER)
             local d = M(game).WindowModel().detail
-            assert.equal("MAGE · level 60 · online", d.sub)
+            assert.equal("MAGE · level 60", d.sub)
             assert.is_false(d.chars[1].isMain)
         end)
 
@@ -901,7 +902,7 @@ describe("Alts", function()
             -- the list keeps to "online" (a character's name doesn't fit its column), the card names it
             assert.equal("online", M(game).WindowModel().rows[4].status)
             M(game).SelectPlayer(OTHER)
-            assert.matches("online on Otheralt", M(game).WindowModel().detail.sub, 1, true)
+            assert.equal("online on Otheralt", M(game).WindowModel().detail.status)
         end)
 
         it("narrows the guild's players by search and falls back to the first row", function()

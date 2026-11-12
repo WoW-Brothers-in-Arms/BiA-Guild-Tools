@@ -13,8 +13,8 @@ local UI = ns.UI
 
 local ROW_HEIGHT = 26
 local PANE_WIDTH = 290
-local MAX_CHARS = 12 -- characters of one player the pane has room for
-local FIRST_CHAR_Y = 132 -- where the pane's character rows start, below icon, name, sub line and heading
+local MAX_CHARS = 10 -- characters of one player the pane has room for (above the hint)
+local FIRST_CHAR_Y = 146 -- where the pane's character rows start, below icon, name, sub, status and note lines and heading
 local CROWN = "Interface\\GroupFrame\\UI-Group-LeaderIcon"
 local WINDOW_ICON = "Interface\\AddOns\\BiAGuildTools\\Media\\IconAlts"
 local window
@@ -60,7 +60,7 @@ end
 --           { kind = "player", key, name, classFile, note, alts, status, online, nodata, selected, band }
 --           (note: the player's guild note, where guilds write the player's name; alts: "2 alts" or "")
 --   noHits: the search text while it matches nobody in the guild, else nil.
---   detail: the chosen player – { key, name, classFile, sub, own, hint,
+--   detail: the chosen player – { key, name, classFile, sub, status, online, own, hint,
 --           chars = { { guid, name, classFile, level, online, isMain, band }, ... } }; nil when no player
 --           is listed.
 function M.WindowModel()
@@ -109,8 +109,8 @@ function M.WindowModel()
         UI.Stripe(chars, function() return false end)
         detail = { key = player.key, name = NameOf(roster, player.key), classFile = lead.classFile, own = pick.own, chars = chars,
             note = player.note,
-            sub = (hasMain and L.ALTS_DETAIL_SUB or L.ALTS_DETAIL_SUB_NO_MAIN):format(ClassName(lead.classFile), lead.level,
-                StatusText(player, roster)),
+            sub = (hasMain and L.ALTS_DETAIL_SUB or L.ALTS_DETAIL_SUB_NO_MAIN):format(ClassName(lead.classFile), lead.level),
+            status = StatusText(player, roster), online = player.online ~= nil,
             hint = pick.own and L.ALTS_HINT_OWN or (M.CanAssign() and L.ALTS_HINT_OFFICER or "") }
     end
 
@@ -231,7 +231,7 @@ local function CharRow(pane, i)
 end
 
 local function PaintDetail(pane, detail)
-    for _, part in ipairs({ pane.Icon, pane.Name, pane.Sub, pane.Note, pane.Heading, pane.Hint }) do
+    for _, part in ipairs({ pane.Icon, pane.Name, pane.Sub, pane.Status, pane.Dot, pane.Note, pane.Heading, pane.Hint }) do
         part:SetShown(detail ~= nil)
     end
     for _, row in ipairs(pane.rows) do row:Hide() end
@@ -239,6 +239,9 @@ local function PaintDetail(pane, detail)
     ClassIcon(pane.Icon, detail.classFile)
     pane.Name:SetText(ns.ColoredName(detail))
     pane.Sub:SetText(detail.sub)
+    pane.Status:SetText(detail.status)
+    if detail.online then pane.Status:SetTextColor(1, 1, 1) else pane.Status:SetTextColor(0.6, 0.57, 0.53) end
+    ns.SetStatusDot(pane.Dot, detail.online)
     pane.Note:SetText(detail.note ~= "" and L.ALTS_NOTE:format(detail.note) or "")
     pane.Hint:SetText(detail.hint)
     for i, char in ipairs(detail.chars) do
@@ -302,12 +305,19 @@ local function CreateWindow()
     pane.Sub = pane:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     pane.Sub:SetPoint("TOP", 0, -78)
     pane.Sub:SetWidth(PANE_WIDTH - 16)
+    pane.Sub:SetWordWrap(false)
+    -- The status has a line of its own: "online on <character>" is long. Centred with its dot.
+    pane.Status = pane:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    pane.Status:SetPoint("TOP", 8, -92)
+    pane.Status:SetWordWrap(false)
+    pane.Dot = ns.AddStatusDot(pane)
+    pane.Dot:SetPoint("RIGHT", pane.Status, "LEFT", -5, 0)
     pane.Note = pane:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-    pane.Note:SetPoint("TOP", 0, -92)
+    pane.Note:SetPoint("TOP", 0, -106)
     pane.Note:SetWidth(PANE_WIDTH - 16)
     pane.Note:SetWordWrap(false)
     pane.Heading = pane:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    pane.Heading:SetPoint("TOP", 0, -112)
+    pane.Heading:SetPoint("TOP", 0, -126)
     pane.Heading:SetText(L.ALTS_CHARACTERS)
     pane.Hint = pane:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     pane.Hint:SetPoint("BOTTOMLEFT", 8, 8)
