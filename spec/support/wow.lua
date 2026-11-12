@@ -52,6 +52,7 @@ local function NewFrame(game, name, template)
     function frame:SetText(text) self.text = text end
     function frame:GetText() return self.text end
     function frame:ClearAllPoints() self.point = nil end
+    function frame:SetClipsChildren(on) self.clips = on and true or false end
     if template == "RightSideTabTemplate" then -- the side tab template's icon texture
         frame.Icon = { SetTexture = function(self, texture) self.texture = texture end }
     end

@@ -137,6 +137,8 @@ describe("UI", function()
         for _, row in ipairs(rows) do paint(frame, row) end -- the game reuses a frame for headers and rows
         assert.same({ "A", "B" }, headers)
         assert.same({ 1, 2, 3 }, data)
+        -- Rows scrolling out at the top are cut off at the list's edge, not shown above the sticky header.
+        assert.is_true(list.Scroll.clips)
         assert.same({}, game.errors)
     end)
 

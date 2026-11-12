@@ -428,6 +428,9 @@ function ns.AddSectionList(f, opts)
     end
     list.Scroll = ns.AddScrollList(list, { top = 0, bottom = 0, left = 0, right = 0, rowType = "Frame",
         rowHeight = opts.rowHeight, init = Paint })
+    -- Cut the rows off at the list's own edges: in game the text of a row scrolling out still showed in
+    -- a thin strip above the header that sticks to the top.
+    list.Scroll:SetClipsChildren(true)
 
     local sticky = CreateFrame("Button", nil, list)
     sticky:SetPoint("TOPLEFT", list.Scroll, "TOPLEFT")
