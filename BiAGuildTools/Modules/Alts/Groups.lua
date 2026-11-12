@@ -258,6 +258,86 @@ function G.BuildList(groups, roster, onlyOnline)
     return rows
 end
 
+-- The overview window's players: one entry per player instead of one per character.
+--   opts: onlyOnline, search (text; plain, case does not matter; matches any character of a player),
+--         own = { chars = { [guid] = true }, main = guid|nil } (your own characters; listed apart)
+--   returns { own = player|nil, players = { player, ... }, nodata = { player, ... },
+--             counts = { players, chars, reachable } }
+--   player = { key = guid, main = guid|nil, chars = { guid, ... }, online = guid|nil, nodata = true|nil }
+-- chars: the main first (if it is in the roster), then by level; key is chars[1]. online: the main if it
+-- is online, else the first online character. players are sorted by the name of their first character.
+-- nodata: roster members in no group. onlyOnline and search don't apply to your own entry. counts cover
+-- your own entry and players.
+function G.BuildPlayers(groups, roster, opts)
+    local byLevel = function(a, b)
+        if roster[a].level ~= roster[b].level then return roster[a].level > roster[b].level end
+        return roster[a].name < roster[b].name
+    end
+    local function Player(main, others)
+        local chars = {}
+        for _, guid in ipairs(others) do
+            if roster[guid] and guid ~= main then chars[#chars + 1] = guid end
+        end
+        table.sort(chars, byLevel)
+        main = main and roster[main] and main or nil
+        if main then table.insert(chars, 1, main) end
+        if #chars == 0 then return nil end
+        local online = main and roster[main].online and main or nil
+        for _, guid in ipairs(chars) do
+            online = online or (roster[guid].online and guid or nil)
+        end
+        return { key = chars[1], main = main, chars = chars, online = online }
+    end
+    local needle = opts.search and opts.search ~= "" and opts.search:lower() or nil
+    local function Wanted(player)
+        if opts.onlyOnline and not player.online then return false end
+        if not needle then return true end
+        for _, guid in ipairs(player.chars) do
+            if ns.PlainName(roster[guid].name):lower():find(needle, 1, true) then return true end
+        end
+        return false
+    end
+
+    local result = { players = {}, nodata = {}, counts = { players = 0, chars = 0, reachable = 0 } }
+    local taken = {}
+    if opts.own then
+        local others = {}
+        for guid in pairs(opts.own.chars) do
+            others[#others + 1] = guid
+            taken[guid] = true
+        end
+        result.own = Player(opts.own.main, others)
+    end
+    for _, group in pairs(groups) do
+        local mine = taken[group.main]
+        for _, guid in ipairs(group.alts) do mine = mine or taken[guid] end
+        if not mine then
+            local player = Player(group.main, group.alts)
+            if player and Wanted(player) then result.players[#result.players + 1] = player end
+        end
+        taken[group.main] = true
+        for _, guid in ipairs(group.alts) do taken[guid] = true end
+    end
+    table.sort(result.players, function(a, b) return roster[a.key].name < roster[b.key].name end)
+    for guid, member in pairs(roster) do
+        if not taken[guid] then
+            local player = { key = guid, chars = { guid }, online = member.online and guid or nil, nodata = true }
+            if Wanted(player) then result.nodata[#result.nodata + 1] = player end
+        end
+    end
+    table.sort(result.nodata, function(a, b) return roster[a.key].name < roster[b.key].name end)
+
+    local counts = result.counts
+    local function Count(player)
+        counts.players = counts.players + 1
+        counts.chars = counts.chars + #player.chars
+        if player.online then counts.reachable = counts.reachable + 1 end
+    end
+    if result.own then Count(result.own) end
+    for _, player in ipairs(result.players) do Count(player) end
+    return result
+end
+
 -- Every main and alt to its group.
 function G.Index(groups)
     local index = {}

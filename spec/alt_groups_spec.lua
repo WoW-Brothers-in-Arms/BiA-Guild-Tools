@@ -240,6 +240,77 @@ describe("AltGroups", function()
         end)
     end)
 
+    describe("BuildPlayers", function()
+        local E, F = "Player-1-0000EEEE", "Player-1-0000FFFF"
+        local function member(name, level, online) return { name = name, level = level, classFile = "MAGE", online = online } end
+        local function makeRoster(catOnline)
+            return {
+                [A] = member("Zed", 60, false), [B] = member("Bob", 20, false), [C] = member("Cat", 30, catOnline),
+                [D] = member("Dan", 60, true), [E] = member("Eve", 10, false), [F] = member("Abe", 50, true),
+            }
+        end
+        local r = makeRoster(true)
+        local groups = {
+            [A] = group(A, { B, C }, 1),
+            [D] = group(D, {}, 1),
+            ["Player-1-0000GONE"] = group("Player-1-0000GONE", { F }, 1),
+        }
+        local function names(list)
+            local out = {}
+            for i, p in ipairs(list) do out[i] = r[p.key].name end
+            return out
+        end
+
+        it("lists one row per player, the main first, then alts by level", function()
+            local res = G.BuildPlayers(groups, r, {})
+            assert.same({ "Abe", "Dan", "Zed" }, names(res.players))
+            assert.same({ A, C, B }, res.players[3].chars)
+            assert.equal(A, res.players[3].main)
+            assert.equal(C, res.players[3].online) -- reachable through an alt
+            assert.same({ "Eve" }, names(res.nodata))
+            assert.is_true(res.nodata[1].nodata)
+            assert.is_nil(res.own)
+            assert.same({ players = 3, chars = 5, reachable = 3 }, res.counts)
+        end)
+
+        it("leads a group whose main left the guild with its highest alt", function()
+            local res = G.BuildPlayers(groups, r, {})
+            assert.is_nil(res.players[1].main)
+            assert.same({ F }, res.players[1].chars)
+            assert.equal(F, res.players[1].key)
+            assert.equal(F, res.players[1].online)
+        end)
+
+        it("keeps your own characters apart from the guild's players", function()
+            local res = G.BuildPlayers(groups, r, { own = { chars = { [D] = true }, main = D } })
+            assert.same({ D }, res.own.chars)
+            assert.equal(D, res.own.main)
+            assert.same({ "Abe", "Zed" }, names(res.players))
+            assert.same({ players = 3, chars = 5, reachable = 3 }, res.counts)
+        end)
+
+        it("keeps only reachable players with onlyOnline, and always your own", function()
+            local res = G.BuildPlayers(groups, makeRoster(false), { onlyOnline = true, own = { chars = { [E] = true }, main = E } })
+            assert.same({ "Abe", "Dan" }, names(res.players))
+            assert.same({}, res.nodata)
+            assert.same({ E }, res.own.chars)
+            assert.is_nil(res.own.online)
+        end)
+
+        it("searches all characters of a group as plain text", function()
+            assert.same({ "Zed" }, names(G.BuildPlayers(groups, r, { search = "CAT" }).players))
+            assert.same({}, G.BuildPlayers(groups, r, { search = "%a[" }).players)
+            assert.same({ "Eve" }, names(G.BuildPlayers(groups, r, { search = "ev" }).nodata))
+        end)
+
+        it("copes with an empty roster", function()
+            local res = G.BuildPlayers(groups, {}, { own = { chars = { [D] = true }, main = D } })
+            assert.same({ players = 0, chars = 0, reachable = 0 }, res.counts)
+            assert.is_nil(res.own)
+            assert.same({}, res.players)
+        end)
+    end)
+
     describe("BuildList", function()
         local function member(name, level, online) return { name = name, level = level, classFile = "MAGE", online = online } end
         local r = {
