@@ -10,7 +10,8 @@ local function Game(opts)
     local window = opts.window or { ready = false, recipes = {} }
     local known, skills = opts.known or {}, opts.skills or { 165, 185 }
     local game
-    game = Wow.new({ player = opts.player, savedVariables = opts.saved, globals = {
+    local globals
+    globals = {
         GetNumGuildMembers = function() return opts.roster and #opts.roster or 2 end,
         GetGuildRosterInfo = function(i)
             local m = (opts.roster or { { "Tester-Realm", TESTER }, { "Other-Realm", OTHER } })[i]
@@ -41,7 +42,9 @@ local function Game(opts)
             end,
             GetProfessionInfoByRecipeID = function() return { professionID = window.profession or 165 } end,
         },
-    } })
+    }
+    for k, v in pairs(opts.globals or {}) do globals[k] = v end
+    game = Wow.new({ player = opts.player, savedVariables = opts.saved, globals = globals })
     game.window, game.known, game.skills = window, known, skills
     return game
 end
@@ -557,6 +560,45 @@ describe("Guild Recipes", function()
             assert.same({}, M(game).WindowModel().rows)
             db(game).onlyOnline = false
             assert.equal(2, #M(game).WindowModel().rows)
+        end)
+
+        it("shows the professions on a rail of the addon's own symbols and starts a new one at the top", function()
+            local how = {}
+            local game = Game({ skills = {}, roster = { { "Tester-Realm", TESTER }, { "Other-Realm", OTHER } },
+                saved = { modules = { recipes = { members = {
+                    [OTHER] = record({ [165] = { [2552] = { 3760, 9198 } }, [333] = { [7] = { 7421 } } }) } } } },
+                globals = {
+                    CreateScrollBoxListLinearView = function()
+                        return { SetElementExtent = function() end, SetElementInitializer = function() end }
+                    end,
+                    ScrollUtil = { InitScrollBoxListWithScrollBar = function() end },
+                    ScrollBoxConstants = { RetainScrollPosition = "keep", DiscardScrollPosition = "discard" },
+                    CreateDataProvider = function(rows) return rows end,
+                } })
+            game:login()
+            game:fire("GUILD_ROSTER_UPDATE")
+            game:advance(20)
+            game:slash("recipes")
+            local f
+            for _, frame in ipairs(game.frames) do
+                if frame.name == "BiAGuildToolsRecipesFrame" then f = frame end
+            end
+            f.scripts.OnShow(f)
+            local media = "Interface\\AddOns\\BiAGuildTools\\Media\\"
+            local enchanting, leather = f.Rail.buttons[1], f.Rail.buttons[2]
+            assert.equal(media .. "ProfEnchanting", enchanting.Icon.texture)
+            assert.same(game.ns.UI.COLORS.gold, enchanting.Icon.vertex) -- the chosen one
+            assert.equal(media .. "ProfLeatherworking", leather.Icon.texture)
+            assert.same(game.ns.UI.COLORS.symbol, leather.Icon.vertex)
+            assert.equal(media .. "ProfEnchanting", f.Header.Icon.texture)
+            assert.same(game.ns.UI.COLORS.gold, f.Header.Icon.vertex)
+
+            f.List.Scroll.SetDataProvider = function(_, _, keep) how[#how + 1] = keep end
+            M(game).SelectProfession(165) -- another profession: from the top
+            M(game).SelectRecipe(9198)    -- the same one: stays where it was
+            M(game).SetSearch("#9")       -- a new search: from the top
+            assert.same({ "discard", "keep", "discard" }, how)
+            assert.same({}, game.errors)
         end)
 
         it("tells when you are in no guild", function()

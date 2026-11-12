@@ -13,9 +13,14 @@ local UI = ns.UI
 
 local ICON = "Interface\\AddOns\\BiAGuildTools\\Media\\IconRecipes"
 local ROW_HEIGHT = 26
-local RAIL_BUTTON, RAIL_WIDTH, RAIL_GAP = 46, 56, 6
+-- The rail runs down the window's left side from the title bar to the bottom edge; its buttons start
+-- level with the header's icon.
+local RAIL_X, RAIL_TOP, RAIL_WIDTH = 3, -22, 66
+local RAIL_BUTTON, RAIL_GAP, RAIL_PAD = 46, 6, 12 -- RAIL_PAD: from the rail's top to the first button
+local RAIL_HEIGHT = 540 + RAIL_TOP - RAIL_PAD - UI.PANE_MARGIN -- room for the buttons
+local CONTENT_LEFT = RAIL_X + RAIL_WIDTH + UI.PANE_MARGIN -- header and list, right of the rail
 local PANE_WIDTH = 300
-local CONTENT_HEIGHT = 540 + UI.CONTENT_TOP - UI.PANE_MARGIN -- of rail and card, below the header
+local CONTENT_HEIGHT = 540 + UI.CONTENT_TOP - UI.PANE_MARGIN -- of the card, below the header
 local MAX_REAGENTS = 8
 local LINE_HEIGHT = 22
 local GREY = { 0.6, 0.57, 0.53 }
@@ -23,6 +28,7 @@ local GREY = { 0.6, 0.57, 0.53 }
 local window
 local chosenRecipe -- recipe ID picked in the list
 local search       -- text of the search box
+local shownSkill, shownSearch -- what the list showed last, to tell when it starts anew
 
 ---------------------------------------------------------------------------
 -- Model
@@ -185,18 +191,52 @@ local function InitRow(row, data)
     ns.SetStatusDot(row.Dot, data.reach > 0)
 end
 
+-- A profession's symbol: the addon's own line symbol, tinted, or the game's icon for one it has none of.
+local function Symbol(skill)
+    local glyph = D.ProfessionGlyph(skill)
+    if glyph then return glyph, true end
+    local data = D.PROFESSIONS[skill]
+    return data and data.icon or ICON, false
+end
+
+-- A rail button: a dark square in a 2 px frame (gold when chosen), the symbol in it, and a small
+-- badge with the number of crafters on its lower right corner.
+local function AddRailButton(rail)
+    local button = CreateFrame("Button", nil, rail)
+    button.Frame = UI.Fill(button, "BORDER", UI.COLORS.border)
+    button.Frame:SetAllPoints()
+    button.Ground = button:CreateTexture(nil, "BORDER", nil, 1)
+    button.Ground:SetColorTexture(UI.COLORS.symbolGround[1], UI.COLORS.symbolGround[2], UI.COLORS.symbolGround[3], 1)
+    button.Ground:SetPoint("TOPLEFT", 2, -2)
+    button.Ground:SetPoint("BOTTOMRIGHT", -2, 2)
+    button.Icon = button:CreateTexture(nil, "ARTWORK")
+    button.Icon:SetPoint("CENTER")
+    local hover = button:CreateTexture(nil, "HIGHLIGHT")
+    hover:SetPoint("TOPLEFT", 2, -2)
+    hover:SetPoint("BOTTOMRIGHT", -2, 2)
+    hover:SetColorTexture(1, 1, 1, 0.08)
+    local badge = CreateFrame("Frame", nil, button)
+    badge:SetHeight(16)
+    badge:SetPoint("BOTTOMRIGHT", 5, -5)
+    badge:SetFrameLevel((button:GetFrameLevel() or 1) + 2)
+    UI.Fill(badge, "BACKGROUND", UI.COLORS.line):SetAllPoints()
+    local inner = UI.Fill(badge, "BORDER", UI.COLORS.ground)
+    inner:SetPoint("TOPLEFT", 1, -1)
+    inner:SetPoint("BOTTOMRIGHT", -1, 1)
+    badge.Text = badge:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    badge.Text:SetPoint("CENTER", 0, 0)
+    button.Badge = badge
+    return button
+end
+
 -- The profession buttons on the left.
 local function PaintRail(rail, professions)
     -- All of them fit: with many professions the buttons get smaller.
-    local size = math.max(24, math.min(RAIL_BUTTON, math.floor((CONTENT_HEIGHT + RAIL_GAP) / math.max(#professions, 1)) - RAIL_GAP))
+    local size = math.max(24, math.min(RAIL_BUTTON, math.floor((RAIL_HEIGHT + RAIL_GAP) / math.max(#professions, 1)) - RAIL_GAP))
     for i, profession in ipairs(professions) do
         local button = rail.buttons[i]
         if not button then
-            button = CreateFrame("Button", nil, rail)
-            button.Frame, button.Icon = AddIcon(button, RAIL_BUTTON)
-            button.Frame:SetPoint("CENTER")
-            button.Count = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-            button.Count:SetPoint("BOTTOMRIGHT", -3, 3)
+            button = AddRailButton(rail)
             button:SetScript("OnClick", function(self) M.SelectProfession(self.skill) end)
             button:SetScript("OnEnter", function(self)
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -208,15 +248,20 @@ local function PaintRail(rail, professions)
         end
         button:SetSize(size, size)
         button:ClearAllPoints()
-        button:SetPoint("TOPLEFT", 0, -(i - 1) * (size + RAIL_GAP))
-        button.Frame:SetSize(size, size)
-        button.Icon:SetSize(size - 2, size - 2)
+        button:SetPoint("TOP", 0, -RAIL_PAD - (i - 1) * (size + RAIL_GAP))
         button.skill, button.name = profession.skill, profession.name
-        local data = D.PROFESSIONS[profession.skill]
-        button.Icon:SetTexture(data and data.icon or ICON)
-        local color = profession.selected and UI.COLORS.gold or UI.COLORS.border
-        button.Frame:SetColorTexture(color[1], color[2], color[3], 1)
-        button.Count:SetText(profession.crafters)
+        local texture, isGlyph = Symbol(profession.skill)
+        button.Icon:SetTexture(texture)
+        -- a line symbol at the design's 26 of 46 px, a game icon filling the square
+        local iconSize = isGlyph and math.floor(size * 26 / 46 + 0.5) or size - 4
+        button.Icon:SetSize(iconSize, iconSize)
+        local tint = not isGlyph and { 1, 1, 1 } or profession.selected and UI.COLORS.gold or UI.COLORS.symbol
+        button.Icon:SetVertexColor(tint[1], tint[2], tint[3])
+        local edge = profession.selected and UI.COLORS.gold or UI.COLORS.border
+        button.Frame:SetColorTexture(edge[1], edge[2], edge[3], 1)
+        button.Badge.Text:SetText(profession.crafters)
+        local width = button.Badge.Text:GetStringWidth()
+        button.Badge:SetWidth(math.max(16, (type(width) == "number" and width or 0) + 8))
         button:Show()
     end
     for i = #professions + 1, #rail.buttons do rail.buttons[i]:Hide() end
@@ -338,12 +383,20 @@ end
 local function Refresh()
     if not window or not window:IsShown() then return end
     local model = M.WindowModel()
-    local data = model.skill and D.PROFESSIONS[model.skill]
-    window.Header:SetIcon(data and data.icon or ICON)
+    if model.skill then
+        local texture, isGlyph = Symbol(model.skill)
+        window.Header:SetIcon(texture, isGlyph and UI.COLORS.gold or nil)
+    else
+        window.Header:SetIcon(ICON)
+    end
     window.Header:SetTitle(model.name or L.RCP_TITLE)
     window.Header:SetStats(L.RCP_WINDOW_STATS:format(model.stats.recipes, model.stats.crafters, model.stats.reachable))
     PaintRail(window.Rail, model.professions)
-    window.List:SetRows(model.rows)
+    -- Another profession or search starts the list at its top; a header from where the old list was
+    -- scrolled to would otherwise stay stuck at the top.
+    local fresh = model.skill ~= shownSkill or search ~= shownSearch
+    shownSkill, shownSearch = model.skill, search
+    window.List:SetRows(model.rows, fresh)
     window.List:SetShown(#model.rows > 0)
     window.Empty:SetShown(model.noHits ~= nil)
     if model.noHits then window.Empty:SetMessage(L.UI_NO_HITS:format(model.noHits)) end
@@ -387,12 +440,16 @@ end
 local function CreateWindow()
     local f = ns.CreateWindow("BiAGuildToolsRecipesFrame", { width = 940, height = 540, db = M.db })
     f.Header = ns.AddHeader(f, { icon = ICON, title = L.RCP_TITLE, search = M.SetSearch,
-        online = { db = M.db, onChange = Refresh } })
+        online = { db = M.db, onChange = Refresh }, left = CONTENT_LEFT })
 
     f.Rail = CreateFrame("Frame", nil, f)
-    f.Rail:SetPoint("TOPLEFT", UI.PANE_MARGIN, UI.CONTENT_TOP)
-    f.Rail:SetPoint("BOTTOMLEFT", UI.PANE_MARGIN, UI.PANE_MARGIN)
-    f.Rail:SetWidth(RAIL_BUTTON)
+    f.Rail:SetPoint("TOPLEFT", RAIL_X, RAIL_TOP)
+    f.Rail:SetPoint("BOTTOMLEFT", RAIL_X, RAIL_X)
+    f.Rail:SetWidth(RAIL_WIDTH)
+    local edge = UI.Fill(f.Rail, "BORDER", UI.COLORS.border) -- the line between rail and content
+    edge:SetWidth(1)
+    edge:SetPoint("TOPRIGHT")
+    edge:SetPoint("BOTTOMRIGHT")
     f.Rail.buttons = {}
 
     local pane = ns.AddDetailPane(f, { width = PANE_WIDTH })
@@ -418,7 +475,7 @@ local function CreateWindow()
     pane.CraftHead:SetText(L.RCP_CAN_CRAFT)
     f.Pane = pane
 
-    local listLeft, listRight = UI.PANE_MARGIN + RAIL_WIDTH, PANE_WIDTH + UI.PANE_MARGIN + 6
+    local listLeft, listRight = CONTENT_LEFT, PANE_WIDTH + UI.PANE_MARGIN + 6
     f.List = ns.AddSectionList(f, { top = UI.CONTENT_TOP, bottom = UI.PANE_MARGIN + 18, left = listLeft, right = listRight,
         rowType = "Button", rowHeight = ROW_HEIGHT, isHeader = function(row) return row.kind == "header" end,
         initHeader = InitHeader, initRow = InitRow })

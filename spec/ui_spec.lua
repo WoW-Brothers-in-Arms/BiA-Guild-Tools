@@ -142,6 +142,36 @@ describe("UI", function()
         assert.same({}, game.errors)
     end)
 
+    it("starts a list at the top when asked, else keeps where it was", function()
+        local game, ns = start()
+        game.env.CreateScrollBoxListLinearView = function()
+            return { SetElementExtent = function() end, SetElementInitializer = function() end }
+        end
+        game.env.ScrollUtil = { InitScrollBoxListWithScrollBar = function() end }
+        game.env.ScrollBoxConstants = { RetainScrollPosition = "keep", DiscardScrollPosition = "discard" }
+        game.env.CreateDataProvider = function(rows) return rows end
+        local f = ns.CreateWindow("TestWin", { width = 500, height = 300 })
+        local list = ns.AddSectionList(f, { top = -100, bottom = 12, rowType = "Button", rowHeight = 20,
+            isHeader = function() return false end, initHeader = function() end, initRow = function() end })
+        local how = {}
+        list.Scroll.SetDataProvider = function(_, _, keep) how[#how + 1] = keep end
+        list:SetRows({})
+        list:SetRows({}, true)
+        assert.same({ "keep", "discard" }, how)
+    end)
+
+    it("puts a header right of a rail and tints a symbol", function()
+        local _, ns = start()
+        local f = ns.CreateWindow("TestWin", { width = 500, height = 300 })
+        local h = ns.AddHeader(f, { icon = "a", title = "T", left = 80 })
+        assert.equal(80, h.points.TOPLEFT[2])
+        h:SetIcon("b", ns.UI.COLORS.gold)
+        assert.equal("b", h.Icon.texture)
+        assert.same(ns.UI.COLORS.gold, h.Icon.vertex)
+        h:SetIcon("c")
+        assert.same({ 1, 1, 1 }, h.Icon.vertex)
+    end)
+
     it("stripes every second data row and starts again after a header", function()
         local _, ns = start()
         local rows = ns.UI.Stripe({ { h = true }, {}, {}, {}, { h = true }, {}, {} }, function(r) return r.h end)

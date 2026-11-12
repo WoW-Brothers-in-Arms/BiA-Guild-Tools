@@ -24,6 +24,8 @@ end
 UI.COLORS = {
     ground = { Hex("15100c") }, border = { Hex("6b4f2a") }, bar = { Hex("2b1c10") }, barBorder = { Hex("6b4f2a") },
     gold = { Hex("f0c030") }, close = { Hex("8f1d14") },
+    -- the addon's line symbols: their ground, their colour when not chosen, a badge's frame
+    symbolGround = { Hex("0c0906") }, symbol = { Hex("b89a5e") }, line = { Hex("4f3a22") },
 }
 local COLORS = UI.COLORS
 
@@ -155,18 +157,27 @@ UI.PANE_MARGIN = 14
 -- The header every list window has: a large icon, the window's name, one line of key figures, on the
 -- right "Only online" and a search box, and an ornament line below.
 -- opts: icon (texture), title, search = function(text) (optional; called with the trimmed text while
---       typing), online = { db, onChange } (optional; keeps db.onlyOnline, then calls onChange).
--- header:SetIcon(texture), header:SetTitle(text), header:SetStats(text); header.Search, header.Online.
+--       typing), online = { db, onChange } (optional; keeps db.onlyOnline, then calls onChange),
+--       left (optional; distance from the window's left edge, default UI.PANE_MARGIN – more when a
+--       rail stands left of the header).
+-- header:SetIcon(texture, tint), header:SetTitle(text), header:SetStats(text); header.Search, header.Online.
+-- With a tint ({ r, g, b }) the icon is one of the addon's white line symbols, drawn smaller in that
+-- colour inside a gold frame.
 local CONTROLS_Y = 6 -- search box and checkbox sit midway between the title bar and the ornament line
 function ns.AddHeader(f, opts)
     local h = CreateFrame("Frame", nil, f)
-    h:SetPoint("TOPLEFT", UI.PANE_MARGIN, -34) -- its ornament line ends flush with the list and the card below
+    h:SetPoint("TOPLEFT", opts.left or UI.PANE_MARGIN, -34) -- its ornament line ends flush with the list and the card below
     h:SetPoint("TOPRIGHT", -UI.PANE_MARGIN, -34)
     h:SetHeight(60)
 
     local frame = UI.Fill(h, "BORDER", COLORS.border)
     frame:SetSize(46, 46)
     frame:SetPoint("TOPLEFT")
+    h.IconFrame = frame
+    local ground = h:CreateTexture(nil, "BORDER", nil, 1) -- under a line symbol (a full icon covers it)
+    ground:SetColorTexture(COLORS.symbolGround[1], COLORS.symbolGround[2], COLORS.symbolGround[3], 1)
+    ground:SetSize(42, 42)
+    ground:SetPoint("CENTER", frame)
     h.Icon = h:CreateTexture(nil, "ARTWORK")
     h.Icon:SetSize(42, 42)
     h.Icon:SetPoint("CENTER", frame)
@@ -219,7 +230,13 @@ function ns.AddHeader(f, opts)
     gem:SetPoint("CENTER", line)
     gem:SetRotation(math.pi / 4)
 
-    function h:SetIcon(texture) self.Icon:SetTexture(texture) end
+    function h:SetIcon(texture, tint)
+        self.Icon:SetTexture(texture)
+        local color, edge = tint or { 1, 1, 1 }, tint and COLORS.gold or COLORS.border
+        self.Icon:SetVertexColor(color[1], color[2], color[3])
+        self.Icon:SetSize(tint and 30 or 42, tint and 30 or 42)
+        self.IconFrame:SetColorTexture(edge[1], edge[2], edge[3], 1)
+    end
     function h:SetTitle(text) self.Title:SetText(text) end
     function h:SetStats(text) self.Stats:SetText(text) end
     h:SetIcon(opts.icon)
@@ -405,7 +422,8 @@ end
 --       isHeader = function(row) (a row that starts a section),
 --       initHeader = function(button, row) (paints a section header; buttons are reused),
 --       initRow = function(frame, row) (paints a data row; frames of rowType are reused).
--- list:SetRows(rows) – a flat list in which every header row is followed by its section's rows.
+-- list:SetRows(rows, toTop) – a flat list in which every header row is followed by its section's rows;
+-- with toTop the list starts at its top, else it stays where it was scrolled to.
 function ns.AddSectionList(f, opts)
     local list = CreateFrame("Frame", nil, f)
     list:SetPoint("TOPLEFT", opts.left or UI.PANE_MARGIN, opts.top)
@@ -453,9 +471,10 @@ function ns.AddSectionList(f, opts)
     end
     list:SetScript("OnUpdate", UpdateSticky) -- cheap, and only runs while the list shows
 
-    function list:SetRows(rows)
+    function list:SetRows(rows, toTop)
         self.rows = rows
-        self.Scroll:SetDataProvider(CreateDataProvider(rows), ScrollBoxConstants.RetainScrollPosition)
+        self.Scroll:SetDataProvider(CreateDataProvider(rows),
+            toTop and ScrollBoxConstants.DiscardScrollPosition or ScrollBoxConstants.RetainScrollPosition)
         shown = nil -- the header's text may have changed
         UpdateSticky()
     end

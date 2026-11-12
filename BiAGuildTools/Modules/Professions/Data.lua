@@ -53,6 +53,13 @@ function D.ProfessionIcon(id)
     return p and p.icon or "Interface\\Icons\\INV_Misc_QuestionMark"
 end
 
+-- The addon's own line symbol of a crafting profession (white lines, to be tinted; drawn by
+-- scripts/make-profession-icons.py), nil for the others.
+function D.ProfessionGlyph(id)
+    if not D.IsCrafting(id) then return nil end
+    return "Interface\\AddOns\\BiAGuildTools\\Media\\Prof" .. D.PROFESSIONS[id].en:gsub(" ", "")
+end
+
 function D.IsSecondary(id)
     local p = D.PROFESSIONS[id]
     return p and p.secondary or false

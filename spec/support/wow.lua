@@ -48,7 +48,13 @@ local function NewFrame(game, name, template)
     function frame:IsShown() return self.shown end
     function frame:SetChecked(on) self.checked = on and true or false end
     function frame:GetChecked() return self.checked end
-    function frame:SetPoint(...) self.point = { ... } end
+    function frame:SetPoint(...)
+        self.point = { ... }
+        self.points = rawget(self, "points") or {}
+        self.points[(...)] = { ... } -- by anchor
+    end
+    function frame:SetTexture(texture) self.texture = texture end
+    function frame:SetVertexColor(r, g, b) self.vertex = { r, g, b } end
     function frame:SetText(text) self.text = text end
     function frame:GetText() return self.text end
     function frame:ClearAllPoints() self.point = nil end
