@@ -1,9 +1,17 @@
--- UI.lua: the window parts the tools share.
---   local f = ns.CreateWindow("BiAGuildToolsXyzFrame", { width = 300, height = 380, title = "...", db = M.db })
---   local box = ns.AddOnlineCheckbox(f, M.db, "Only online", Refresh)     -- M.db.onlyOnline
---   f.Scroll = ns.AddScrollList(f, { top = -56, bottom = 12, rowType = "Button", rowHeight = 18, init = InitRow })
+-- UI.lua: the window parts the tools share. They use the game's own templates and atlases; where this
+-- client doesn't have one, a plain coloured replacement is drawn, so a window always opens.
+--   local f = ns.CreateWindow("BiAGuildToolsXyzFrame", { width = 540, height = 540, db = M.db })
+--   local h = ns.AddHeader(f, { icon = "...", title = "...", search = function(text) end,
+--       online = { db = M.db, onChange = Refresh } })      -- M.db.onlyOnline
+--   h:SetStats("5 players · 11 characters")
+--   local pane = ns.AddDetailPane(f, { width = 300 })
+--   f.Scroll = ns.AddScrollList(f, { top = ns.UI.CONTENT_TOP, bottom = 12, right = 320, rowType = "Button",
+--       rowHeight = 20, init = InitRow })
 --   f.Scroll:SetDataProvider(CreateDataProvider(rows), ScrollBoxConstants.RetainScrollPosition)
+-- In a row's init: ns.StyleHeader/SetHeader (section bars), ns.StyleSelectable + row:SetSelected,
+-- ns.StyleZebra/SetZebra (the stripe of every second row), ns.AddStatusDot/SetStatusDot.
 local _, ns = ...
+local L = ns.L
 
 ns.UI = {}
 local UI = ns.UI
@@ -122,6 +130,205 @@ function ns.CreateWindow(name, opts)
     return f
 end
 
+-- A checkbox with its label to the right. opts: label, checked, onChange = function(checked).
+function ns.AddCheckbox(parent, opts)
+    local box
+    if UI.Atlas("checkbox-minimal") and UI.Atlas("checkmark-minimal") then
+        box = CreateFrame("CheckButton", nil, parent)
+        box:SetNormalAtlas("checkbox-minimal")
+        box:SetPushedAtlas("checkbox-minimal")
+        box:SetCheckedAtlas("checkmark-minimal")
+    else
+        box = UI.TryFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+    end
+    box:SetSize(22, 22)
+    box:SetChecked(opts.checked and true or false)
+    box:SetScript("OnClick", function(self) opts.onChange(self:GetChecked() and true or false) end)
+    box.Label = parent:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    box.Label:SetPoint("LEFT", box, "RIGHT", 4, 0)
+    box.Label:SetText(opts.label)
+    return box
+end
+
+-- Where a window's content starts below the title bar and the header (y offset from the window's top).
+UI.CONTENT_TOP = -104
+
+-- The header every list window has: a large icon, the window's name, one line of key figures, on the
+-- right "Only online" and a search box, and an ornament line below.
+-- opts: icon (texture), title, search = function(text) (optional; called with the trimmed text while
+--       typing), online = { db, onChange } (optional; keeps db.onlyOnline, then calls onChange).
+-- header:SetIcon(texture), header:SetTitle(text), header:SetStats(text); header.Search, header.Online.
+function ns.AddHeader(f, opts)
+    local h = CreateFrame("Frame", nil, f)
+    h:SetPoint("TOPLEFT", 16, -34)
+    h:SetPoint("TOPRIGHT", -16, -34)
+    h:SetHeight(60)
+
+    local frame = UI.Fill(h, "BORDER", COLORS.border)
+    frame:SetSize(46, 46)
+    frame:SetPoint("TOPLEFT")
+    h.Icon = h:CreateTexture(nil, "ARTWORK")
+    h.Icon:SetSize(42, 42)
+    h.Icon:SetPoint("CENTER", frame)
+    h.Icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) -- without the icon's own border
+
+    h.Title = h:CreateFontString(nil, "ARTWORK", GameFontNormalHuge and "GameFontNormalHuge" or "GameFontNormalLarge")
+    h.Title:SetPoint("TOPLEFT", frame, "TOPRIGHT", 14, -2)
+    h.Stats = h:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    h.Stats:SetPoint("BOTTOMLEFT", frame, "BOTTOMRIGHT", 14, 4)
+
+    local right = h
+    if opts.online then
+        local db, onChange = opts.online.db, opts.online.onChange
+        h.Online = ns.AddCheckbox(h, { label = L.UI_ONLY_ONLINE, checked = db.onlyOnline, onChange = function(checked)
+            db.onlyOnline = checked
+            onChange()
+        end })
+        h.Online.Label:ClearAllPoints()
+        h.Online.Label:SetPoint("RIGHT", h, "RIGHT", 0, 8)
+        h.Online:SetPoint("RIGHT", h.Online.Label, "LEFT", -4, 0)
+        right = h.Online
+    end
+    if opts.search then
+        local box, templated = UI.TryFrame("EditBox", nil, h, "SearchBoxTemplate")
+        box:SetSize(190, 22)
+        if not templated then
+            box:SetAutoFocus(false)
+            box:SetFontObject("ChatFontNormal")
+            box:SetTextInsets(6, 6, 0, 0)
+            UI.Fill(box, "BACKGROUND", { 0, 0, 0 }, 0.5):SetAllPoints()
+            box:SetScript("OnEscapePressed", box.ClearFocus)
+        end
+        if right == h then box:SetPoint("RIGHT", h, "RIGHT", 0, 8) else box:SetPoint("RIGHT", right, "LEFT", -20, 0) end
+        box:HookScript("OnTextChanged", function(self) opts.search(strtrim(self:GetText() or "")) end)
+        h.Search = box
+    end
+
+    local line = UI.Fill(h, "ARTWORK", COLORS.border)
+    line:SetHeight(1)
+    line:SetPoint("BOTTOMLEFT")
+    line:SetPoint("BOTTOMRIGHT")
+    local gem = UI.Fill(h, "OVERLAY", COLORS.gold)
+    gem:SetSize(7, 7)
+    gem:SetPoint("CENTER", line)
+    gem:SetRotation(math.pi / 4)
+
+    function h:SetIcon(texture) self.Icon:SetTexture(texture) end
+    function h:SetTitle(text) self.Title:SetText(text) end
+    function h:SetStats(text) self.Stats:SetText(text) end
+    h:SetIcon(opts.icon)
+    h:SetTitle(opts.title)
+    return h
+end
+
+-- A pane on the right below the header, for the details of the chosen row. opts: width.
+function ns.AddDetailPane(f, opts)
+    local pane = CreateFrame("Frame", nil, f)
+    pane:SetWidth(opts.width)
+    pane:SetPoint("TOPRIGHT", -6, UI.CONTENT_TOP)
+    pane:SetPoint("BOTTOMRIGHT", -6, 6)
+    UI.Fill(pane, "BACKGROUND", { 1, 1, 1 }, 0.03):SetAllPoints()
+    local left = UI.Fill(pane, "BORDER", COLORS.border)
+    left:SetWidth(1)
+    left:SetPoint("TOPLEFT")
+    left:SetPoint("BOTTOMLEFT")
+    local top = UI.Fill(pane, "BORDER", COLORS.border)
+    top:SetHeight(1)
+    top:SetPoint("TOPLEFT")
+    top:SetPoint("TOPRIGHT")
+    return pane
+end
+
+---------------------------------------------------------------------------
+-- Looks for the rows of a list. The Style* functions set a row up once (rows are reused), the Set*
+-- functions paint it for its data.
+---------------------------------------------------------------------------
+-- A section header bar that shows whether its section is open: row.Name, row.expanded.
+function ns.StyleHeader(row)
+    if row.isHeaderStyled == true then return end
+    row.isHeaderStyled = true
+    local bar = row:CreateTexture(nil, "BACKGROUND")
+    bar:SetAllPoints()
+    if UI.Atlas("common-button-list-collapseExpand") then
+        bar:SetAtlas("common-button-list-collapseExpand")
+    else
+        bar:SetColorTexture(COLORS.bar[1], COLORS.bar[2], COLORS.bar[3], 1)
+    end
+    row.Bar = bar
+    row.Name = row:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    row.Name:SetPoint("LEFT", 10, 0)
+    row.Name:SetJustifyH("LEFT")
+    row.State = row:CreateTexture(nil, "ARTWORK")
+    row.State:SetPoint("RIGHT", -8, 0)
+    row.StateText = row:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    row.StateText:SetPoint("RIGHT", -10, 0)
+end
+
+function ns.SetHeader(row, text, expanded)
+    row.expanded = expanded and true or false
+    row.Name:SetText(text)
+    local atlas = UI.Atlas(row.expanded and "common-button-list-minus" or "common-button-list-plus")
+    row.State:SetShown(atlas ~= nil)
+    row.StateText:SetShown(atlas == nil)
+    if atlas then row.State:SetAtlas(atlas, true) else row.StateText:SetText(row.expanded and "–" or "+") end
+end
+
+-- A row that can be the chosen one: row:SetSelected(on), row.selected. Also lights up under the mouse.
+function ns.StyleSelectable(row)
+    if row.isSelectable == true then return end
+    row.isSelectable = true
+    row.Sel = UI.Fill(row, "BACKGROUND", COLORS.selected, 0.9)
+    row.Sel:SetAllPoints()
+    row.Sel:Hide()
+    local hover = UI.Fill(row, "HIGHLIGHT", { 1, 1, 1 }, 0.08)
+    hover:SetAllPoints()
+    function row:SetSelected(on)
+        self.selected = on and true or false
+        self.Sel:SetShown(self.selected)
+    end
+end
+
+-- The light stripe of every second row: row.band.
+function ns.StyleZebra(row)
+    if row.isZebra == true then return end
+    row.isZebra = true
+    row.Stripe = UI.Fill(row, "BACKGROUND", { 1, 1, 1 }, 0.05)
+    row.Stripe:SetAllPoints()
+    row.Stripe:Hide()
+end
+
+function ns.SetZebra(row, on)
+    row.band = on and true or false
+    row.Stripe:SetShown(row.band)
+end
+
+-- Sets .band on the rows of a list: every second data row, counted anew after each header (rows for
+-- which isHeader(row) is true). The first row under a header is never striped. Returns rows.
+function UI.Stripe(rows, isHeader)
+    local n = 0
+    for _, row in ipairs(rows) do
+        if isHeader(row) then
+            n, row.band = 0, false
+        else
+            n = n + 1
+            row.band = n % 2 == 0
+        end
+    end
+    return rows
+end
+
+-- A small dot that tells online (green) from offline (grey): dot.online.
+function ns.AddStatusDot(parent)
+    local dot = parent:CreateTexture(nil, "ARTWORK")
+    dot:SetSize(10, 10)
+    return dot
+end
+
+function ns.SetStatusDot(dot, online)
+    dot.online = online and true or false
+    dot:SetTexture(dot.online and "Interface\\COMMON\\Indicator-Green" or "Interface\\COMMON\\Indicator-Gray")
+end
+
 -- The "only online" checkbox at the top left of a list window. Keeps db.onlyOnline and calls onChange
 -- after a click.
 function ns.AddOnlineCheckbox(f, db, label, onChange)
@@ -140,12 +347,13 @@ function ns.AddOnlineCheckbox(f, db, label, onChange)
 end
 
 -- A scrolling list with a scroll bar on the right that fills the window between top and bottom.
--- opts: top, bottom (offsets from the window's edges), rowType (frame type of a row), rowHeight,
+-- opts: top, bottom, left (default 14), right (default 30; all offsets from the window's edges),
+--       rowType (frame type of a row), rowHeight,
 --       init = function(row, data) (sets a row up for its data; rows are reused).
 function ns.AddScrollList(f, opts)
     local scroll = CreateFrame("Frame", nil, f, "WowScrollBoxList")
-    scroll:SetPoint("TOPLEFT", 14, opts.top)
-    scroll:SetPoint("BOTTOMRIGHT", -30, opts.bottom)
+    scroll:SetPoint("TOPLEFT", opts.left or 14, opts.top)
+    scroll:SetPoint("BOTTOMRIGHT", -(opts.right or 30), opts.bottom)
     local bar = CreateFrame("EventFrame", nil, f, "MinimalScrollBar")
     bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 6, 0)
     bar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 6, 0)

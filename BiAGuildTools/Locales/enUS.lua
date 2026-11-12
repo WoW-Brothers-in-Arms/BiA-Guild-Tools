@@ -124,3 +124,5 @@ L.ALTS_PICKER_TITLE = "Main for %s"
 L.ALTS_PICKER_HINT = "Type a name …"
 L.ALTS_PICKER_NONE = "No match"
 L.ALTS_ASSIGN_SELF = "The player sets this themselves"
+
+L.UI_ONLY_ONLINE = "Only online"
