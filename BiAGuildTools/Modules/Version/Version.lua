@@ -313,6 +313,8 @@ end, {
 -- Lifecycle
 ---------------------------------------------------------------------------
 function M:OnLogin()
+    -- The window is new in 1.3.0: it starts with "Only online" on once, whatever the old window had.
+    if not self.db.onlineReset then self.db.onlyOnline, self.db.onlineReset = true, true end
     local cutoff = time() - STALE_SECONDS
     for key, entry in pairs(self.db.members) do
         if type(entry) ~= "table" or (entry.t or 0) < cutoff then self.db.members[key] = nil end

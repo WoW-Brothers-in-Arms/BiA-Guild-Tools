@@ -622,6 +622,8 @@ M.options = {
 -- Lifecycle
 ---------------------------------------------------------------------------
 function M:OnLogin()
+    -- The window is new in 1.3.0: it starts with "Only online" on once, whatever the old window had.
+    if not self.db.onlineReset then self.db.onlyOnline, self.db.onlineReset = true, true end
     G.PruneAssign(self.db.assigned, time(), STALE_SECONDS)
     G.Prune(self.db.groups, time(), STALE_SECONDS)
     if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end

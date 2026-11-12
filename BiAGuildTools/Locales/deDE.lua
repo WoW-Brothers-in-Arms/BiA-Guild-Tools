@@ -139,3 +139,5 @@ L.ALTS_HINT_OWN = "Klicke auf eine Krone, um deinen Main zu wählen."
 L.ALTS_HINT_OFFICER = "Offiziere: Rechtsklick auf einen Charakter, um ihn zuzuweisen."
 
 L.UI_ONLY_ONLINE = "Nur online"
+L.UI_NO_HITS = "Nichts gefunden für „%s“."
+L.UI_RESET_SEARCH = "Suche zurücksetzen"

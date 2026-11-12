@@ -869,8 +869,18 @@ describe("Alts", function()
             assert.same({ "header", "player", "header" }, kinds(m.rows))
             assert.equal("Guild (0 players)", m.rows[3].text)
             assert.is_true(m.rows[2].selected)
+            assert.equal("zzz", m.noHits) -- the window says so and offers to reset the search
             M(game).SetSearch("otheralt")
-            assert.equal("Other", M(game).WindowModel().rows[4].name)
+            m = M(game).WindowModel()
+            assert.equal("Other", m.rows[4].name)
+            assert.is_nil(m.noHits)
+        end)
+
+        it("turns only-online back on once, for the new window", function()
+            local first = ready(nil, { modules = { alts = { onlyOnline = false } } })
+            assert.is_true(db(first).onlyOnline)
+            db(first).onlyOnline = false -- the player's own choice from now on
+            assert.is_false(db(ready(nil, first:DB())).onlyOnline)
         end)
 
         it("opens and closes sections", function()

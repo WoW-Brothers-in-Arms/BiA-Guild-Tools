@@ -56,6 +56,7 @@ end
 -- { stats, rows, detail }:
 --   rows:   { kind = "header", section, text, expanded } and
 --           { kind = "player", key, name, classFile, alts, status, online, nodata, selected, band }
+--   noHits: the search text while it matches nobody in the guild, else nil.
 --   detail: the chosen player – { key, name, classFile, sub, own, hint,
 --           chars = { { guid, name, classFile, level, online, isMain, band }, ... } }; nil when no player
 --           is listed.
@@ -106,7 +107,10 @@ function M.WindowModel()
             hint = pick.own and L.ALTS_HINT_OWN or (M.CanAssign() and L.ALTS_HINT_OFFICER or "") }
     end
 
-    return { stats = L.ALTS_STATS:format(res.counts.players, res.counts.chars, res.counts.reachable), rows = rows, detail = detail }
+    -- noHits: the search text, when it matches nobody in the guild.
+    local noHits = search and search ~= "" and #res.players == 0 and #res.nodata == 0 and search or nil
+    return { stats = L.ALTS_STATS:format(res.counts.players, res.counts.chars, res.counts.reachable), rows = rows, detail = detail,
+        noHits = noHits }
 end
 
 ---------------------------------------------------------------------------
@@ -240,6 +244,9 @@ local function Refresh()
     local model = M.WindowModel()
     window.Header:SetStats(model.stats)
     window.Scroll:SetDataProvider(CreateDataProvider(model.rows), ScrollBoxConstants.RetainScrollPosition)
+    window.Scroll:SetShown(not model.noHits)
+    window.Empty:SetShown(model.noHits ~= nil)
+    if model.noHits then window.Empty:SetMessage(L.UI_NO_HITS:format(model.noHits)) end
     PaintDetail(window.Pane, model.detail)
 end
 
@@ -285,6 +292,10 @@ local function CreateWindow()
 
     f.Scroll = ns.AddScrollList(f, { top = UI.CONTENT_TOP, bottom = UI.PANE_MARGIN, right = PANE_WIDTH + UI.PANE_MARGIN + 12,
         rowType = "Button", rowHeight = ROW_HEIGHT, init = InitRow })
+    f.Empty = ns.AddEmptyState(f, f.Scroll, { button = L.UI_RESET_SEARCH, onClick = function()
+        f.Header.Search:SetText("") -- the box tells the window through its own change handler
+        M.SetSearch("")
+    end })
 
     f:SetScript("OnShow", function()
         if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end

@@ -193,6 +193,16 @@ describe("Version", function()
             assert.equal("99.0.0/current/1", summary(V(game).WindowModel().rows)[1])
         end)
 
+        it("turns only-online back on once, for the new window", function()
+            local game = Wow.new({ savedVariables = { modules = { version = { onlyOnline = false } } } })
+            game:login()
+            assert.is_true(game:DB().modules.version.onlyOnline)
+            game:DB().modules.version.onlyOnline = false
+            local again = Wow.new({ savedVariables = game:DB() })
+            again:login()
+            assert.is_false(again:DB().modules.version.onlyOnline)
+        end)
+
         it("opens with an empty roster", function()
             local game = ready({})
             local m = V(game).WindowModel()

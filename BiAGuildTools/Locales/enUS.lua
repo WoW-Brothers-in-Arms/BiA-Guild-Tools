@@ -139,3 +139,5 @@ L.ALTS_HINT_OWN = "Click a crown to choose your main."
 L.ALTS_HINT_OFFICER = "Officers: right-click a character to assign it."
 
 L.UI_ONLY_ONLINE = "Only online"
+L.UI_NO_HITS = "Nothing found for \"%s\"."
+L.UI_RESET_SEARCH = "Reset search"

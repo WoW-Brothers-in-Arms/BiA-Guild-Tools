@@ -154,6 +154,7 @@ UI.PANE_MARGIN = 14
 -- opts: icon (texture), title, search = function(text) (optional; called with the trimmed text while
 --       typing), online = { db, onChange } (optional; keeps db.onlyOnline, then calls onChange).
 -- header:SetIcon(texture), header:SetTitle(text), header:SetStats(text); header.Search, header.Online.
+local CONTROLS_Y = 6 -- search box and checkbox sit midway between the title bar and the ornament line
 function ns.AddHeader(f, opts)
     local h = CreateFrame("Frame", nil, f)
     h:SetPoint("TOPLEFT", UI.PANE_MARGIN, -34) -- its ornament line ends flush with the list and the card below
@@ -162,7 +163,7 @@ function ns.AddHeader(f, opts)
 
     local frame = UI.Fill(h, "BORDER", COLORS.border)
     frame:SetSize(46, 46)
-    frame:SetPoint("TOPLEFT")
+    frame:SetPoint("TOPLEFT", 4, 0) -- in line with the list's bars, whose art starts a little inside
     h.Icon = h:CreateTexture(nil, "ARTWORK")
     h.Icon:SetSize(42, 42)
     h.Icon:SetPoint("CENTER", frame)
@@ -180,7 +181,7 @@ function ns.AddHeader(f, opts)
             onChange()
         end })
         h.Online.Label:ClearAllPoints()
-        h.Online.Label:SetPoint("RIGHT", h, "RIGHT", 0, 8)
+        h.Online.Label:SetPoint("RIGHT", h, "RIGHT", 0, CONTROLS_Y)
         h.Online:SetPoint("RIGHT", h.Online.Label, "LEFT", -4, 0)
         right = h.Online
     end
@@ -196,7 +197,12 @@ function ns.AddHeader(f, opts)
             UI.Fill(box, "BACKGROUND", { 0, 0, 0 }, 0.5):SetAllPoints()
             box:SetScript("OnEscapePressed", box.ClearFocus)
         end
-        if right == h then box:SetPoint("RIGHT", h, "RIGHT", 0, 6) else box:SetPoint("RIGHT", right, "LEFT", -16, 0) end
+        -- (offsets of a scaled frame are in its own scale)
+        if right == h then
+            box:SetPoint("RIGHT", h, "RIGHT", 0, CONTROLS_Y / 1.25)
+        else
+            box:SetPoint("RIGHT", h.Online, "LEFT", -16, 0)
+        end
         box:HookScript("OnTextChanged", function(self) opts.search(strtrim(self:GetText() or "")) end)
         h.Search = box
     end
@@ -237,6 +243,25 @@ function ns.AddDetailPane(f, opts)
         end
     end
     return pane
+end
+
+-- What a list shows instead of its rows when a search found nothing: a line of text and a button
+-- below it. Lies over `list`, starts hidden. opts: button (its label), onClick.
+-- empty:SetMessage(text); empty.Text, empty.Button.
+function ns.AddEmptyState(f, list, opts)
+    local empty = CreateFrame("Frame", nil, f)
+    empty:SetAllPoints(list)
+    empty.Text = empty:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    empty.Text:SetPoint("TOPLEFT", 12, -48)
+    empty.Text:SetPoint("TOPRIGHT", -12, -48)
+    empty.Button = UI.TryFrame("Button", nil, empty, "UIPanelButtonTemplate")
+    empty.Button:SetSize(170, 24)
+    empty.Button:SetPoint("TOP", empty.Text, "BOTTOM", 0, -14)
+    empty.Button:SetText(opts.button)
+    empty.Button:SetScript("OnClick", function() opts.onClick() end)
+    function empty:SetMessage(text) self.Text:SetText(text) end
+    empty:Hide()
+    return empty
 end
 
 ---------------------------------------------------------------------------
