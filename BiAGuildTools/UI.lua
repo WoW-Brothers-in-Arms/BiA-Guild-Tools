@@ -146,7 +146,7 @@ function ns.AddCheckbox(parent, opts)
 end
 
 -- The room right of a list's rows for its scroll bar. It stays free while the bar is hidden.
-UI.SCROLL_BAR_ROOM = 16
+UI.SCROLL_BAR_ROOM = 20
 -- Where a window's content starts below the title bar and the header (y offset from the window's top).
 UI.CONTENT_TOP = -104
 -- The distance of a window's content (header, list, detail card) from its left, right and bottom edge.
@@ -381,8 +381,8 @@ function ns.AddScrollList(f, opts)
     -- change their width. It only shows while there is something to scroll.
     scroll:SetPoint("TOPLEFT", left, opts.top)
     scroll:SetPoint("BOTTOMRIGHT", -(right + UI.SCROLL_BAR_ROOM), opts.bottom)
-    bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 5, -2)
-    bar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 5, 2)
+    bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 9, -2)
+    bar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 9, 2)
     if ScrollUtil.AddManagedScrollBarVisibilityBehavior then ScrollUtil.AddManagedScrollBarVisibilityBehavior(scroll, bar) end
     return scroll
 end
