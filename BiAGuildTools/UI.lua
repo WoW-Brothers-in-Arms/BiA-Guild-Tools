@@ -454,7 +454,9 @@ function ns.AddSectionList(f, opts)
     sticky:SetPoint("TOPLEFT", list.Scroll, "TOPLEFT")
     sticky:SetPoint("TOPRIGHT", list.Scroll, "TOPRIGHT")
     sticky:SetHeight(opts.rowHeight)
-    sticky:SetFrameLevel((list.Scroll:GetFrameLevel() or 1) + 20) -- above the rows
+    -- Above the rows: the game gives every row its own level, counting up from the list's, so a small
+    -- step (it was 20) let the rows of a long list paint over the header (seen in game).
+    sticky:SetFrameLevel((list.Scroll:GetFrameLevel() or 1) + 500)
     sticky:Hide()
     list.Sticky = sticky
 
