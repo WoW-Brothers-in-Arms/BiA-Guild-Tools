@@ -46,6 +46,8 @@ local function NewFrame(game, name, template)
     function frame:SetChecked(on) self.checked = on and true or false end
     function frame:GetChecked() return self.checked end
     function frame:SetPoint(...) self.point = { ... } end
+    function frame:SetText(text) self.text = text end
+    function frame:GetText() return self.text end
     function frame:ClearAllPoints() self.point = nil end
     if template == "RightSideTabTemplate" then -- the side tab template's icon texture
         frame.Icon = { SetTexture = function(self, texture) self.texture = texture end }
@@ -127,7 +129,18 @@ function Wow.new(opts)
         },
 
         -- Frames and chat
-        CreateFrame = function(_, name, _, template) return NewFrame(game, name, template) end,
+        CreateFrame = function(_, name, _, template)
+            -- game.missingTemplates = { [template] = true }: the client doesn't know that template
+            if template and game.missingTemplates and game.missingTemplates[template] then error("unknown template " .. template) end
+            return NewFrame(game, name, template)
+        end,
+        -- game.missingAtlases = { [atlas] = true }: the client doesn't know that atlas
+        C_Texture = {
+            GetAtlasInfo = function(atlas)
+                if game.missingAtlases and game.missingAtlases[atlas] then return nil end
+                return {}
+            end,
+        },
         UIParent = {},
         UISpecialFrames = {},
         SlashCmdList = {},
