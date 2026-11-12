@@ -31,6 +31,7 @@ Modules\Alts\RosterTab.lua
 Modules\Recipes\Codec.lua
 Modules\Recipes\Store.lua
 Modules\Recipes\Recipes.lua
+Modules\Recipes\Browse.lua
 Modules\Version\Version.lua
 Modules\Bank\Bank.lua
 Modules\Bags\Bags.lua
