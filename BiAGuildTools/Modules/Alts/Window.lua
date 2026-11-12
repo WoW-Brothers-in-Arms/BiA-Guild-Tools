@@ -37,9 +37,10 @@ local function NameOf(roster, guid)
     return ns.PlainName(roster[guid].name)
 end
 
-local function StatusText(player, roster)
+-- short = true for the list's status column, where a character's name doesn't fit: plain "online".
+local function StatusText(player, roster, short)
     if not player.online then return L.ALTS_STATUS_OFFLINE end
-    if player.online == player.key then return L.ALTS_STATUS_ONLINE end
+    if short or player.online == player.key then return L.ALTS_STATUS_ONLINE end
     return L.ALTS_STATUS_ONLINE_ON:format(NameOf(roster, player.online))
 end
 
@@ -76,7 +77,7 @@ function M.WindowModel()
         for _, player in ipairs(players) do
             local lead = roster[player.key]
             local row = { kind = "player", key = player.key, name = NameOf(roster, player.key), classFile = lead.classFile,
-                note = player.note, alts = AltsText(player), status = StatusText(player, roster), online = player.online ~= nil,
+                note = player.note, alts = AltsText(player), status = StatusText(player, roster, true), online = player.online ~= nil,
                 nodata = player.nodata or false, selected = false }
             rows[#rows + 1] = row
             listed[#listed + 1] = { row = row, player = player, own = section == "own" }

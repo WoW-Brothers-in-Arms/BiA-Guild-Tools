@@ -898,7 +898,10 @@ describe("Alts", function()
             members[3].online = false -- Other, the main
             local game = ready(members)
             game:receive("BiaAlts", OTHER_GROUP, "Otheralt Realm")
-            assert.equal("online on Otheralt", M(game).WindowModel().rows[4].status)
+            -- the list keeps to "online" (a character's name doesn't fit its column), the card names it
+            assert.equal("online", M(game).WindowModel().rows[4].status)
+            M(game).SelectPlayer(OTHER)
+            assert.matches("online on Otheralt", M(game).WindowModel().detail.sub, 1, true)
         end)
 
         it("narrows the guild's players by search and falls back to the first row", function()
