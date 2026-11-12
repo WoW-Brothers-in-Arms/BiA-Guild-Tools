@@ -258,12 +258,17 @@ character's GUID without `Player-`.
 | `A\|1\|<guid>\|<t>` | whoever holds this record at revision `t` or newer: please send it |
 
 A receiver collects the chunks per sender, character and revision, and uses the record only when
-all chunks arrived within 60 s, the checksum of the joined text equals `h` and the limits hold (at
-most 80 chunks). Otherwise it is dropped; the old record stays.
+all chunks arrived, the checksum of the joined text equals `h` and the limits hold (at most 80
+chunks). A collection that gets no new chunk for 75 s is dropped (a sender in combat pauses up to
+60 s between two tries); the old record stays.
 
 On `N` a receiver applies the additions to its copy and checks the new checksum. If it doesn't match
-(a message was missed earlier) the copy is left as it is and the next status triggers a full
-transfer.
+(a message was missed earlier), or the record would grow beyond the limits, the copy is left as it is
+and the next status triggers a full transfer.
+
+The sender never has the same record waiting twice: a question for a record whose chunks are still
+in its outbox is not answered again. Questions (`Q`, `Sync.lua`) leave one per second and are tried
+again when the game refuses them, so a login into a big guild doesn't hit the game's message limit.
 
 ### Keeping your own data in sync (existing `Sync.lua`)
 
@@ -325,8 +330,11 @@ in the addon.
 
 ### Cleaning up
 
-At login and when the roster changes: records of characters that are no longer in the roster are
-removed, as are records whose `seen` is older than 90 days.
+At login and when the roster changes: records whose `seen` is older than 90 days are removed, and
+among the records of the guild the character is in, those of characters that are no longer in its
+roster. Each record remembers the guild it was received in (`g`), because the saved data is shared
+by all characters of an account, which may be in different guilds; another guild's records stay.
+Nothing is removed while the roster is empty or doesn't contain the character itself yet.
 
 ### Window `/bia recipes` (940 × 540)
 
@@ -338,8 +346,7 @@ Opened by `/bia recipes` or the second tab on the right edge of the guild window
   crafters; the tooltip gives the profession's name. The choice is remembered.
 - **Header (across list and detail pane):** the chosen profession's icon and name,
   "10 recipes · 3 crafters · 2 reachable", the search box and "Only online".
-- **Recipe list:** collapsible category headers (`GetCategoryInfo(id).name`, "Other" when it doesn't
-  resolve), categories and recipes sorted by name. A row shows the item icon with quality border, the
+- **Recipe list:** collapsible category headers (`GetCategoryInfo(id).name`, all categories that don't resolve share one section "Other"), categories and recipes sorted by name. A row shows the item icon with quality border, the
   name in quality colour, a status dot with the number of reachable crafters and a pill with the
   total number of crafters. Clicking a row chooses the recipe.
 - **Below the recipes:** one line "Profession known, recipes unknown: …" with the members who have
