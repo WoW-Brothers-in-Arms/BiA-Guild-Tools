@@ -91,7 +91,7 @@ The main picker and the login hint are small dialogs: they get the new frame and
 | Part | Game asset |
 |---|---|
 | Window frame, title, close button | `DefaultPanelTemplate` (`SharedUIPanelTemplates.xml`, a panel without portrait) with a `UIPanelCloseButtonDefaultAnchors` close button, as the character window uses |
-| Section header bar | atlas `common-button-list-collapseExpand`, state icon `common-button-list-minus` / `-plus`, text `GameFontNormalLeft`, height 28 (from `Camelot/ReputationFrame.xml`) |
+| Section header bar | drawn by the addon: a bar that fills its row (`#2b1c10`, 1 px bronze frame), text `GameFontNormalLeft`, state icon atlas `common-button-list-minus` / `-plus`. The game's bar atlas `common-button-list-collapseExpand` was tried: its see-through edges let the scrolling rows show around a sticky header |
 | Row highlight (selected, hover) | plain colour (selected `#4b4a47`, hover white at 8 %). The atlas `charactercreate-customize-dropdown-linemouseover-middle` was tried and shows as a solid white bar when stretched over a row |
 | Checkbox | atlases `checkbox-minimal`, `checkmark-minimal` |
 | Search box | `SearchBoxTemplate` |

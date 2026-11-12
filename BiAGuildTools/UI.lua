@@ -22,7 +22,7 @@ local function Hex(hex)
 end
 -- The colours parts are drawn with when the game's own art for them is missing.
 UI.COLORS = {
-    ground = { Hex("15100c") }, border = { Hex("6b4f2a") }, bar = { Hex("2b1c10") },
+    ground = { Hex("15100c") }, border = { Hex("6b4f2a") }, bar = { Hex("2b1c10") }, barBorder = { Hex("6b4f2a") },
     gold = { Hex("f0c030") }, selected = { Hex("4b4a47") }, close = { Hex("8f1d14") },
 }
 local COLORS = UI.COLORS
@@ -157,7 +157,6 @@ UI.PANE_MARGIN = 14
 -- opts: icon (texture), title, search = function(text) (optional; called with the trimmed text while
 --       typing), online = { db, onChange } (optional; keeps db.onlyOnline, then calls onChange).
 -- header:SetIcon(texture), header:SetTitle(text), header:SetStats(text); header.Search, header.Online.
-local SECTION_INSET = 4 -- a section bar's art starts this far inside its frame; rows and the header icon line up with it
 local CONTROLS_Y = 6 -- search box and checkbox sit midway between the title bar and the ornament line
 function ns.AddHeader(f, opts)
     local h = CreateFrame("Frame", nil, f)
@@ -167,7 +166,7 @@ function ns.AddHeader(f, opts)
 
     local frame = UI.Fill(h, "BORDER", COLORS.border)
     frame:SetSize(46, 46)
-    frame:SetPoint("TOPLEFT", SECTION_INSET, 0) -- in line with the list's bars, whose art starts a little inside
+    frame:SetPoint("TOPLEFT")
     h.Icon = h:CreateTexture(nil, "ARTWORK")
     h.Icon:SetSize(42, 42)
     h.Icon:SetPoint("CENTER", frame)
@@ -276,14 +275,18 @@ end
 function ns.StyleHeader(row)
     if row.isHeaderStyled == true then return end
     row.isHeaderStyled = true
-    local bar = row:CreateTexture(nil, "BACKGROUND", nil, 0)
-    bar:SetAllPoints()
-    if UI.Atlas("common-button-list-collapseExpand") then
-        bar:SetAtlas("common-button-list-collapseExpand")
-    else
-        bar:SetColorTexture(COLORS.bar[1], COLORS.bar[2], COLORS.bar[3], 1)
+    -- Drawn here rather than with the game's bar atlas: that one has see-through edges and round
+    -- corners, and under a header that sticks to the top the scrolling rows showed all around it.
+    -- This bar fills its row: dark brown with a bronze frame.
+    row.Bar = UI.Fill(row, "BACKGROUND", COLORS.bar)
+    row.Bar:SetAllPoints()
+    for _, edge in ipairs({ { "TOPLEFT", "TOPRIGHT", nil, 1 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 1 },
+        { "TOPLEFT", "BOTTOMLEFT", 1, nil }, { "TOPRIGHT", "BOTTOMRIGHT", 1, nil } }) do
+        local line = UI.Fill(row, "BORDER", COLORS.barBorder)
+        line:SetPoint(edge[1])
+        line:SetPoint(edge[2])
+        if edge[3] then line:SetWidth(edge[3]) else line:SetHeight(edge[4]) end
     end
-    row.Bar = bar
     row.Name = row:CreateFontString(nil, "ARTWORK", "GameFontNormalLeft")
     row.Name:SetPoint("LEFT", 10, 0)
     row.State = row:CreateTexture(nil, "ARTWORK")
@@ -416,8 +419,7 @@ function ns.AddSectionList(f, opts)
             frame.Head = CreateFrame("Button", nil, frame)
             frame.Head:SetAllPoints()
             frame.Data = CreateFrame(opts.rowType, nil, frame)
-            frame.Data:SetPoint("TOPLEFT", SECTION_INSET, 0) -- in line with the header bar's art
-            frame.Data:SetPoint("BOTTOMRIGHT", -SECTION_INSET, 0)
+            frame.Data:SetAllPoints()
         end
         local isHeader = opts.isHeader(row) and true or false
         frame.Head:SetShown(isHeader)
@@ -432,14 +434,6 @@ function ns.AddSectionList(f, opts)
     sticky:SetPoint("TOPRIGHT", list.Scroll, "TOPRIGHT")
     sticky:SetHeight(opts.rowHeight)
     sticky:SetFrameLevel((list.Scroll:GetFrameLevel() or 1) + 20) -- above the rows
-    -- Rows don't shine through. The cover lies below the header bar's own art (same layer, lowest
-    -- sublevel); on one level the game drew it over the bar and the header looked dull.
-    local cover = sticky:CreateTexture(nil, "BACKGROUND", nil, -8)
-    cover:SetColorTexture(COLORS.ground[1], COLORS.ground[2], COLORS.ground[3], 1)
-    -- Only behind the bar's art, which starts a little inside the button: a cover over the whole button
-    -- shows as a dark box around the bar.
-    cover:SetPoint("TOPLEFT", SECTION_INSET, -3)
-    cover:SetPoint("BOTTOMRIGHT", -SECTION_INSET, 3)
     sticky:Hide()
     list.Sticky = sticky
 
