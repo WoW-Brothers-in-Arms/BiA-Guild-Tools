@@ -26,11 +26,15 @@ Made with the user on 2026-11-12:
 - **Display only.** No whisper on click, no chat links.
 - **Crafters show as "Character (Main)"** when the crafting character is an alt. An entry counts as
   online when any character of that player is online.
+- **List on the left, details on the right.** A recipe row shows how many members can craft it; the
+  crafters, the reagents and the item tooltip are in a detail pane for the chosen recipe.
 - **Recipes are grouped by Blizzard's categories**, collapsible.
 - **Data comes from the addon, not from the server** (approach A): everybody stores the recipes of
   all members who use the addon; a checksum in the login status tells who is out of date.
 - **Recipes of absent members are passed on** by others (relay), in the first version.
-- **Appealing design, same look for every window**, modelled on Blizzard's Forever UI.
+- **Look: Blizzard's own UI elements** (mock-up "E · Blizzard-Standard"), chosen over four custom
+  looks. All windows share one structure: a header with a large icon, title, key figures, search and
+  "Only online", then the content. Alts and Addon Versions are restructured to match.
 - **No foreign code or libraries.** Ideas from the research are taken over, code is not.
 
 ## What was tested in game (2026-11-12, throwaway probes, removed again)
@@ -42,31 +46,41 @@ Made with the user on 2026-11-12:
 | Learned or not, without a window | `IsPlayerSpell(recipeID)` answers correctly (`true` for a learned, `false` for a foreign recipe) |
 | Recipes of professions the character doesn't have | name, output item ID and profession resolve; `GetRecipeInfo(id).categoryID` does **not** (also not for an own profession whose window wasn't opened) |
 | Category name from a category ID, nothing loaded | `C_TradeSkillUI.GetCategoryInfo(2552).name` → "Umhänge": works |
+| Reagents of a recipe of a foreign profession | `C_TradeSkillUI.GetRecipeSchematic(2660, false).reagentSlotSchematics` → one slot, `quantityRequired` 1, `reagents[1].itemID` 2835: works |
 | `C_GuildInfo.QueryGuildMembersForRecipe` | accepted, but no `GUILD_RECIPE_KNOWN_BY_MEMBERS` within 15 s |
 | `QueryGuildRecipes` / `GetGuildTradeSkillInfo` | ten header rows with member counts per profession; expanding the headers yields no member rows |
 | `C_GuildInfo.QueryGuildMemberRecipes` for another member | not tested (no target without member rows); not needed for this design |
 
-Consequences: only recipe IDs and category IDs travel; names, icons and quality are resolved by each
-client in its own language. The server is no source for recipes.
+Consequences: only recipe IDs and category IDs travel; names, icons, quality and reagents are
+resolved by each client in its own language. The server is no source for recipes.
 
-## Part 1: the new window look
+## Part 1: the new window look and structure
 
-### What changes
+Mock-ups: page "Auswahl" (Guild Recipes, the bronze variant) and page "Twinks und Versionen neu" of
+the artifact. The mock-ups approximate Blizzard's art with plain colours; in game the real templates
+and atlases are used, so the result is more detailed than the mock-ups.
 
-`UI.lua` keeps its interface and gets the new look, so all five windows change at once: Alts,
-Addon Versions, the main picker, the login hint and the new Guild Recipes window. Saved window
-positions stay valid.
+### One structure for every list window
 
-The look uses the game's own templates and atlases where they exist, so the windows match the game
-exactly:
+1. **Title bar:** "BiA Guild Tools", close button.
+2. **Header:** a 46 px icon, the window's name in large gold type (`GameFontNormalHuge`), below it one
+   line of key figures; on the right a search box (where the window has one) and "Only online".
+3. **Ornament line** across the window.
+4. **Content:** a list, and for Guild Recipes and Alts a detail pane on the right for the chosen row.
 
-| Part | Game asset (from `Blizzard_UIPanels_Game/Camelot/ReputationFrame.xml`) |
+The main picker and the login hint are small dialogs: they get the new frame and nothing else.
+
+### Game assets
+
+| Part | Game asset |
 |---|---|
 | Window frame, title, close button | `DefaultPanelTemplate` (`SharedUIPanelTemplates.xml`, a panel without portrait) with a `UIPanelCloseButtonDefaultAnchors` close button, as the character window uses |
-| Section header bar | atlas `common-button-list-collapseExpand`, state icon `common-button-list-minus` / `-plus`, text `GameFontNormalLeft`, height 28 |
+| Section header bar | atlas `common-button-list-collapseExpand`, state icon `common-button-list-minus` / `-plus`, text `GameFontNormalLeft`, height 28 (from `Camelot/ReputationFrame.xml`) |
 | Row highlight (selected, hover) | atlases `charactercreate-customize-dropdown-linemouseover-side` / `-middle` |
 | Checkbox | atlases `checkbox-minimal`, `checkmark-minimal` |
-| Bar with text (versions) | `ColoredProgressBarTemplate` |
+| Search box | `SearchBoxTemplate` |
+| Item and reagent icons | the item's icon (`C_Item.GetItemIconByID`) with a 1 px border in the quality colour (`C_Item.GetItemQualityColor`) |
+| Class icons of characters | atlas `classicon-<class>`; if it is missing, a ring in the class colour with the name's first letter, as in the mock-ups |
 | Scroll bar | `MinimalScrollBar` (already in use) |
 
 Each asset is looked up once when the first window is created (`C_Texture.GetAtlasInfo`, and for
@@ -78,29 +92,53 @@ client build renames an atlas.
 ### Shared parts in `UI.lua`
 
 ```lua
-local f = ns.CreateWindow(name, { width, height, title, db, toplevel })   -- unchanged signature
-local box = ns.AddCheckbox(f, { label, checked, onChange, point })        -- replaces AddOnlineCheckbox
-local box = ns.AddOnlineCheckbox(f, db, label, onChange)                  -- kept, built on AddCheckbox
+local f = ns.CreateWindow(name, { width, height, db, toplevel })          -- title bar text is always "BiA Guild Tools"
+local h = ns.AddHeader(f, { icon, title, search = true, online = { db, label, onChange } })
+h:SetIcon(texture)  h:SetTitle(text)  h:SetStats(text)                    -- h.Search, h.Online
+local pane = ns.AddDetailPane(f, { width = 300 })                         -- right-hand pane below the header
 f.Scroll = ns.AddScrollList(f, { top, bottom, left, right, rowType, rowHeight, init })
-ns.StyleHeader(row)          -- gives a list row the section-header look; row.Name, row.State
-ns.SetHeader(row, text, expanded)
-ns.StyleSelectable(row)      -- adds the highlight textures; row:SetSelected(bool)
-ns.AddStatusDot(row)         -- row.Dot; ns.SetStatusDot(row.Dot, online): filled green / hollow grey ring
+ns.StyleHeader(row)  ns.SetHeader(row, text, expanded)                    -- section-header look for a list row
+ns.StyleSelectable(row)                                                   -- highlight textures; row:SetSelected(bool)
+ns.AddStatusDot(row)  ns.SetStatusDot(row.Dot, online)                    -- filled green / hollow grey ring
+ns.AddCheckbox(f, { label, checked, onChange, point })
 ```
 
-`AddScrollList` gets optional `left` / `right` offsets so a window can hold two lists side by side.
+`AddOnlineCheckbox` goes away; the header owns that checkbox. Saved window positions stay valid.
 
-### Alts window
+### Alts window (760 × 540)
 
-Content and behaviour stay. Section headers use the header bar; the online icon becomes the status
-dot; rows are 20 px high; mains are bold, alts indented with the short branch line; every other
-group keeps its light band.
+Today the window lists every character. New: **one row per player on the left, that player's
+characters on the right.**
 
-### Addon Versions window
+- **Header:** crown icon, "Alts", "5 players · 11 characters · 3 reachable", search, "Only online".
+- **Left list**, in sections with header bars:
+  - *Your characters*: one row for your own group.
+  - *Guild (n players)*: one row per group, sorted by main name. A row shows the main's class icon and
+    name in class colour, "2 alts", and the status: "online", "online on <character>" or "offline".
+  - *Without BiA Guild Tools (n)*: collapsed by default; one row per character.
+- **Detail pane** for the chosen row: the main's class icon, name, "Main · class · level · status",
+  then the group's characters, each with crown, status dot, name in class colour, class and level.
+  - Your own group: the crowns are buttons (set or clear your main), as today.
+  - Other groups: guild master and officers get the existing assign menu with a right-click on a
+    character in the pane or on a row in the list.
+  - A footer line explains which of the two applies.
+- **Search** matches any character name of a group. **Only online** keeps groups with a character
+  online. Your own group is chosen when the window opens.
 
-The title becomes "Addon Versions" / "Addon-Versionen". Column heads sit in a header bar. The version
-shows in a bar: green for the newest version, amber with " · outdated" for an older one, a grey dash
-for members without the addon. The summary line moves into a footer.
+`Groups.BuildList` stays for the roster column and tooltip; the window gets a new pure function
+`G.BuildPlayers(groups, roster, opts)` that returns the sections and rows, and is tested like
+`BuildList`.
+
+### Addon Versions window (540 × 540)
+
+Today a flat list of names with a version column. New: **grouped by version.**
+
+- **Header:** shield icon, "Addon Versions", "Newest: 1.3.0 · 5 of 9 with addon · 2 outdated",
+  "Only online". No search.
+- **Sections** with header bars, newest version first, each with a tag "current" (green) or
+  "outdated" (amber) and the member count; *Without addon* last and collapsed by default.
+- **Rows:** status dot, name in class colour, and on the right "online" or "last seen <date>" (the
+  time the member's version last arrived, already stored).
 
 ## Part 2: Guild Recipes
 
@@ -269,40 +307,52 @@ in the addon.
 At login and when the roster changes: records of characters that are no longer in the roster are
 removed, as are records whose `seen` is older than 90 days.
 
-### Window `/bia recipes`
+### Window `/bia recipes` (940 × 540)
 
-820 × 540, opened by `/bia recipes` or the second tab on the right edge of the guild window.
+Opened by `/bia recipes` or the second tab on the right edge of the guild window. Mock-up: page
+"Auswahl" of the artifact.
 
-- **Top:** "Only online" checkbox, filter box, summary ("14 recipes · 3 crafters").
-- **Left (212 px):** crafting professions with at least one known recipe, sorted by name, each with
-  its icon and the number of crafters. The chosen one is highlighted. The choice is remembered.
-- **Right:** the chosen profession's recipes under collapsible category headers
-  (`GetCategoryInfo(id).name`, "Other" when it doesn't resolve), categories and recipes sorted by
-  name. A row shows the icon, the name in the item's quality colour and up to three crafters,
-  reachable ones first in class colour with a filled dot, offline ones grey with a hollow ring,
-  then "+n".
+- **Profession rail (66 px, left):** one icon button per crafting profession with at least one known
+  recipe, sorted by name; the chosen one is highlighted. A small number on each icon is its count of
+  crafters; the tooltip gives the profession's name. The choice is remembered.
+- **Header (across list and detail pane):** the chosen profession's icon and name,
+  "10 recipes · 3 crafters · 2 reachable", the search box and "Only online".
+- **Recipe list:** collapsible category headers (`GetCategoryInfo(id).name`, "Other" when it doesn't
+  resolve), categories and recipes sorted by name. A row shows the item icon with quality border, the
+  name in quality colour, a status dot with the number of reachable crafters and a pill with the
+  total number of crafters. Clicking a row chooses the recipe.
 - **Below the recipes:** one line "Profession known, recipes unknown: …" with the members who have
   the profession according to the Professions tool (which also knows the main professions of members
   without the addon) but have no record here.
-- **Tooltip on a recipe:** the game's item tooltip (`SetItemByID`, for recipes without an item
-  `SetSpellByID`), then "Can craft" with every crafter and "online", "online on <character>" or
-  "offline".
-- **Filter:** narrows the recipes of the chosen profession by name while typing; with a filter all
-  categories are open.
-- **Only online:** hides recipes nobody reachable can craft and shows only reachable crafters.
+- **Detail pane (300 px, right)** for the chosen recipe:
+  - large item icon with quality border; the mouse over it shows the game's item tooltip
+    (`SetItemByID`, for recipes without an item `SetSpellByID`);
+  - name in quality colour and "Profession · Category";
+  - **Reagents:** `C_TradeSkillUI.GetRecipeSchematic(id, false).reagentSlotSchematics`; for each slot
+    with a `quantityRequired` and a first reagent, the item's icon with the quantity in its corner and
+    the item's name; the mouse over a line shows that item's tooltip. Slots without an item are
+    skipped; if the call fails or returns nothing the section is hidden;
+  - **Can craft:** every crafter with class icon, "Character (Main)" in class colour and "online",
+    "online on <character>" or "offline", reachable ones first.
+- **Search:** narrows the recipes of the chosen profession by name while typing; with a search text
+  all categories are open.
+- **Only online:** hides recipes nobody reachable can craft and lists only reachable crafters.
+- **Selection:** when the profession changes, or the chosen recipe drops out of the list, the first
+  recipe in the list is chosen, so the pane is never empty while there are recipes.
 - **Empty:** a short text that recipes appear once a crafter has opened their profession window.
 
 Names and icons: `C_TradeSkillUI.GetRecipeInfo(id).name`, else `C_Spell.GetSpellName(id)`, else
-`#id`. The output item (`GetRecipeOutputItemData(id).itemID`) gives icon and quality; while the item
-isn't loaded the row shows the name in white and is repainted when the item arrives (repaints
-bundled, at most one per 0.2 s). Recipes without an item use the spell icon.
+`#id`. The output item (`GetRecipeOutputItemData(id).itemID`) gives icon and quality; while an item
+(output or reagent) isn't loaded its line shows what is known and is repainted when the item arrives
+(repaints bundled, at most one per 0.2 s). Recipes without an item use the spell icon.
 
 Alts: with the Alts tool on, the label is "Character (Main)" for alts, and a crafter is reachable
 when any character of their group is online. With Alts off, only the character's own name and online
 state are used.
 
-`Browse.lua` builds all of this from plain tables (store, roster, alt index, a name resolver passed
-in), so it is tested without the game.
+`Browse.lua` builds professions, rows, the figures of the header and the crafter list of the detail
+pane from plain tables (store, roster, alt index, a name resolver passed in), so it is tested
+without the game. Reagents are read in `Window.lua` when a recipe is chosen.
 
 ### Commands
 
@@ -337,21 +387,29 @@ Automated (busted, with the fake in `spec/support/wow.lua`, extended by `C_Trade
   replaced when the owner logs in; a relayed copy never replaces a newer one from the owner;
   records for non-members are ignored; relay waits in combat and in instances while own data still
   goes out.
-- **Browse:** categories and sorting; filter; only online; "Character (Main)" and reachability
-  through an online main; Alts off; the "recipes unknown" line.
+- **Browse:** categories and sorting; search; only online; the counts per row and in the header;
+  "Character (Main)" and reachability through an online main; Alts off; which recipe is chosen after
+  a change; the "recipes unknown" line.
+- **Alts players list:** `G.BuildPlayers` – sections, one row per group, status through an online
+  alt, search over all names of a group, only online.
+- **Versions:** grouping by version, newest first, the "current" / "outdated" tags, "last seen".
 - **UI helpers:** the fallback path when an atlas or template is missing.
 
 Only checkable in game (by the user): how the five windows look, that the listed templates and
-atlases exist in the live client, icons and quality colours loading late, the item tooltip, and the
-tab on the guild window.
+atlases exist in the live client, icons, quality colours and reagent names loading late, the item
+tooltips, and the tab on the guild window.
 
 ## Assumptions still to confirm in game
 
 Seen in the Forever UI source or in today's probes, but not yet exercised the way this design uses
 them. Each has a fallback, so a wrong assumption costs a feature detail, not the tool:
 
-- `DefaultPanelTemplate`, `ColoredProgressBarTemplate` and the listed atlases can be used by an
-  addon (fallback: plain colour textures).
+- `DefaultPanelTemplate`, `SearchBoxTemplate` and the listed atlases can be used by an addon
+  (fallback: plain colour textures, a plain edit box).
+- The atlas `classicon-<class>` and the font `GameFontNormalHuge` exist in the Forever client (fallbacks: the
+  coloured ring, `GameFontNormalLarge`).
+- `GetRecipeSchematic` returns reagents for every recipe, not only the one tested (fallback: the
+  Reagents section is hidden for that recipe).
 - `NEW_RECIPE_LEARNED` fires in Forever with the recipe's spell ID as first argument, as the client's
   API documentation says (fallback: the next login scan finds the recipe).
 - `GetProfessionInfoByRecipeID` returns a skill line that matches `GetProfessionInfo` (it returned
@@ -361,7 +419,7 @@ them. Each has a fallback, so a wrong assumption costs a feature detail, not the
 
 ## Order of work
 
-1. New look in `UI.lua`, applied to the existing windows. Shippable alone.
+1. New look and shared header in `UI.lua`; Alts and Addon Versions restructured. Shippable alone.
 2. Guild Recipes without relay: capture, store, own sync, window.
 3. Relay: digest, manifest, asking and offering, outbox priorities.
 
@@ -369,7 +427,7 @@ Each step leaves the addon working and all tests green.
 
 ## Out of scope
 
-- Actions on crafters (whisper, links), reagents, costs, cooldowns, specialisations.
+- Actions on crafters (whisper, links), a search by reagent, costs, cooldowns, specialisations.
 - A search across all professions and a "nobody can craft this yet" view.
 - A line in item tooltips elsewhere in the game ("craftable in the guild by …").
 - Recipes of members without the addon.
