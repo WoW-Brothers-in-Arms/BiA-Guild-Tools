@@ -217,10 +217,9 @@ end
 local ROW_HEIGHT = 22
 local TAG_COLORS = { current = { 0.11, 0.42, 0.11 }, outdated = { 0.48, 0.36, 0.06 } }
 
-local function InitRow(row, data)
-    if row.isVersionRow ~= true then
-        row.isVersionRow = true
-        ns.StyleZebra(row)
+local function InitHeader(row, data)
+    if row.isVersionHeader ~= true then
+        row.isVersionHeader = true
         ns.StyleHeader(row)
         row.TagBg = row:CreateTexture(nil, "BORDER")
         row.Tag = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
@@ -229,33 +228,32 @@ local function InitRow(row, data)
         row.TagBg:SetPoint("BOTTOMRIGHT", row.Tag, "BOTTOMRIGHT", 5, -3)
         row.Count = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
         row.Count:SetPoint("RIGHT", -28, 0)
+        row:SetScript("OnClick", function(self) M.ToggleSection(self.data.section) end)
+    end
+    row.data = data
+    ns.SetHeader(row, data.text, data.expanded)
+    row.Count:SetText(("(%d)"):format(data.count))
+    row.Tag:SetShown(data.tag ~= nil)
+    row.TagBg:SetShown(data.tag ~= nil)
+    if data.tag then
+        local color = TAG_COLORS[data.tag]
+        row.Tag:SetText(data.tag == "current" and L.VER_TAG_CURRENT or L.VER_TAG_OUTDATED)
+        row.TagBg:SetColorTexture(color[1], color[2], color[3], 1)
+    end
+end
+
+local function InitRow(row, data)
+    if row.isVersionRow ~= true then
+        row.isVersionRow = true
+        ns.StyleZebra(row)
         row.Dot = ns.AddStatusDot(row)
         row.Dot:SetPoint("LEFT", 12, 0)
         row.Label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
         row.Label:SetPoint("LEFT", 28, 0)
         row.Note = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
         row.Note:SetPoint("RIGHT", -8, 0)
-        row:SetScript("OnClick", function(self)
-            if self.data and self.data.kind == "header" then M.ToggleSection(self.data.section) end
-        end)
     end
-    row.data = data
-    local isHeader = data.kind == "header"
-    for _, part in ipairs({ row.Bar, row.Name, row.State, row.StateText, row.Count }) do part:SetShown(isHeader) end
-    for _, part in ipairs({ row.Dot, row.Label, row.Note }) do part:SetShown(not isHeader) end
-    row.Tag:SetShown(isHeader and data.tag ~= nil)
-    row.TagBg:SetShown(isHeader and data.tag ~= nil)
     ns.SetZebra(row, data.band)
-    if isHeader then
-        ns.SetHeader(row, data.text, data.expanded)
-        row.Count:SetText(("(%d)"):format(data.count))
-        if data.tag then
-            local color = TAG_COLORS[data.tag]
-            row.Tag:SetText(data.tag == "current" and L.VER_TAG_CURRENT or L.VER_TAG_OUTDATED)
-            row.TagBg:SetColorTexture(color[1], color[2], color[3], 1)
-        end
-        return
-    end
     ns.SetStatusDot(row.Dot, data.online)
     row.Label:SetText(ns.MemberName(data))
     row.Note:SetText(data.note)
@@ -265,8 +263,9 @@ local function CreateWindow()
     local f = ns.CreateWindow("BiAGuildToolsVersionFrame", { width = 540, height = 540, db = M.db })
     f.Header = ns.AddHeader(f, { icon = "Interface\\AddOns\\BiAGuildTools\\Media\\IconVersions", title = L.VER_WINDOW_TITLE,
         online = { db = M.db, onChange = function() RefreshWindow() end } })
-    f.Scroll = ns.AddScrollList(f, { top = ns.UI.CONTENT_TOP, bottom = ns.UI.PANE_MARGIN, rowType = "Button", rowHeight = ROW_HEIGHT,
-        init = InitRow })
+    f.List = ns.AddSectionList(f, { top = ns.UI.CONTENT_TOP, bottom = ns.UI.PANE_MARGIN, rowType = "Button",
+        rowHeight = ROW_HEIGHT, isHeader = function(row) return row.kind == "header" end, initHeader = InitHeader,
+        initRow = InitRow })
 
     f:SetScript("OnShow", function()
         if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
@@ -279,7 +278,7 @@ function RefreshWindow()
     if not window or not window:IsShown() then return end
     local model = M.WindowModel()
     window.Header:SetStats(model.stats)
-    window.Scroll:SetDataProvider(CreateDataProvider(model.rows), ScrollBoxConstants.RetainScrollPosition)
+    window.List:SetRows(model.rows)
 end
 
 local function ToggleWindow()

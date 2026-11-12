@@ -141,12 +141,22 @@ local function OnRowClick(row, button)
     end
 end
 
+local function InitHeader(row, data)
+    if row.isAltsHeader ~= true then
+        row.isAltsHeader = true
+        ns.StyleHeader(row)
+        row:RegisterForClicks("LeftButtonUp")
+        row:SetScript("OnClick", OnRowClick)
+    end
+    row.data = data
+    ns.SetHeader(row, data.text, data.expanded)
+end
+
 local function InitRow(row, data)
     if row.isAltsRow ~= true then
         row.isAltsRow = true
         ns.StyleZebra(row)
         ns.StyleSelectable(row)
-        ns.StyleHeader(row)
         row.ClassIcon = row:CreateTexture(nil, "ARTWORK")
         row.ClassIcon:SetSize(18, 18)
         row.ClassIcon:SetPoint("LEFT", 8, 0)
@@ -162,16 +172,8 @@ local function InitRow(row, data)
         row:SetScript("OnClick", OnRowClick)
     end
     row.data = data
-    local isHeader = data.kind == "header"
-    for _, part in ipairs({ row.Bar, row.Name, row.State, row.StateText }) do part:SetShown(isHeader) end
-    for _, part in ipairs({ row.Label, row.Alts, row.Status, row.Dot }) do part:SetShown(not isHeader) end
     ns.SetZebra(row, data.band)
     row:SetSelected(data.selected)
-    if isHeader then
-        row.ClassIcon:Hide()
-        ns.SetHeader(row, data.text, data.expanded)
-        return
-    end
     ClassIcon(row.ClassIcon, data.classFile)
     row.Label:SetText(ns.MemberName(data))
     row.Alts:SetText(data.nodata and "" or data.alts)
@@ -189,7 +191,9 @@ local function CharRow(pane, i)
     row.Crown = CreateFrame("Button", nil, row)
     row.Crown:SetSize(16, 16)
     row.Crown:SetPoint("LEFT", 4, 0)
-    row.Crown:SetNormalTexture(CROWN)
+    row.Crown.Icon = row.Crown:CreateTexture(nil, "ARTWORK")
+    row.Crown.Icon:SetAllPoints()
+    row.Crown.Icon:SetTexture(CROWN)
     row.Crown:SetScript("OnClick", function(self)
         if self.isMain then M.ClearMain() else M.SetMain(self.guid) end
     end)
@@ -230,7 +234,7 @@ local function PaintDetail(pane, detail)
         row.Crown:SetShown(detail.own or char.isMain)
         row.Crown:EnableMouse(detail.own)
         row.Crown.guid, row.Crown.isMain = char.guid, char.isMain
-        row.Crown:GetNormalTexture():SetDesaturated(not char.isMain)
+        row.Crown.Icon:SetDesaturated(not char.isMain)
         row.Crown:SetAlpha(char.isMain and 1 or 0.4)
         ns.SetStatusDot(row.Dot, char.online)
         row.Name:SetText(ns.MemberName(char))
@@ -243,8 +247,8 @@ local function Refresh()
     if not window or not window:IsShown() then return end
     local model = M.WindowModel()
     window.Header:SetStats(model.stats)
-    window.Scroll:SetDataProvider(CreateDataProvider(model.rows), ScrollBoxConstants.RetainScrollPosition)
-    window.Scroll:SetShown(not model.noHits)
+    window.List:SetRows(model.rows)
+    window.List:SetShown(not model.noHits)
     window.Empty:SetShown(model.noHits ~= nil)
     if model.noHits then window.Empty:SetMessage(L.UI_NO_HITS:format(model.noHits)) end
     PaintDetail(window.Pane, model.detail)
@@ -290,9 +294,10 @@ local function CreateWindow()
     pane.Hint:SetJustifyH("LEFT")
     f.Pane = pane
 
-    f.Scroll = ns.AddScrollList(f, { top = UI.CONTENT_TOP, bottom = UI.PANE_MARGIN, right = PANE_WIDTH + UI.PANE_MARGIN + 12,
-        rowType = "Button", rowHeight = ROW_HEIGHT, init = InitRow })
-    f.Empty = ns.AddEmptyState(f, f.Scroll, { button = L.UI_RESET_SEARCH, onClick = function()
+    f.List = ns.AddSectionList(f, { top = UI.CONTENT_TOP, bottom = UI.PANE_MARGIN, right = PANE_WIDTH + UI.PANE_MARGIN + 12,
+        rowType = "Button", rowHeight = ROW_HEIGHT, isHeader = function(row) return row.kind == "header" end,
+        initHeader = InitHeader, initRow = InitRow })
+    f.Empty = ns.AddEmptyState(f, f.List, { button = L.UI_RESET_SEARCH, onClick = function()
         f.Header.Search:SetText("") -- the box tells the window through its own change handler
         M.SetSearch("")
     end })

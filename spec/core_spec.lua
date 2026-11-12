@@ -198,6 +198,9 @@ describe("Core", function()
 
         it("open with /bia alts and /bia version, close with Esc and remember where they were dragged", function()
             local game = windowGame()
+            -- The roster's one member has no data: open that section, so its rows are painted.
+            game:DB().modules.alts.expanded = { nodata = true }
+            game:DB().modules.version.expanded = { none = true }
             for tool, name in pairs({ alts = "BiAGuildToolsAltsFrame", version = "BiAGuildToolsVersionFrame" }) do
                 game:slash(tool)
                 local f = frame(game, name)

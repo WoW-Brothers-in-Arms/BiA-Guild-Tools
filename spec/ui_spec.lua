@@ -99,6 +99,38 @@ describe("UI", function()
         assert.equal(1, reset)
     end)
 
+    it("gives open sections the room they need, and shares it when it runs out", function()
+        local _, ns = start()
+        assert.same({ 26, 234, 0 }, ns.UI.SectionHeights(300, { 26, 234, 0 }))
+        assert.same({ 26, 137, 137 }, ns.UI.SectionHeights(300, { 26, 234, 676 }))
+        assert.same({ 100, 100, 100 }, ns.UI.SectionHeights(300, { 500, 400, 300 }))
+        assert.same({ 0, 0 }, ns.UI.SectionHeights(-20, { 0, 50 }))
+    end)
+
+    it("splits rows into sections, each with its own scrolling list", function()
+        local game, ns = start()
+        game.env.CreateScrollBoxListLinearView = function()
+            return { SetElementExtent = function() end, SetElementInitializer = function() end }
+        end
+        game.env.ScrollUtil = { InitScrollBoxListWithScrollBar = function() end }
+        game.env.ScrollBoxConstants = {}
+        local lists = {}
+        game.env.CreateDataProvider = function(rows)
+            lists[#lists + 1] = rows
+            return rows
+        end
+        local f = ns.CreateWindow("TestWin", { width = 500, height = 300 })
+        local headers = {}
+        local list = ns.AddSectionList(f, { top = -100, bottom = 12, rowType = "Button", rowHeight = 20,
+            isHeader = function(row) return row.h end,
+            initHeader = function(_, row) headers[#headers + 1] = row.text end,
+            initRow = function() end })
+        list:SetRows({ { h = true, text = "A" }, { n = 1 }, { n = 2 }, { h = true, text = "B" }, { h = true, text = "C" }, { n = 3 } })
+        assert.same({ "A", "B", "C" }, headers)
+        assert.same({ { { n = 1 }, { n = 2 } }, { { n = 3 } } }, lists) -- the closed section B gets no list
+        assert.same({}, game.errors)
+    end)
+
     it("stripes every second data row and starts again after a header", function()
         local _, ns = start()
         local rows = ns.UI.Stripe({ { h = true }, {}, {}, {}, { h = true }, {}, {} }, function(r) return r.h end)

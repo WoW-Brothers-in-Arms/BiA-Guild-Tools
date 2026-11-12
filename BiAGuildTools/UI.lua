@@ -8,6 +8,7 @@
 --   f.Scroll = ns.AddScrollList(f, { top = ns.UI.CONTENT_TOP, bottom = 12, right = 320, rowType = "Button",
 --       rowHeight = 20, init = InitRow })
 --   f.Scroll:SetDataProvider(CreateDataProvider(rows), ScrollBoxConstants.RetainScrollPosition)
+--   f.List = ns.AddSectionList(f, { ... })   -- sections with fixed headers that scroll on their own
 -- In a row's init: ns.StyleHeader/SetHeader (section bars), ns.StyleSelectable + row:SetSelected,
 -- ns.StyleZebra/SetZebra (the stripe of every second row), ns.AddStatusDot/SetStatusDot.
 local _, ns = ...
@@ -386,4 +387,101 @@ function ns.AddScrollList(f, opts)
         scroll:SetPoint("BOTTOMRIGHT", -(right + SCROLL_BAR_ROOM), opts.bottom)
     end
     return scroll
+end
+
+---------------------------------------------------------------------------
+-- A list in sections: every section has a header bar that stays where it is, and below it – while
+-- the section is open – its own scrolling list with its own scroll bar. Sections take the room their
+-- rows need; when the window is too small for all of them, the long ones share what is left.
+---------------------------------------------------------------------------
+local SECTION_HEADER, SECTION_GAP = 26, 3
+
+-- Heights for the sections' lists: desired[i] is what section i would need (0: closed or empty),
+-- avail what there is for all of them. Short sections get what they need; the rest is shared equally.
+function UI.SectionHeights(avail, desired)
+    local heights, open = {}, {}
+    for i, need in ipairs(desired) do
+        heights[i] = 0
+        if need > 0 then open[#open + 1] = i end
+    end
+    table.sort(open, function(a, b)
+        if desired[a] ~= desired[b] then return desired[a] < desired[b] end
+        return a < b
+    end)
+    local left = math.max(avail, 0)
+    for k, i in ipairs(open) do
+        local height = math.min(desired[i], left / (#open - k + 1))
+        heights[i] = height
+        left = left - height
+    end
+    return heights
+end
+
+-- opts: top, bottom, left, right (as for ns.AddScrollList), rowType, rowHeight,
+--       isHeader = function(row) (a row that starts a section),
+--       initHeader = function(header, row) (paints a section's header button; headers are reused),
+--       initRow = function(frame, row) (paints a data row; rows are reused).
+-- list:SetRows(rows) – a flat list in which every header row is followed by its section's rows.
+function ns.AddSectionList(f, opts)
+    local left, right = opts.left or UI.PANE_MARGIN, opts.right or UI.PANE_MARGIN
+    local list = CreateFrame("Frame", nil, f)
+    list:SetPoint("TOPLEFT", left, opts.top)
+    list:SetPoint("BOTTOMRIGHT", -right, opts.bottom)
+    list.sections = {}
+
+    local function Section(i)
+        local section = list.sections[i]
+        if not section then
+            section = { Header = CreateFrame("Button", nil, list), Body = CreateFrame("Frame", nil, list) }
+            section.Header:SetHeight(SECTION_HEADER)
+            section.Scroll = ns.AddScrollList(section.Body, { top = 0, bottom = 0, left = 0, right = 0,
+                rowType = opts.rowType, rowHeight = opts.rowHeight, init = opts.initRow })
+            list.sections[i] = section
+        end
+        return section
+    end
+
+    function list:SetRows(rows)
+        local groups = {}
+        for _, row in ipairs(rows) do
+            if opts.isHeader(row) then
+                groups[#groups + 1] = { header = row, rows = {} }
+            elseif groups[#groups] then
+                table.insert(groups[#groups].rows, row)
+            end
+        end
+        local desired = {}
+        for i, group in ipairs(groups) do desired[i] = #group.rows * opts.rowHeight end
+        -- The window's height is fixed, so the list's height follows from it (asking the list itself
+        -- can come too early, before the game has laid it out).
+        local windowHeight = f:GetHeight()
+        local total = (type(windowHeight) == "number" and windowHeight or 540) + opts.top - opts.bottom
+        local heights = UI.SectionHeights(total - #groups * (SECTION_HEADER + SECTION_GAP), desired)
+
+        local y = 0
+        for i, group in ipairs(groups) do
+            local section = Section(i)
+            section.Header:ClearAllPoints()
+            section.Header:SetPoint("TOPLEFT", 0, -y)
+            section.Header:SetPoint("TOPRIGHT", 0, -y)
+            section.Header:Show()
+            opts.initHeader(section.Header, group.header)
+            y = y + SECTION_HEADER + SECTION_GAP
+            local height = math.floor(heights[i])
+            section.Body:SetShown(height > 0)
+            if height > 0 then
+                section.Body:ClearAllPoints()
+                section.Body:SetPoint("TOPLEFT", 0, -y)
+                section.Body:SetPoint("TOPRIGHT", 0, -y)
+                section.Body:SetHeight(height)
+                section.Scroll:SetDataProvider(CreateDataProvider(group.rows), ScrollBoxConstants.RetainScrollPosition)
+                y = y + height
+            end
+        end
+        for i = #groups + 1, #self.sections do
+            self.sections[i].Header:Hide()
+            self.sections[i].Body:Hide()
+        end
+    end
+    return list
 end
