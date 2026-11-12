@@ -14,7 +14,7 @@ local UI = ns.UI
 local ROW_HEIGHT = 26
 local PANE_WIDTH = 290
 local MAX_CHARS = 12 -- characters of one player the pane has room for
-local FIRST_CHAR_Y = 126 -- where the pane's character rows start, below icon, name, sub line and heading
+local FIRST_CHAR_Y = 132 -- where the pane's character rows start, below icon, name, sub line and heading
 local CROWN = "Interface\\GroupFrame\\UI-Group-LeaderIcon"
 local WINDOW_ICON = "Interface\\AddOns\\BiAGuildTools\\Media\\IconAlts"
 local window
@@ -43,10 +43,10 @@ local function StatusText(player, roster)
     return L.ALTS_STATUS_ONLINE_ON:format(NameOf(roster, player.online))
 end
 
+-- "+2" for a player with two alts, nothing for one without.
 local function AltsText(player)
     local n = #player.chars - 1
-    if n == 0 then return L.ALTS_NO_ALTS end
-    return n == 1 and L.ALTS_ONE_ALT or L.ALTS_N_ALTS:format(n)
+    return n > 0 and ("+" .. n) or ""
 end
 
 local function ClassName(classFile)
@@ -55,7 +55,8 @@ end
 
 -- { stats, rows, detail }:
 --   rows:   { kind = "header", section, text, expanded } and
---           { kind = "player", key, name, classFile, alts, status, online, nodata, selected, band }
+--           { kind = "player", key, name, classFile, note, alts, status, online, nodata, selected, band }
+--           (note: the player's guild note, where guilds write the player's name; alts: "+2" or "")
 --   noHits: the search text while it matches nobody in the guild, else nil.
 --   detail: the chosen player – { key, name, classFile, sub, own, hint,
 --           chars = { { guid, name, classFile, level, online, isMain, band }, ... } }; nil when no player
@@ -74,7 +75,7 @@ function M.WindowModel()
         for _, player in ipairs(players) do
             local lead = roster[player.key]
             local row = { kind = "player", key = player.key, name = NameOf(roster, player.key), classFile = lead.classFile,
-                alts = AltsText(player), status = StatusText(player, roster), online = player.online ~= nil,
+                note = player.note, alts = AltsText(player), status = StatusText(player, roster), online = player.online ~= nil,
                 nodata = player.nodata or false, selected = false }
             rows[#rows + 1] = row
             listed[#listed + 1] = { row = row, player = player, own = section == "own" }
@@ -97,11 +98,15 @@ function M.WindowModel()
         local chars = {}
         for _, guid in ipairs(player.chars) do
             local member = roster[guid]
+            -- A character's own note only shows when it differs from the player's.
+            local note = type(member.note) == "string" and member.note:match("^%s*(.-)%s*$") or ""
             chars[#chars + 1] = { guid = guid, name = NameOf(roster, guid), classFile = member.classFile, level = member.level,
-                online = member.online, isMain = hasMain and guid == player.main }
+                online = member.online, isMain = hasMain and guid == player.main,
+                note = note ~= "" and note ~= player.note and note or nil }
         end
         UI.Stripe(chars, function() return false end)
         detail = { key = player.key, name = NameOf(roster, player.key), classFile = lead.classFile, own = pick.own, chars = chars,
+            note = player.note,
             sub = (hasMain and L.ALTS_DETAIL_SUB or L.ALTS_DETAIL_SUB_NO_MAIN):format(ClassName(lead.classFile), lead.level,
                 StatusText(player, roster)),
             hint = pick.own and L.ALTS_HINT_OWN or (M.CanAssign() and L.ALTS_HINT_OFFICER or "") }
@@ -163,7 +168,12 @@ local function InitRow(row, data)
         row.Label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
         row.Label:SetPoint("LEFT", 32, 0)
         row.Alts = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-        row.Alts:SetPoint("LEFT", row.Label, "RIGHT", 8, 0)
+        row.Alts:SetPoint("RIGHT", -84, 0) -- a column of its own, left of the status
+        row.Note = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+        row.Note:SetPoint("LEFT", row.Label, "RIGHT", 8, 0)
+        row.Note:SetPoint("RIGHT", row.Alts, "LEFT", -8, 0)
+        row.Note:SetJustifyH("LEFT")
+        row.Note:SetWordWrap(false) -- a long note ends in "…"
         row.Status = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
         row.Status:SetPoint("RIGHT", -8, 0)
         row.Dot = ns.AddStatusDot(row)
@@ -176,7 +186,8 @@ local function InitRow(row, data)
     row:SetSelected(data.selected)
     ClassIcon(row.ClassIcon, data.classFile)
     row.Label:SetText(ns.MemberName(data))
-    row.Alts:SetText(data.nodata and "" or data.alts)
+    row.Note:SetText(data.note)
+    row.Alts:SetText(data.alts)
     row.Status:SetText(data.status)
     if data.online then row.Status:SetTextColor(1, 1, 1) else row.Status:SetTextColor(0.6, 0.57, 0.53) end
     ns.SetStatusDot(row.Dot, data.online)
@@ -217,12 +228,15 @@ local function CharRow(pane, i)
 end
 
 local function PaintDetail(pane, detail)
-    for _, part in ipairs({ pane.Icon, pane.Name, pane.Sub, pane.Heading, pane.Hint }) do part:SetShown(detail ~= nil) end
+    for _, part in ipairs({ pane.Icon, pane.Name, pane.Sub, pane.Note, pane.Heading, pane.Hint }) do
+        part:SetShown(detail ~= nil)
+    end
     for _, row in ipairs(pane.rows) do row:Hide() end
     if not detail then return end
     ClassIcon(pane.Icon, detail.classFile)
     pane.Name:SetText(ns.ColoredName(detail))
     pane.Sub:SetText(detail.sub)
+    pane.Note:SetText(detail.note ~= "" and L.ALTS_NOTE:format(detail.note) or "")
     pane.Hint:SetText(detail.hint)
     for i, char in ipairs(detail.chars) do
         if i > MAX_CHARS then break end
@@ -238,7 +252,7 @@ local function PaintDetail(pane, detail)
         row.Crown:SetAlpha(char.isMain and 1 or 0.4)
         ns.SetStatusDot(row.Dot, char.online)
         row.Name:SetText(ns.MemberName(char))
-        row.Info:SetText(("%s · %d"):format(ClassName(char.classFile), char.level))
+        row.Info:SetText(("%s%s · %d"):format(char.note and (char.note .. " · ") or "", ClassName(char.classFile), char.level))
         row:Show()
     end
 end
@@ -285,8 +299,12 @@ local function CreateWindow()
     pane.Sub = pane:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     pane.Sub:SetPoint("TOP", 0, -78)
     pane.Sub:SetWidth(PANE_WIDTH - 16)
+    pane.Note = pane:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    pane.Note:SetPoint("TOP", 0, -92)
+    pane.Note:SetWidth(PANE_WIDTH - 16)
+    pane.Note:SetWordWrap(false)
     pane.Heading = pane:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    pane.Heading:SetPoint("TOP", 0, -104)
+    pane.Heading:SetPoint("TOP", 0, -112)
     pane.Heading:SetText(L.ALTS_CHARACTERS)
     pane.Hint = pane:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     pane.Hint:SetPoint("BOTTOMLEFT", 8, 8)

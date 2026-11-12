@@ -259,12 +259,15 @@ function G.BuildList(groups, roster, onlyOnline)
 end
 
 -- The overview window's players: one entry per player instead of one per character.
---   opts: onlyOnline, search (text; plain, case does not matter; matches any character of a player),
+--   opts: onlyOnline, search (text; plain, case does not matter; matches the name or the guild note of
+--         any character of a player),
 --         own = { chars = { [guid] = true }, main = guid|nil } (your own characters; listed apart)
 --   returns { own = player|nil, players = { player, ... }, nodata = { player, ... },
 --             counts = { players, chars, reachable } }
 --   player = { key = guid, main = guid|nil, chosen = bool, chars = { guid, ... }, online = guid|nil,
---              nodata = true|nil }
+--              note = text, nodata = true|nil }
+-- note: the guild note of the first character in chars that has one ("" if none has) – guilds write
+-- the player's name there.
 -- chosen: the player picked that main (otherwise it is a guess: their highest character).
 -- own.chosen says the same for your own main. Characters an officer linked to your group are listed
 -- with your own.
@@ -276,6 +279,13 @@ function G.BuildPlayers(groups, roster, opts)
     local byLevel = function(a, b)
         if roster[a].level ~= roster[b].level then return roster[a].level > roster[b].level end
         return roster[a].name < roster[b].name
+    end
+    local function Note(chars)
+        for _, guid in ipairs(chars) do
+            local note = roster[guid].note
+            if type(note) == "string" and note:match("%S") then return (note:match("^%s*(.-)%s*$")) end
+        end
+        return ""
     end
     local function Player(main, others, chosen)
         local chars = {}
@@ -290,14 +300,19 @@ function G.BuildPlayers(groups, roster, opts)
         for _, guid in ipairs(chars) do
             online = online or (roster[guid].online and guid or nil)
         end
-        return { key = chars[1], main = main, chosen = main ~= nil and chosen == true, chars = chars, online = online }
+        return { key = chars[1], main = main, chosen = main ~= nil and chosen == true, chars = chars, online = online,
+            note = Note(chars) }
     end
     local needle = opts.search and opts.search ~= "" and opts.search:lower() or nil
     local function Wanted(player)
         if opts.onlyOnline and not player.online then return false end
         if not needle then return true end
         for _, guid in ipairs(player.chars) do
-            if ns.PlainName(roster[guid].name):lower():find(needle, 1, true) then return true end
+            local note = roster[guid].note
+            if ns.PlainName(roster[guid].name):lower():find(needle, 1, true)
+                or (type(note) == "string" and note:lower():find(needle, 1, true)) then
+                return true
+            end
         end
         return false
     end
@@ -330,7 +345,8 @@ function G.BuildPlayers(groups, roster, opts)
     table.sort(result.players, function(a, b) return roster[a.key].name < roster[b.key].name end)
     for guid, member in pairs(roster) do
         if not taken[guid] then
-            local player = { key = guid, chars = { guid }, online = member.online and guid or nil, nodata = true }
+            local player = { key = guid, chars = { guid }, online = member.online and guid or nil, nodata = true,
+                note = Note({ guid }) }
             if Wanted(player) then result.nodata[#result.nodata + 1] = player end
         end
     end

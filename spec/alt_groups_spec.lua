@@ -317,6 +317,22 @@ describe("AltGroups", function()
             assert.same({ "Eve" }, names(G.BuildPlayers(groups, r, { search = "ev" }).nodata))
         end)
 
+        it("names a player by the guild note of their main, else of another character", function()
+            local noted = makeRoster(true)
+            noted[A].note, noted[C].note, noted[F].note = "Max", "Max (alt)", ""
+            local res = G.BuildPlayers(groups, noted, {})
+            assert.equal("Max", res.players[3].note) -- Zed's group: the main's note
+            assert.equal("", res.players[1].note)    -- Abe: no note anywhere
+            noted[A].note = ""
+            assert.equal("Max (alt)", G.BuildPlayers(groups, noted, {}).players[3].note)
+        end)
+
+        it("finds players by a guild note of one of their characters", function()
+            local noted = makeRoster(true)
+            noted[C].note = "Maximilian"
+            assert.same({ "Zed" }, names(G.BuildPlayers(groups, noted, { search = "maxi" }).players))
+        end)
+
         it("copes with an empty roster", function()
             local res = G.BuildPlayers(groups, {}, { own = { chars = { [D] = true }, main = D } })
             assert.same({ players = 0, chars = 0, reachable = 0 }, res.counts)

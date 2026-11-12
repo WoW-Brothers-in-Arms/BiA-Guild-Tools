@@ -138,7 +138,11 @@ characters on the right.**
   - Other groups: guild master and officers get the existing assign menu with a right-click on a
     character in the pane or on a row in the list.
   - A footer line explains which of the two applies.
-- **Search** matches any character name of a group. **Only online** keeps groups with a character
+- **Guild note:** guilds write the player's name into the guild note. A row shows the note of the
+  player's main (or of their first character that has one) in grey behind the name; the number of alts
+  is a small "+2" in a column of its own and is left out for players without alts. The card shows
+  "Note: …" below the name, and with a character its own note when it differs.
+- **Search** matches the name or the guild note of any character of a group. **Only online** keeps groups with a character
   online. Your own group is chosen when the window opens.
 
 `Groups.BuildList` stays for the roster column and tooltip; the window gets a new pure function

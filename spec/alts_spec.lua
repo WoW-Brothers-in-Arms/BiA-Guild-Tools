@@ -801,7 +801,8 @@ describe("Alts", function()
             assert.equal("Your characters", m.rows[1].text)
             assert.equal("Guild (1 players)", m.rows[3].text)
             assert.equal("Other", m.rows[4].name)
-            assert.equal("1 alt", m.rows[4].alts)
+            assert.equal("+1", m.rows[4].alts)
+            assert.equal("", m.rows[2].alts) -- nobody needs to read "no alts"
             assert.equal("online", m.rows[4].status)
             assert.is_false(m.rows[4].band) -- the first row under a header is never striped
             assert.equal("Without BiA Guild Tools (1)", m.rows[5].text) -- Twinky
@@ -850,6 +851,21 @@ describe("Alts", function()
             local d = M(game).WindowModel().detail
             assert.equal("MAGE · level 60 · online", d.sub)
             assert.is_false(d.chars[1].isMain)
+        end)
+
+        it("shows the guild note as the player's name and finds players by it", function()
+            local members = guild()
+            members[3].note, members[4].note = "Max", "Max twink"
+            local game = ready(members)
+            game:receive("BiaAlts", OTHER_GROUP, "Other Realm")
+            M(game).SelectPlayer(OTHER)
+            local m = M(game).WindowModel()
+            assert.equal("Max", m.rows[4].note)
+            assert.equal("Max", m.detail.note)
+            assert.is_nil(m.detail.chars[1].note)               -- same as the player's
+            assert.equal("Max twink", m.detail.chars[2].note)   -- differs: shown with the character
+            M(game).SetSearch("max")
+            assert.equal("Other", M(game).WindowModel().rows[4].name)
         end)
 
         it("says on which character a player is online", function()
