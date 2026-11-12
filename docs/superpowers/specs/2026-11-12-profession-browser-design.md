@@ -71,6 +71,14 @@ and atlases are used, so the result is more detailed than the mock-ups.
    The pane is a card: the game's inset panel (`InsetFrameTemplate`), 14 px away from the window's right
    and bottom edge.
 
+**Sections scroll on their own:** a list with sections (Alts, Addon Versions, the recipes of a
+profession) keeps its section headers in place. Each open section has its own scrolling list with its
+own scroll bar inside it. Sections take the room their rows need; when the window is too small for all
+of them, the long ones share what is left (`ns.AddSectionList`).
+
+**A search without hits** shows a line "Nothing found for …" in place of the list and a button below it
+that resets the search.
+
 **Lists are zebra-striped:** every second data row is lightly shaded (white at 5 %). The count starts
 again after each section header, so the first row under a header is never shaded. The highlight of
 the chosen row wins over the stripe.
