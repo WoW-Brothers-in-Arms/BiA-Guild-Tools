@@ -3,7 +3,7 @@
 ## Notes: BiA Guild Tools – A small collection of quality-of-life tools for World of Warcraft: Forever
 ## Notes-deDE: BiA Guild Tools – Eine kleine Sammlung von Komfort-Tools für World of Warcraft: Forever
 ## Author: Paul
-## Version: 1.3.0
+## Version: 1.4.0-dev
 ## SavedVariables: BiAGuildToolsDB
 ## IconTexture: Interface\AddOns\BiAGuildTools\Media\Icon
 
