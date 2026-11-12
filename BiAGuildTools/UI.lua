@@ -155,6 +155,7 @@ UI.PANE_MARGIN = 14
 -- opts: icon (texture), title, search = function(text) (optional; called with the trimmed text while
 --       typing), online = { db, onChange } (optional; keeps db.onlyOnline, then calls onChange).
 -- header:SetIcon(texture), header:SetTitle(text), header:SetStats(text); header.Search, header.Online.
+local SECTION_INSET = 4 -- a section bar's art starts this far inside its frame; rows and the header icon line up with it
 local CONTROLS_Y = 6 -- search box and checkbox sit midway between the title bar and the ornament line
 function ns.AddHeader(f, opts)
     local h = CreateFrame("Frame", nil, f)
@@ -164,7 +165,7 @@ function ns.AddHeader(f, opts)
 
     local frame = UI.Fill(h, "BORDER", COLORS.border)
     frame:SetSize(46, 46)
-    frame:SetPoint("TOPLEFT", 4, 0) -- in line with the list's bars, whose art starts a little inside
+    frame:SetPoint("TOPLEFT", SECTION_INSET, 0) -- in line with the list's bars, whose art starts a little inside
     h.Icon = h:CreateTexture(nil, "ARTWORK")
     h.Icon:SetSize(42, 42)
     h.Icon:SetPoint("CENTER", frame)
@@ -471,8 +472,8 @@ function ns.AddSectionList(f, opts)
             section.Body:SetShown(height > 0)
             if height > 0 then
                 section.Body:ClearAllPoints()
-                section.Body:SetPoint("TOPLEFT", 0, -y)
-                section.Body:SetPoint("TOPRIGHT", 0, -y)
+                section.Body:SetPoint("TOPLEFT", SECTION_INSET, -y)
+                section.Body:SetPoint("TOPRIGHT", -SECTION_INSET, -y)
                 section.Body:SetHeight(height)
                 section.Scroll:SetDataProvider(CreateDataProvider(group.rows), ScrollBoxConstants.RetainScrollPosition)
                 y = y + height
