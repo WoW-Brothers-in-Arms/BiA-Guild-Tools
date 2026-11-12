@@ -70,7 +70,7 @@ Shows which characters belong to the same player. You only pick your main: the a
 
 - In the guild roster, a dropdown at the top right switches the extra column between *Professions*, *Alts* and *Off*. The Alts column shows a crown for a main, "» Main name" for an alt and "(Main?)" while the player hasn't picked a main yet (then their highest-level character counts as main).
 - The roster tooltip names the main and lists the player's other characters.
-- `/bia alts`: open the overview window – your characters on top (click a crown to pick your main, click the lit crown again to take it back), below the guild grouped by player. The guild window also gets a tab on its right edge (below Blizzard's guild tabs) that opens and closes it.
+- `/bia alts`: open the overview window – one row per player with their guild note (search finds names and notes), your own characters on top; the chosen player's characters show on the right. There you click a crown to pick your main, and the lit crown again to take it back. The guild window also gets a tab on its right edge (below Blizzard's guild tabs) that opens and closes it.
 - **Guild master and officers** (rank 1) can link characters for others, e.g. members without the addon: right-click a member in the guild roster (submenu *BiA Alts*) or in the window → *Alt of …* (search by name or guild note – the field starts with the character's note – and pick the main), *Mark as main* or *Remove assignment*. Every officer with the addon passes these links on, so they reach everyone. A player's own choice always wins: characters someone linked themselves can't be assigned, and the tooltip names the officer for assigned links.
 - `/bia alts main [name]`: make the current (or the named own) character your main
 - `/bia alts main clear`: take back your main choice
@@ -78,6 +78,16 @@ Shows which characters belong to the same player. You only pick your main: the a
 - `/bia alts tooltip`: alts in the tooltip on/off
 - `/bia alts sync`: request fresh data from the guild
 - `/bia alts debug`: log addon messages in chat (for troubleshooting)
+
+### Guild Recipes (`/bia recipes`)
+
+Shows who in the guild can craft what. Every member with the addon shares the recipes they know; you pick a profession and see its recipes by category, and for the chosen recipe the reagents and everyone who can craft it. **Only members who use the addon show up.**
+
+- Your recipes are read when you open a profession window. After that the addon also picks up alts with the same profession and newly learned recipes without the window. Until you have opened a profession once, a line in chat after login reminds you.
+- `/bia recipes`: open the window – professions on the left, recipes in the middle, the chosen recipe's item, reagents and crafters on the right. A crafter counts as reachable when any character of that player is online ("online on …"). The guild window also gets a second tab on its right edge that opens and closes it.
+- `/bia recipes sync`: request fresh data from the guild
+- `/bia recipes status`: how many members and recipes are stored
+- `/bia recipes debug`: log addon messages in chat (for troubleshooting)
 
 ### Reagent Bag (`/bia bags`)
 
