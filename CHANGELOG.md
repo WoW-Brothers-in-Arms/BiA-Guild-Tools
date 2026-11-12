@@ -6,6 +6,9 @@ and CurseForge and stops if it is missing.
 
 ## Unreleased
 
+- All windows have a new look that follows the game's own panels: a header with icon, title, key figures, search and "Only online". Lists are striped.
+- Alts window: one row per player on the left, their characters on the right. The row shows whether the player is online, also on another character.
+- Addon Versions window: members are grouped by version with "current" or "outdated", and offline members show when they were last seen.
 - Far fewer addon messages: after login everyone sends one short status (version, a checksum of the professions, the time the alts group last changed, for officers a checksum of their assignments) instead of all their data. Only what is missing or outdated is asked for and sent. Officers no longer send all their assignments at every login.
 - This changes how the tools talk to each other: players on 1.2.x and on this version don't see each other's professions and alts reliably until everyone has updated. Players on 1.2.x still get the update notice.
 - Less work in the background, mostly noticeable in large guilds: Alts handles bursts of guild roster updates together and no longer redraws when a guild mate sends a group it already has; Professions no longer searches all stored members for every roster row without data.
