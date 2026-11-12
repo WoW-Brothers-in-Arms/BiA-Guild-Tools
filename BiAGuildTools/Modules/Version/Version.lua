@@ -257,7 +257,7 @@ local function InitRow(row, data)
         return
     end
     ns.SetStatusDot(row.Dot, data.online)
-    row.Label:SetText(ns.ColoredName({ name = data.name, classFile = data.online and data.classFile or nil }))
+    row.Label:SetText(ns.MemberName(data))
     row.Note:SetText(data.note)
 end
 

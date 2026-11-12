@@ -263,7 +263,11 @@ end
 --         own = { chars = { [guid] = true }, main = guid|nil } (your own characters; listed apart)
 --   returns { own = player|nil, players = { player, ... }, nodata = { player, ... },
 --             counts = { players, chars, reachable } }
---   player = { key = guid, main = guid|nil, chars = { guid, ... }, online = guid|nil, nodata = true|nil }
+--   player = { key = guid, main = guid|nil, chosen = bool, chars = { guid, ... }, online = guid|nil,
+--              nodata = true|nil }
+-- chosen: the player picked that main (otherwise it is a guess: their highest character).
+-- own.chosen says the same for your own main. Characters an officer linked to your group are listed
+-- with your own.
 -- chars: the main first (if it is in the roster), then by level; key is chars[1]. online: the main if it
 -- is online, else the first online character. players are sorted by the name of their first character.
 -- nodata: roster members in no group. onlyOnline and search don't apply to your own entry. counts cover
@@ -273,7 +277,7 @@ function G.BuildPlayers(groups, roster, opts)
         if roster[a].level ~= roster[b].level then return roster[a].level > roster[b].level end
         return roster[a].name < roster[b].name
     end
-    local function Player(main, others)
+    local function Player(main, others, chosen)
         local chars = {}
         for _, guid in ipairs(others) do
             if roster[guid] and guid ~= main then chars[#chars + 1] = guid end
@@ -286,7 +290,7 @@ function G.BuildPlayers(groups, roster, opts)
         for _, guid in ipairs(chars) do
             online = online or (roster[guid].online and guid or nil)
         end
-        return { key = chars[1], main = main, chars = chars, online = online }
+        return { key = chars[1], main = main, chosen = main ~= nil and chosen == true, chars = chars, online = online }
     end
     local needle = opts.search and opts.search ~= "" and opts.search:lower() or nil
     local function Wanted(player)
@@ -299,25 +303,30 @@ function G.BuildPlayers(groups, roster, opts)
     end
 
     local result = { players = {}, nodata = {}, counts = { players = 0, chars = 0, reachable = 0 } }
-    local taken = {}
+    local taken, mine, ownChars = {}, {}, {}
     if opts.own then
-        local others = {}
         for guid in pairs(opts.own.chars) do
-            others[#others + 1] = guid
-            taken[guid] = true
+            mine[guid] = true
+            ownChars[#ownChars + 1] = guid
         end
-        result.own = Player(opts.own.main, others)
     end
     for _, group in pairs(groups) do
-        local mine = taken[group.main]
-        for _, guid in ipairs(group.alts) do mine = mine or taken[guid] end
-        if not mine then
-            local player = Player(group.main, group.alts)
+        local members = { group.main }
+        for _, guid in ipairs(group.alts) do members[#members + 1] = guid end
+        local isMine = false
+        for _, guid in ipairs(members) do isMine = isMine or mine[guid] == true end
+        if isMine then -- linked by an officer: characters of yours on another account
+            for _, guid in ipairs(members) do
+                if not mine[guid] and not taken[guid] then ownChars[#ownChars + 1] = guid end
+            end
+        else
+            local player = Player(group.main, group.alts, group.chosen)
             if player and Wanted(player) then result.players[#result.players + 1] = player end
         end
-        taken[group.main] = true
-        for _, guid in ipairs(group.alts) do taken[guid] = true end
+        for _, guid in ipairs(members) do taken[guid] = true end
     end
+    for guid in pairs(mine) do taken[guid] = true end
+    if opts.own then result.own = Player(opts.own.main, ownChars, opts.own.chosen) end
     table.sort(result.players, function(a, b) return roster[a.key].name < roster[b.key].name end)
     for guid, member in pairs(roster) do
         if not taken[guid] then

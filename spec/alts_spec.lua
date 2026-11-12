@@ -843,6 +843,15 @@ describe("Alts", function()
             assert.equal("", m.detail.hint) -- not an officer
         end)
 
+        it("doesn't call a guessed main a main", function()
+            local game = ready()
+            game:receive("BiaAlts", "G|1|1-0000BBBB|0|1700000000|1-0000CCCC", "Other Realm")
+            M(game).SelectPlayer(OTHER)
+            local d = M(game).WindowModel().detail
+            assert.equal("MAGE · level 60 · online", d.sub)
+            assert.is_false(d.chars[1].isMain)
+        end)
+
         it("says on which character a player is online", function()
             local members = guild()
             members[3].online = false -- Other, the main

@@ -61,7 +61,7 @@ function M.WindowModel()
     local roster, own = M.Roster(), M.OwnView()
     local ownMain, chosen = G.EffectiveMain(own, roster)
     local res = G.BuildPlayers(M.Groups(), roster, { onlyOnline = M.db.onlyOnline, search = search,
-        own = { chars = own.chars, main = ownMain } })
+        own = { chars = own.chars, main = ownMain, chosen = chosen } })
 
     local rows, listed = {}, {}
     local function AddSection(section, text, players)
@@ -90,12 +90,12 @@ function M.WindowModel()
     if pick then
         pick.row.selected = true
         local player, lead = pick.player, roster[pick.player.key]
-        local hasMain = pick.own and chosen or (not pick.own and player.main ~= nil)
+        local hasMain = player.main ~= nil and player.chosen
         local chars = {}
         for _, guid in ipairs(player.chars) do
             local member = roster[guid]
             chars[#chars + 1] = { guid = guid, name = NameOf(roster, guid), classFile = member.classFile, level = member.level,
-                online = member.online, isMain = hasMain and guid == player.key or false }
+                online = member.online, isMain = hasMain and guid == player.main }
         end
         UI.Stripe(chars, function() return false end)
         detail = { key = player.key, name = NameOf(roster, player.key), classFile = lead.classFile, own = pick.own, chars = chars,
@@ -167,7 +167,7 @@ local function InitRow(row, data)
         return
     end
     ClassIcon(row.ClassIcon, data.classFile)
-    row.Label:SetText(ns.ColoredName({ name = data.name, classFile = data.online and data.classFile or nil }))
+    row.Label:SetText(ns.MemberName(data))
     row.Alts:SetText(data.nodata and "" or data.alts)
     row.Status:SetText(data.status)
     ns.SetStatusDot(row.Dot, data.online)
@@ -226,7 +226,7 @@ local function PaintDetail(pane, detail)
         row.Crown:GetNormalTexture():SetDesaturated(not char.isMain)
         row.Crown:SetAlpha(char.isMain and 1 or 0.4)
         ns.SetStatusDot(row.Dot, char.online)
-        row.Name:SetText(ns.ColoredName({ name = char.name, classFile = char.online and char.classFile or nil }))
+        row.Name:SetText(ns.MemberName(char))
         row.Info:SetText(("%s · %d"):format(ClassName(char.classFile), char.level))
         row:Show()
     end
@@ -285,6 +285,7 @@ local function CreateWindow()
 
     f:SetScript("OnShow", function()
         if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
+        selected = nil -- every time the window opens it starts with your own characters
         Refresh()
         if M.OnWindowShownChanged then M.OnWindowShownChanged() end
     end)

@@ -289,6 +289,20 @@ describe("AltGroups", function()
             assert.same({ players = 3, chars = 5, reachable = 3 }, res.counts)
         end)
 
+        it("lists characters an officer linked to your group with your own", function()
+            local linked = { [D] = group(D, { E }, 1) } -- E is not one of this account's characters
+            local res = G.BuildPlayers(linked, r, { own = { chars = { [D] = true }, main = D } })
+            assert.same({ D, E }, res.own.chars)
+            assert.same({}, res.players)
+            assert.same({ "Abe", "Bob", "Cat", "Zed" }, names(res.nodata))
+        end)
+
+        it("tells whether a player chose their main", function()
+            local res = G.BuildPlayers({ [A] = group(A, { B }, 1, true), [D] = group(D, {}, 1, false) }, r, {})
+            assert.is_false(res.players[1].chosen) -- Dan: the highest character, a guess
+            assert.is_true(res.players[2].chosen)  -- Zed
+        end)
+
         it("keeps only reachable players with onlyOnline, and always your own", function()
             local res = G.BuildPlayers(groups, makeRoster(false), { onlyOnline = true, own = { chars = { [E] = true }, main = E } })
             assert.same({ "Abe", "Dan" }, names(res.players))

@@ -21,9 +21,8 @@ local function Hex(hex)
 end
 -- The colours parts are drawn with when the game's own art for them is missing.
 UI.COLORS = {
-    ground = { Hex("15100c") }, border = { Hex("6b4f2a") }, bar = { Hex("2b1c10") }, barBorder = { Hex("4f3a22") },
-    gold = { Hex("f0c030") }, selected = { Hex("4b4a47") }, online = { Hex("5fe36a") }, offline = { Hex("9a9186") },
-    close = { Hex("8f1d14") },
+    ground = { Hex("15100c") }, border = { Hex("6b4f2a") }, bar = { Hex("2b1c10") },
+    gold = { Hex("f0c030") }, selected = { Hex("4b4a47") }, close = { Hex("8f1d14") },
 }
 local COLORS = UI.COLORS
 
@@ -132,16 +131,10 @@ end
 
 -- A checkbox with its label to the right. opts: label, checked, onChange = function(checked).
 function ns.AddCheckbox(parent, opts)
-    local box
-    if UI.Atlas("checkbox-minimal") and UI.Atlas("checkmark-minimal") then
-        box = CreateFrame("CheckButton", nil, parent)
-        box:SetNormalAtlas("checkbox-minimal")
-        box:SetPushedAtlas("checkbox-minimal")
-        box:SetCheckedAtlas("checkmark-minimal")
-    else
-        box = UI.TryFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-    end
-    box:SetSize(22, 22)
+    -- The game's small checkbox (as in the reputation pane); older look if that template is missing.
+    local box, templated = UI.TryFrame("CheckButton", nil, parent, "MinimalCheckboxTemplate")
+    if not templated then box = UI.TryFrame("CheckButton", nil, parent, "UICheckButtonTemplate") end
+    box:SetSize(24, 24)
     box:SetChecked(opts.checked and true or false)
     box:SetScript("OnClick", function(self) opts.onChange(self:GetChecked() and true or false) end)
     box.Label = parent:CreateFontString(nil, "ARTWORK", "GameFontNormal")
@@ -255,9 +248,8 @@ function ns.StyleHeader(row)
         bar:SetColorTexture(COLORS.bar[1], COLORS.bar[2], COLORS.bar[3], 1)
     end
     row.Bar = bar
-    row.Name = row:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    row.Name = row:CreateFontString(nil, "ARTWORK", "GameFontNormalLeft")
     row.Name:SetPoint("LEFT", 10, 0)
-    row.Name:SetJustifyH("LEFT")
     row.State = row:CreateTexture(nil, "ARTWORK")
     row.State:SetPoint("RIGHT", -8, 0)
     row.StateText = row:CreateFontString(nil, "ARTWORK", "GameFontNormal")
@@ -277,11 +269,21 @@ end
 function ns.StyleSelectable(row)
     if row.isSelectable == true then return end
     row.isSelectable = true
-    row.Sel = UI.Fill(row, "BACKGROUND", COLORS.selected, 0.9)
+    -- The game's own row highlight (as in the reputation pane) where the client has it.
+    local atlas = UI.Atlas("charactercreate-customize-dropdown-linemouseover-middle")
+    row.Sel = row:CreateTexture(nil, "BACKGROUND", nil, 1) -- above the stripe
     row.Sel:SetAllPoints()
     row.Sel:Hide()
-    local hover = UI.Fill(row, "HIGHLIGHT", { 1, 1, 1 }, 0.08)
+    local hover = row:CreateTexture(nil, "HIGHLIGHT")
     hover:SetAllPoints()
+    if atlas then
+        row.Sel:SetAtlas(atlas)
+        hover:SetAtlas(atlas)
+        hover:SetAlpha(0.5)
+    else
+        row.Sel:SetColorTexture(COLORS.selected[1], COLORS.selected[2], COLORS.selected[3], 0.9)
+        hover:SetColorTexture(1, 1, 1, 0.08)
+    end
     function row:SetSelected(on)
         self.selected = on and true or false
         self.Sel:SetShown(self.selected)
@@ -326,7 +328,7 @@ end
 
 function ns.SetStatusDot(dot, online)
     dot.online = online and true or false
-    dot:SetTexture(dot.online and "Interface\\COMMON\\Indicator-Green" or "Interface\\COMMON\\Indicator-Gray")
+    dot:SetTexture(dot.online and "Interface\\FriendsFrame\\StatusIcon-Online" or "Interface\\FriendsFrame\\StatusIcon-Offline")
 end
 
 -- A scrolling list with a scroll bar on the right that fills the window between top and bottom.

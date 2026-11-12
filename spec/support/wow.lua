@@ -36,6 +36,9 @@ local function TocMetadata(field)
     end
 end
 
+-- Methods no frame of the real client has; calling one fails here as it would in the game.
+local NOT_IN_GAME = { SetCheckedAtlas = true, SetHighlightAtlas2 = true }
+
 -- A frame that remembers its events and scripts. Any other method is a no-op.
 local function NewFrame(game, name, template)
     local frame = { name = name, events = {}, scripts = {}, shown = true }
@@ -66,7 +69,11 @@ local function NewFrame(game, name, template)
     function frame:GetName() return self.name end
     function frame:CreateFontString() return NewFrame(game) end -- font strings and textures: plain fakes
     function frame:CreateTexture() return NewFrame(game) end
-    setmetatable(frame, { __index = function() return function() end end })
+    -- Any other method is a no-op – except names that look right but don't exist in the game.
+    setmetatable(frame, { __index = function(_, key)
+        if NOT_IN_GAME[key] then return nil end
+        return function() end
+    end })
     game.frames[#game.frames + 1] = frame
     return frame
 end

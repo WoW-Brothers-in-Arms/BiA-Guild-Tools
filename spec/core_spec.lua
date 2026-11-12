@@ -16,6 +16,12 @@ describe("Core", function()
         end)
     end)
 
+    it("colours a member's name by class, and grey while offline", function()
+        local ns = Wow.new({ globals = { RAID_CLASS_COLORS = { MAGE = { colorStr = "ff3fc7eb" } } } }).ns
+        assert.equal("|cff3fc7ebAnna|r", ns.MemberName({ name = "Anna-Realm", classFile = "MAGE", online = true }))
+        assert.equal("|cff9a9186Anna|r", ns.MemberName({ name = "Anna-Realm", classFile = "MAGE", online = false }))
+    end)
+
     it("builds the player's full name with realm", function()
         assert.equal("Tester-Realm", Wow.new().ns.PlayerFullName())
     end)

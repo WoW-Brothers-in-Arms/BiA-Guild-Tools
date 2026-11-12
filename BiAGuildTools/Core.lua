@@ -88,6 +88,13 @@ function ns.ColoredName(member)
     return code .. ns.PlainName(member.name) .. "|r"
 end
 
+-- A member's name as lists show it: in class colour while online, grey while offline.
+-- member: { name, classFile, online }.
+function ns.MemberName(member)
+    if member.online then return ns.ColoredName(member) end
+    return "|cff9a9186" .. ns.PlainName(member.name) .. "|r"
+end
+
 function ns.InChatLockdown()
     return C_ChatInfo and C_ChatInfo.InChatMessagingLockdown and C_ChatInfo.InChatMessagingLockdown() or false
 end
