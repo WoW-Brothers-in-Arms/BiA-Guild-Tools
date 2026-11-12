@@ -97,7 +97,8 @@ describe("UI", function()
     it("draws everything without the game's atlases and templates", function()
         local game, ns = start(function(g)
             g.missingAtlases = { ["common-button-list-collapseExpand"] = true, ["checkbox-minimal"] = true }
-            g.missingTemplates = { SearchBoxTemplate = true, DefaultPanelTemplate = true }
+            g.missingTemplates = { SearchBoxTemplate = true, DefaultPanelTemplate = true, InsetFrameTemplate = true,
+                MinimalCheckboxTemplate = true }
         end)
         local f = ns.CreateWindow("TestWin", { width = 500, height = 300 })
         local h = ns.AddHeader(f, { icon = "icon", title = "T", search = function() end, online = { db = {}, onChange = function() end } })

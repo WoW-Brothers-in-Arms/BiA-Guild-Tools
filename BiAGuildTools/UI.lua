@@ -214,21 +214,25 @@ function ns.AddHeader(f, opts)
     return h
 end
 
--- A pane on the right below the header, for the details of the chosen row. opts: width.
+-- A card on the right below the header, for the details of the chosen row: the game's inset panel,
+-- with the same distance to the window's right and bottom edge as the list has to the left one.
+-- opts: width. UI.PANE_MARGIN is that distance.
+UI.PANE_MARGIN = 14
 function ns.AddDetailPane(f, opts)
-    local pane = CreateFrame("Frame", nil, f)
+    local pane, templated = UI.TryFrame("Frame", nil, f, "InsetFrameTemplate")
     pane:SetWidth(opts.width)
-    pane:SetPoint("TOPRIGHT", -6, UI.CONTENT_TOP)
-    pane:SetPoint("BOTTOMRIGHT", -6, 6)
-    UI.Fill(pane, "BACKGROUND", { 1, 1, 1 }, 0.03):SetAllPoints()
-    local left = UI.Fill(pane, "BORDER", COLORS.border)
-    left:SetWidth(1)
-    left:SetPoint("TOPLEFT")
-    left:SetPoint("BOTTOMLEFT")
-    local top = UI.Fill(pane, "BORDER", COLORS.border)
-    top:SetHeight(1)
-    top:SetPoint("TOPLEFT")
-    top:SetPoint("TOPRIGHT")
+    pane:SetPoint("TOPRIGHT", -UI.PANE_MARGIN, UI.CONTENT_TOP)
+    pane:SetPoint("BOTTOMRIGHT", -UI.PANE_MARGIN, UI.PANE_MARGIN)
+    if not templated then
+        UI.Fill(pane, "BACKGROUND", { 1, 1, 1 }, 0.04):SetAllPoints()
+        for _, edge in ipairs({ { "TOPLEFT", "TOPRIGHT", nil, 1 }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, 1 },
+            { "TOPLEFT", "BOTTOMLEFT", 1, nil }, { "TOPRIGHT", "BOTTOMRIGHT", 1, nil } }) do
+            local t = UI.Fill(pane, "BORDER", COLORS.border)
+            t:SetPoint(edge[1])
+            t:SetPoint(edge[2])
+            if edge[3] then t:SetWidth(edge[3]) else t:SetHeight(edge[4]) end
+        end
+    end
     return pane
 end
 

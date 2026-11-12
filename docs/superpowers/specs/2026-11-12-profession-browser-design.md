@@ -67,6 +67,8 @@ and atlases are used, so the result is more detailed than the mock-ups.
    line of key figures; on the right a search box (where the window has one) and "Only online".
 3. **Ornament line** across the window.
 4. **Content:** a list, and for Guild Recipes and Alts a detail pane on the right for the chosen row.
+   The pane is a card: the game's inset panel (`InsetFrameTemplate`), 14 px away from the window's right
+   and bottom edge.
 
 **Lists are zebra-striped:** every second data row is lightly shaded (white at 5 %). The count starts
 again after each section header, so the first row under a header is never shaded. The highlight of

@@ -281,8 +281,8 @@ local function CreateWindow()
     pane.Hint:SetJustifyH("LEFT")
     f.Pane = pane
 
-    f.Scroll = ns.AddScrollList(f, { top = UI.CONTENT_TOP, bottom = 12, right = PANE_WIDTH + 36, rowType = "Button",
-        rowHeight = ROW_HEIGHT, init = InitRow })
+    f.Scroll = ns.AddScrollList(f, { top = UI.CONTENT_TOP, bottom = UI.PANE_MARGIN, right = PANE_WIDTH + UI.PANE_MARGIN + 30,
+        rowType = "Button", rowHeight = ROW_HEIGHT, init = InitRow })
 
     f:SetScript("OnShow", function()
         if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end
