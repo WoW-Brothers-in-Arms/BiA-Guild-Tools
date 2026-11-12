@@ -99,35 +99,44 @@ describe("UI", function()
         assert.equal(1, reset)
     end)
 
-    it("gives open sections the room they need, and shares it when it runs out", function()
+    it("knows which section header sticks to the top while scrolling", function()
         local _, ns = start()
-        assert.same({ 26, 234, 0 }, ns.UI.SectionHeights(300, { 26, 234, 0 }))
-        assert.same({ 26, 137, 137 }, ns.UI.SectionHeights(300, { 26, 234, 676 }))
-        assert.same({ 100, 100, 100 }, ns.UI.SectionHeights(300, { 500, 400, 300 }))
-        assert.same({ 0, 0 }, ns.UI.SectionHeights(-20, { 0, 50 }))
+        local rows = { { h = true }, {}, {}, { h = true }, {}, {}, {} }
+        local function sticky(offset) return ns.UI.StickyHeader(rows, function(r) return r.h end, offset, 20) end
+        assert.is_nil(sticky(0))        -- at the top the first header is in the list itself
+        assert.equal(1, sticky(1))
+        assert.equal(1, sticky(59))     -- row 3 is still the first one visible
+        assert.equal(4, sticky(60))     -- the second header reached the top
+        assert.equal(4, sticky(500))
+        assert.is_nil(ns.UI.StickyHeader({ {}, {} }, function(r) return r.h end, 30, 20)) -- no header above
     end)
 
-    it("splits rows into sections, each with its own scrolling list", function()
+    it("paints headers and rows of one scrolling list through their own painters", function()
         local game, ns = start()
+        local paint
         game.env.CreateScrollBoxListLinearView = function()
-            return { SetElementExtent = function() end, SetElementInitializer = function() end }
+            return { SetElementExtent = function() end, SetElementInitializer = function(_, _, init) paint = init end }
         end
         game.env.ScrollUtil = { InitScrollBoxListWithScrollBar = function() end }
         game.env.ScrollBoxConstants = {}
-        local lists = {}
+        local shown
         game.env.CreateDataProvider = function(rows)
-            lists[#lists + 1] = rows
+            shown = rows
             return rows
         end
         local f = ns.CreateWindow("TestWin", { width = 500, height = 300 })
-        local headers = {}
+        local headers, data = {}, {}
         local list = ns.AddSectionList(f, { top = -100, bottom = 12, rowType = "Button", rowHeight = 20,
             isHeader = function(row) return row.h end,
             initHeader = function(_, row) headers[#headers + 1] = row.text end,
-            initRow = function() end })
-        list:SetRows({ { h = true, text = "A" }, { n = 1 }, { n = 2 }, { h = true, text = "B" }, { h = true, text = "C" }, { n = 3 } })
-        assert.same({ "A", "B", "C" }, headers)
-        assert.same({ { { n = 1 }, { n = 2 } }, { { n = 3 } } }, lists) -- the closed section B gets no list
+            initRow = function(_, row) data[#data + 1] = row.n end })
+        local rows = { { h = true, text = "A" }, { n = 1 }, { n = 2 }, { h = true, text = "B" }, { n = 3 } }
+        list:SetRows(rows)
+        assert.equal(rows, shown) -- one list for all sections
+        local frame = game.env.CreateFrame("Frame")
+        for _, row in ipairs(rows) do paint(frame, row) end -- the game reuses a frame for headers and rows
+        assert.same({ "A", "B" }, headers)
+        assert.same({ 1, 2, 3 }, data)
         assert.same({}, game.errors)
     end)
 

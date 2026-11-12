@@ -8,7 +8,7 @@
 --   f.Scroll = ns.AddScrollList(f, { top = ns.UI.CONTENT_TOP, bottom = 12, right = 320, rowType = "Button",
 --       rowHeight = 20, init = InitRow })
 --   f.Scroll:SetDataProvider(CreateDataProvider(rows), ScrollBoxConstants.RetainScrollPosition)
---   f.List = ns.AddSectionList(f, { ... })   -- sections with fixed headers that scroll on their own
+--   f.List = ns.AddSectionList(f, { ... })   -- one list in sections; the current header sticks to the top
 -- In a row's init: ns.StyleHeader/SetHeader (section bars), ns.StyleSelectable + row:SetSelected,
 -- ns.StyleZebra/SetZebra (the stripe of every second row), ns.AddStatusDot/SetStatusDot.
 local _, ns = ...
@@ -145,9 +145,8 @@ function ns.AddCheckbox(parent, opts)
     return box
 end
 
--- What a list's rows leave empty at their right end: the scroll bar lies there while it shows, and
--- with the room always kept free the rows' columns line up in every section.
-UI.SCROLL_BAR_ROOM = 18
+-- The room right of a list's rows for its scroll bar. It stays free while the bar is hidden.
+UI.SCROLL_BAR_ROOM = 16
 -- Where a window's content starts below the title bar and the header (y offset from the window's top).
 UI.CONTENT_TOP = -104
 -- The distance of a window's content (header, list, detail card) from its left, right and bottom edge.
@@ -375,110 +374,86 @@ function ns.AddScrollList(f, opts)
     view:SetElementExtent(opts.rowHeight)
     view:SetElementInitializer(opts.rowType, opts.init)
     ScrollUtil.InitScrollBoxListWithScrollBar(scroll, bar, view)
+    -- The bar stands right of the rows, in room that stays free while it is hidden, so the rows never
+    -- change their width. It only shows while there is something to scroll.
     scroll:SetPoint("TOPLEFT", left, opts.top)
-    scroll:SetPoint("BOTTOMRIGHT", -right, opts.bottom)
-    -- The rows keep their width whether the bar shows or not: it lies over their right end, which rows
-    -- leave empty (UI.SCROLL_BAR_ROOM). It only shows while there is something to scroll.
-    bar:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", -4, -2)
-    bar:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", -4, 2)
-    bar:SetFrameLevel((scroll:GetFrameLevel() or 1) + 10) -- above the rows
+    scroll:SetPoint("BOTTOMRIGHT", -(right + UI.SCROLL_BAR_ROOM), opts.bottom)
+    bar:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 5, -2)
+    bar:SetPoint("BOTTOMLEFT", scroll, "BOTTOMRIGHT", 5, 2)
     if ScrollUtil.AddManagedScrollBarVisibilityBehavior then ScrollUtil.AddManagedScrollBarVisibilityBehavior(scroll, bar) end
     return scroll
 end
 
 ---------------------------------------------------------------------------
--- A list in sections: every section has a header bar that stays where it is, and below it – while
--- the section is open – its own scrolling list with its own scroll bar. Sections take the room their
--- rows need; when the window is too small for all of them, the long ones share what is left.
+-- A list in sections: one scrolling list in which header rows start the sections. While the player
+-- scrolls through a section, its header stays at the top of the list (and can still be clicked).
 ---------------------------------------------------------------------------
-local SECTION_HEADER, SECTION_GAP = 26, 3
-
--- Heights for the sections' lists: desired[i] is what section i would need (0: closed or empty),
--- avail what there is for all of them. Short sections get what they need; the rest is shared equally.
-function UI.SectionHeights(avail, desired)
-    local heights, open = {}, {}
-    for i, need in ipairs(desired) do
-        heights[i] = 0
-        if need > 0 then open[#open + 1] = i end
+-- The index of the header row that sticks to the top at this scroll offset (pixels), nil when none
+-- does: at the very top, or while the rows above the first header show.
+function UI.StickyHeader(rows, isHeader, offset, rowHeight)
+    if offset <= 0 then return nil end
+    for i = math.min(math.floor(offset / rowHeight) + 1, #rows), 1, -1 do
+        if isHeader(rows[i]) then return i end
     end
-    table.sort(open, function(a, b)
-        if desired[a] ~= desired[b] then return desired[a] < desired[b] end
-        return a < b
-    end)
-    local left = math.max(avail, 0)
-    for k, i in ipairs(open) do
-        local height = math.min(desired[i], left / (#open - k + 1))
-        heights[i] = height
-        left = left - height
-    end
-    return heights
+    return nil
 end
 
 -- opts: top, bottom, left, right (as for ns.AddScrollList), rowType, rowHeight,
 --       isHeader = function(row) (a row that starts a section),
---       initHeader = function(header, row) (paints a section's header button; headers are reused),
---       initRow = function(frame, row) (paints a data row; rows are reused).
+--       initHeader = function(button, row) (paints a section header; buttons are reused),
+--       initRow = function(frame, row) (paints a data row; frames of rowType are reused).
 -- list:SetRows(rows) – a flat list in which every header row is followed by its section's rows.
 function ns.AddSectionList(f, opts)
-    local left, right = opts.left or UI.PANE_MARGIN, opts.right or UI.PANE_MARGIN
     local list = CreateFrame("Frame", nil, f)
-    list:SetPoint("TOPLEFT", left, opts.top)
-    list:SetPoint("BOTTOMRIGHT", -right, opts.bottom)
-    list.sections = {}
+    list:SetPoint("TOPLEFT", opts.left or UI.PANE_MARGIN, opts.top)
+    list:SetPoint("BOTTOMRIGHT", -(opts.right or UI.PANE_MARGIN), opts.bottom)
+    list.rows = {}
 
-    local function Section(i)
-        local section = list.sections[i]
-        if not section then
-            section = { Header = CreateFrame("Button", nil, list), Body = CreateFrame("Frame", nil, list) }
-            section.Header:SetHeight(SECTION_HEADER)
-            section.Scroll = ns.AddScrollList(section.Body, { top = 0, bottom = 0, left = 0, right = 0,
-                rowType = opts.rowType, rowHeight = opts.rowHeight, init = opts.initRow })
-            list.sections[i] = section
+    -- The game reuses one frame for headers and data rows, so each holds both parts and shows one.
+    local function Paint(frame, row)
+        if frame.hasParts ~= true then
+            frame.hasParts = true
+            frame.Head = CreateFrame("Button", nil, frame)
+            frame.Head:SetAllPoints()
+            frame.Data = CreateFrame(opts.rowType, nil, frame)
+            frame.Data:SetPoint("TOPLEFT", SECTION_INSET, 0) -- in line with the header bar's art
+            frame.Data:SetPoint("BOTTOMRIGHT", -SECTION_INSET, 0)
         end
-        return section
+        local isHeader = opts.isHeader(row) and true or false
+        frame.Head:SetShown(isHeader)
+        frame.Data:SetShown(not isHeader)
+        if isHeader then opts.initHeader(frame.Head, row) else opts.initRow(frame.Data, row) end
     end
+    list.Scroll = ns.AddScrollList(list, { top = 0, bottom = 0, left = 0, right = 0, rowType = "Frame",
+        rowHeight = opts.rowHeight, init = Paint })
+
+    local sticky = CreateFrame("Button", nil, list)
+    sticky:SetPoint("TOPLEFT", list.Scroll, "TOPLEFT")
+    sticky:SetPoint("TOPRIGHT", list.Scroll, "TOPRIGHT")
+    sticky:SetHeight(opts.rowHeight)
+    sticky:SetFrameLevel((list.Scroll:GetFrameLevel() or 1) + 20) -- above the rows
+    UI.Fill(sticky, "BACKGROUND", COLORS.ground):SetAllPoints()   -- rows don't shine through
+    sticky:Hide()
+    list.Sticky = sticky
+
+    local shown -- index of the header the sticky one shows
+    local function UpdateSticky()
+        local offset = list.Scroll.GetDerivedScrollOffset and list.Scroll:GetDerivedScrollOffset()
+        local index = type(offset) == "number" and UI.StickyHeader(list.rows, opts.isHeader, offset, opts.rowHeight) or nil
+        if index ~= shown or (index and sticky.row ~= list.rows[index]) then
+            shown = index
+            sticky.row = index and list.rows[index] or nil
+            sticky:SetShown(index ~= nil)
+            if index then opts.initHeader(sticky, list.rows[index]) end
+        end
+    end
+    list:SetScript("OnUpdate", UpdateSticky) -- cheap, and only runs while the list shows
 
     function list:SetRows(rows)
-        local groups = {}
-        for _, row in ipairs(rows) do
-            if opts.isHeader(row) then
-                groups[#groups + 1] = { header = row, rows = {} }
-            elseif groups[#groups] then
-                table.insert(groups[#groups].rows, row)
-            end
-        end
-        local desired = {}
-        for i, group in ipairs(groups) do desired[i] = #group.rows * opts.rowHeight end
-        -- The window's height is fixed, so the list's height follows from it (asking the list itself
-        -- can come too early, before the game has laid it out).
-        local windowHeight = f:GetHeight()
-        local total = (type(windowHeight) == "number" and windowHeight or 540) + opts.top - opts.bottom
-        local heights = UI.SectionHeights(total - #groups * (SECTION_HEADER + SECTION_GAP), desired)
-
-        local y = 0
-        for i, group in ipairs(groups) do
-            local section = Section(i)
-            section.Header:ClearAllPoints()
-            section.Header:SetPoint("TOPLEFT", 0, -y)
-            section.Header:SetPoint("TOPRIGHT", 0, -y)
-            section.Header:Show()
-            opts.initHeader(section.Header, group.header)
-            y = y + SECTION_HEADER + SECTION_GAP
-            local height = math.floor(heights[i])
-            section.Body:SetShown(height > 0)
-            if height > 0 then
-                section.Body:ClearAllPoints()
-                section.Body:SetPoint("TOPLEFT", SECTION_INSET, -y)
-                section.Body:SetPoint("TOPRIGHT", -SECTION_INSET, -y)
-                section.Body:SetHeight(height)
-                section.Scroll:SetDataProvider(CreateDataProvider(group.rows), ScrollBoxConstants.RetainScrollPosition)
-                y = y + height
-            end
-        end
-        for i = #groups + 1, #self.sections do
-            self.sections[i].Header:Hide()
-            self.sections[i].Body:Hide()
-        end
+        self.rows = rows
+        self.Scroll:SetDataProvider(CreateDataProvider(rows), ScrollBoxConstants.RetainScrollPosition)
+        shown = nil -- the header's text may have changed
+        UpdateSticky()
     end
     return list
 end

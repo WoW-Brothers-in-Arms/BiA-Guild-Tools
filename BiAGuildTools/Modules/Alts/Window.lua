@@ -169,14 +169,14 @@ local function InitRow(row, data)
         row.Label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
         row.Label:SetPoint("LEFT", 32, 0)
         row.Alts = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-        row.Alts:SetPoint("RIGHT", -84 - UI.SCROLL_BAR_ROOM, 0) -- a column of its own, left of the status
+        row.Alts:SetPoint("RIGHT", -84, 0) -- a column of its own, left of the status
         row.Note = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
         row.Note:SetPoint("LEFT", row.Label, "RIGHT", 8, 0)
         row.Note:SetPoint("RIGHT", row.Alts, "LEFT", -8, 0)
         row.Note:SetJustifyH("LEFT")
         row.Note:SetWordWrap(false) -- a long note ends in "…"
         row.Status = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        row.Status:SetPoint("RIGHT", -8 - UI.SCROLL_BAR_ROOM, 0)
+        row.Status:SetPoint("RIGHT", -8, 0)
         row.Dot = ns.AddStatusDot(row)
         row.Dot:SetPoint("RIGHT", row.Status, "LEFT", -5, 0)
         row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -314,7 +314,7 @@ local function CreateWindow()
     pane.Hint:SetJustifyH("LEFT")
     f.Pane = pane
 
-    f.List = ns.AddSectionList(f, { top = UI.CONTENT_TOP, bottom = UI.PANE_MARGIN, right = PANE_WIDTH + UI.PANE_MARGIN + 12,
+    f.List = ns.AddSectionList(f, { top = UI.CONTENT_TOP, bottom = UI.PANE_MARGIN, right = PANE_WIDTH + UI.PANE_MARGIN + 6,
         rowType = "Button", rowHeight = ROW_HEIGHT, isHeader = function(row) return row.kind == "header" end,
         initHeader = InitHeader, initRow = InitRow })
     f.Empty = ns.AddEmptyState(f, f.List, { button = L.UI_RESET_SEARCH, onClick = function()

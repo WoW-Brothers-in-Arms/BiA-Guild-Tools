@@ -71,10 +71,11 @@ and atlases are used, so the result is more detailed than the mock-ups.
    The pane is a card: the game's inset panel (`InsetFrameTemplate`), 14 px away from the window's right
    and bottom edge.
 
-**Sections scroll on their own:** a list with sections (Alts, Addon Versions, the recipes of a
-profession) keeps its section headers in place. Each open section has its own scrolling list with its
-own scroll bar inside it. Sections take the room their rows need; when the window is too small for all
-of them, the long ones share what is left (`ns.AddSectionList`).
+**Sticky section headers:** a list with sections (Alts, Addon Versions, the recipes of a profession)
+is one scrolling list with one scroll bar right of its rows; the room for the bar stays free while it
+is hidden, so rows never change their width. While the player scrolls through a section, its header
+stays at the top of the list and can still be clicked (`ns.AddSectionList`). Per-section scrolling was
+tried in game and dropped.
 
 **A search without hits** shows a line "Nothing found for …" in place of the list and a button below it
 that resets the search.
