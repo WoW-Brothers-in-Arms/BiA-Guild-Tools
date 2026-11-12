@@ -6,6 +6,8 @@ and CurseForge and stops if it is missing.
 
 ## Unreleased
 
+- New tool **Guild Recipes**: `/bia recipes` (or the second tab on the right edge of the guild window) shows per profession which recipes guild members with the addon know, with the reagents and who can craft them – also on which character an alt's owner is online right now.
+- Your recipes are read when you open a profession window. After that, alts with the same profession and newly learned recipes are picked up without opening it again.
 - All windows have a new look that follows the game's own panels: a header with icon, title, key figures, search and "Only online". Lists are striped.
 - Alts window: one row per player on the left, their characters on the right. The row shows whether the player is online, also on another character.
 - Alts window: the guild note (where guilds write the player's name) shows behind each player, and the search finds players by it.

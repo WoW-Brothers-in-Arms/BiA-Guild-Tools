@@ -31,7 +31,7 @@ read_globals = {
     "CreateFrame", "UIParent", "UISpecialFrames", "DEFAULT_CHAT_FRAME", "GameTooltip", "GameTooltip_Hide",
     "Menu", "MenuUtil", "IsShiftKeyDown", "InCombatLockdown", "CreateDataProvider", "CreateScrollBoxListLinearView", "ScrollUtil", "ScrollBoxConstants",
     "ScrollBoxListMixin", "HIGHLIGHT_FONT_COLOR", "NORMAL_FONT_COLOR", "RAID_CLASS_COLORS",
-    "C_Texture", "GameFontNormalHuge", "LOCALIZED_CLASS_NAMES_MALE", "CreateAnchor", "IsPlayerSpell", "C_SpellBook", "C_Spell", "C_Item",
+    "C_Texture", "GameFontNormalHuge", "LOCALIZED_CLASS_NAMES_MALE", "CreateAnchor", "IsPlayerSpell", "C_SpellBook", "C_Spell", "C_Item", "ITEM_QUALITY_COLORS",
 
     -- Player, guild, chat
     "UnitFullName", "UnitGUID", "GetNormalizedRealmName", "IsInGuild", "Ambiguate", "C_ChatInfo",

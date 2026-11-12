@@ -458,7 +458,9 @@ Each step leaves the addon working and all tests green.
 - Actions on crafters (whisper, links), a search by reagent, costs, cooldowns, specialisations.
 - A search across all professions and a "nobody can craft this yet" view.
 - A line in item tooltips elsewhere in the game ("craftable in the guild by …").
-- Recipes of members without the addon.
+- Recipes of members without the addon. The line "Profession known, recipes unknown" also names only
+  members who use the addon: the professions of the others are available per row of the guild roster
+  the game shows, not for any member.
 - A bundled recipe database; the catalogue comes from the player's own profession window.
 - Compatibility with other guild-recipe addons.
 

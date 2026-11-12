@@ -168,7 +168,9 @@ describe("Core", function()
     describe("windows", function()
         local function windowGame()
             local painted = {} -- the last list's row painter and rows, to run the painting code too
-            local game = Wow.new({ globals = {
+            local game = Wow.new({ savedVariables = { modules = { recipes = { members = { ["Player-1-0000BBBB"] = {
+                name = "Other-Realm", t = 1, h = "1", seen = 1700000000, profs = { [165] = { [2552] = { 3760 } } } } } } } },
+            globals = {
                 GetNumGuildMembers = function() return 1 end,
                 GetGuildRosterInfo = function()
                     return "Other-Realm", "Member", 2, 60, "Mage", "Zone", "", "", true, 0, "MAGE", 0, 0, false, false, 0,
@@ -196,12 +198,13 @@ describe("Core", function()
             end
         end
 
-        it("open with /bia alts and /bia version, close with Esc and remember where they were dragged", function()
+        it("open with /bia alts, /bia version and /bia recipes, close with Esc and remember where they were dragged", function()
             local game = windowGame()
             -- The roster's one member has no data: open that section, so its rows are painted.
             game:DB().modules.alts.expanded = { nodata = true }
             game:DB().modules.version.expanded = { none = true }
-            for tool, name in pairs({ alts = "BiAGuildToolsAltsFrame", version = "BiAGuildToolsVersionFrame" }) do
+            for tool, name in pairs({ alts = "BiAGuildToolsAltsFrame", version = "BiAGuildToolsVersionFrame",
+                recipes = "BiAGuildToolsRecipesFrame" }) do
                 game:slash(tool)
                 local f = frame(game, name)
                 assert.is_true(f:IsShown())
@@ -218,6 +221,7 @@ describe("Core", function()
             local esc = table.concat(game.env.UISpecialFrames, " ")
             assert.matches("BiAGuildToolsAltsFrame", esc)
             assert.matches("BiAGuildToolsVersionFrame", esc)
+            assert.matches("BiAGuildToolsRecipesFrame", esc)
         end)
     end)
 

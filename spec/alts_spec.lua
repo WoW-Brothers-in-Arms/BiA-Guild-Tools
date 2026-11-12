@@ -777,6 +777,20 @@ describe("Alts", function()
             assert.is_false(tab.checked)
         end)
 
+        it("a second tool's tab sits below the Alts tab, or takes its place while Alts is off", function()
+            local game, tab, info = tabGame()
+            local recipes
+            for _, f in ipairs(game.frames) do
+                if f.name == "BiAGuildToolsRecipesTab" then recipes = f end
+            end
+            assert.is_true(recipes.shown)
+            assert.equal(tab, recipes.point[2])
+            game:slash("alts off")
+            assert.equal(info, recipes.point[2])
+            game:slash("recipes off")
+            assert.is_false(recipes.shown)
+        end)
+
         it("hides while the Alts tool is off", function()
             local game, tab = tabGame()
             game:slash("alts off")

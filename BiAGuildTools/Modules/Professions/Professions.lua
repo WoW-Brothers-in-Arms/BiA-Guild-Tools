@@ -192,6 +192,15 @@ end
 
 M.MemberProfessions = MemberProfessions
 
+-- The skill lines of the professions a member shared through the addon, nil if they shared none.
+function M.ProfessionsOf(guid)
+    local entry = M.db.members[guid]
+    if type(entry) ~= "table" or type(entry.profs) ~= "table" then return nil end
+    local skills = {}
+    for _, p in ipairs(entry.profs) do skills[#skills + 1] = p.id end
+    return skills
+end
+
 ns.Sync.Register(M, {
     key = "p",
     -- Also the moment your own professions are read after login.

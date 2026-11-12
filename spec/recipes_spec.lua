@@ -11,10 +11,10 @@ local function Game(opts)
     local known, skills = opts.known or {}, opts.skills or { 165, 185 }
     local game
     game = Wow.new({ player = opts.player, savedVariables = opts.saved, globals = {
-        GetNumGuildMembers = function() return 2 end,
+        GetNumGuildMembers = function() return opts.roster and #opts.roster or 2 end,
         GetGuildRosterInfo = function(i)
-            local m = ({ { "Tester-Realm", TESTER }, { "Other-Realm", OTHER } })[i]
-            return m[1], "Member", 2, 60, "Mage", "Zone", "", "", true, 0, "MAGE", 0, 0, false, false, 0, m[2]
+            local m = (opts.roster or { { "Tester-Realm", TESTER }, { "Other-Realm", OTHER } })[i]
+            return m[1], "Member", 2, 60, "Mage", "Zone", "", "", m.online ~= false, 0, "MAGE", 0, 0, false, false, 0, m[2]
         end,
         C_GuildInfo = { GuildRoster = function() end },
         GetGuildInfo = function() return "BiA", "Member", 1, nil end,
@@ -406,6 +406,79 @@ describe("Guild Recipes", function()
             local _, other, wire = pair(nil, nil, true)
             assert.is_nil(db(other.game).members[TESTER])
             assert.equal(0, count(wire, "^Other: Q|2|r|"))
+        end)
+    end)
+    describe("window", function()
+        local ALT, THIRD = "Player-1-0000CCCC", "Player-1-0000DDDD"
+        local function record(profs) return { name = "x", t = 1, h = "1", seen = 1700000000, profs = profs } end
+        local function open(saved)
+            local game = Game({ skills = {}, saved = saved, roster = { { "Tester-Realm", TESTER }, { "Other-Realm", OTHER },
+                { "Otheralt-Realm", ALT }, { "Third-Realm", THIRD } } })
+            game:login()
+            game:fire("GUILD_ROSTER_UPDATE")
+            game:advance(20)
+            return game
+        end
+        local function kinds(rows)
+            local out = {}
+            for i, r in ipairs(rows) do out[i] = r.kind == "header" and "#" or r.name end
+            return out
+        end
+
+        it("follows the chosen profession, recipe, search and category", function()
+            local game = open({ modules = { recipes = { members = {
+                [OTHER] = record({ [165] = { [2552] = { 3760, 9198 } }, [333] = { [7] = { 7421 } } }) } } } })
+            local m = M(game).WindowModel()
+            assert.equal(333, m.skill) -- "Enchanting" comes first
+            M(game).SelectProfession(165)
+            assert.equal(165, db(game).skill)
+            m = M(game).WindowModel()
+            assert.same({ "#", "#3760", "#9198" }, kinds(m.rows))
+            assert.equal("Other", m.rows[1].text) -- the fake client names no category
+            assert.equal(3760, m.detail.id)
+            M(game).SelectRecipe(9198)
+            assert.equal(9198, M(game).WindowModel().detail.id)
+            M(game).SetSearch("#91")
+            assert.same({ "#", "#9198" }, kinds(M(game).WindowModel().rows))
+            M(game).SetSearch("")
+            M(game).ToggleCategory(2552)
+            assert.is_true(db(game).collapsed[2552])
+            assert.same({ "#" }, kinds(M(game).WindowModel().rows))
+        end)
+
+        it("names the crafter's main and lists members whose recipes are unknown", function()
+            local game = open({ modules = {
+                recipes = { members = { [ALT] = record({ [165] = { [2552] = { 3760 } } }) } },
+                professions = { members = { [THIRD] = { name = "Third-Realm", t = 1700000000,
+                    profs = { { id = 165, rank = 1, max = 300 } } } } },
+            } })
+            game:DB().modules.recipes.onlyOnline = false
+            game:receive("BiaAlts", "G|1|1-0000BBBB|1|1700000000|1-0000CCCC", "Other Realm")
+            local m = M(game).WindowModel()
+            assert.equal("Otheralt (Other)", m.detail.crafters[1].label)
+            assert.same({ "Third" }, m.unknown)
+            game:slash("alts off")
+            assert.equal("Otheralt", M(game).WindowModel().detail.crafters[1].label)
+            game:slash("prof off")
+            assert.same({}, M(game).WindowModel().unknown)
+        end)
+
+        it("only lists reachable crafters by default", function()
+            local members = { { "Tester-Realm", TESTER }, { "Other-Realm", OTHER, online = false } }
+            local game = Game({ skills = {}, roster = members,
+                saved = { modules = { recipes = { members = { [OTHER] = record({ [165] = { [2552] = { 3760 } } }) } } } } })
+            game:login()
+            game:fire("GUILD_ROSTER_UPDATE")
+            assert.same({}, M(game).WindowModel().rows)
+            db(game).onlyOnline = false
+            assert.equal(2, #M(game).WindowModel().rows)
+        end)
+
+        it("tells when you are in no guild", function()
+            local game = Wow.new({ inGuild = false })
+            game:login()
+            game:slash("recipes")
+            assert.matches("You are not in a guild.", game:chatText(), 1, true)
         end)
     end)
 end)
