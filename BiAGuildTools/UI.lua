@@ -269,21 +269,15 @@ end
 function ns.StyleSelectable(row)
     if row.isSelectable == true then return end
     row.isSelectable = true
-    -- The game's own row highlight (as in the reputation pane) where the client has it.
-    local atlas = UI.Atlas("charactercreate-customize-dropdown-linemouseover-middle")
+    -- Plain colours: the game's line-highlight atlas turns into a solid white bar when stretched
+    -- over a row (seen in game), so it isn't used.
     row.Sel = row:CreateTexture(nil, "BACKGROUND", nil, 1) -- above the stripe
     row.Sel:SetAllPoints()
+    row.Sel:SetColorTexture(COLORS.selected[1], COLORS.selected[2], COLORS.selected[3], 0.9)
     row.Sel:Hide()
     local hover = row:CreateTexture(nil, "HIGHLIGHT")
     hover:SetAllPoints()
-    if atlas then
-        row.Sel:SetAtlas(atlas)
-        hover:SetAtlas(atlas)
-        hover:SetAlpha(0.5)
-    else
-        row.Sel:SetColorTexture(COLORS.selected[1], COLORS.selected[2], COLORS.selected[3], 0.9)
-        hover:SetColorTexture(1, 1, 1, 0.08)
-    end
+    hover:SetColorTexture(1, 1, 1, 0.08)
     function row:SetSelected(on)
         self.selected = on and true or false
         self.Sel:SetShown(self.selected)
@@ -346,5 +340,7 @@ function ns.AddScrollList(f, opts)
     view:SetElementExtent(opts.rowHeight)
     view:SetElementInitializer(opts.rowType, opts.init)
     ScrollUtil.InitScrollBoxListWithScrollBar(scroll, bar, view)
+    -- The scroll bar only shows while there is something to scroll.
+    if ScrollUtil.AddManagedScrollBarVisibilityBehavior then ScrollUtil.AddManagedScrollBarVisibilityBehavior(scroll, bar) end
     return scroll
 end

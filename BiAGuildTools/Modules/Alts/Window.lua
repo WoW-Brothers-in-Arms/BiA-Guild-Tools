@@ -13,7 +13,8 @@ local UI = ns.UI
 
 local ROW_HEIGHT = 26
 local PANE_WIDTH = 290
-local MAX_CHARS = 14 -- characters of one player the pane has room for
+local MAX_CHARS = 12 -- characters of one player the pane has room for
+local FIRST_CHAR_Y = 126 -- where the pane's character rows start, below icon, name, sub line and heading
 local CROWN = "Interface\\GroupFrame\\UI-Group-LeaderIcon"
 local window
 local selected -- key of the chosen player
@@ -176,8 +177,8 @@ end
 local function CharRow(pane, i)
     local row = CreateFrame("Button", nil, pane)
     row:SetHeight(24)
-    row:SetPoint("TOPLEFT", 8, -92 - (i - 1) * 24)
-    row:SetPoint("TOPRIGHT", -8, -92 - (i - 1) * 24)
+    row:SetPoint("TOPLEFT", 8, -FIRST_CHAR_Y - (i - 1) * 24)
+    row:SetPoint("TOPRIGHT", -8, -FIRST_CHAR_Y - (i - 1) * 24)
     ns.StyleZebra(row)
     row.Crown = CreateFrame("Button", nil, row)
     row.Crown:SetSize(16, 16)
@@ -265,14 +266,14 @@ local function CreateWindow()
     pane.rows = {}
     pane.Icon = pane:CreateTexture(nil, "ARTWORK")
     pane.Icon:SetSize(36, 36)
-    pane.Icon:SetPoint("TOP", 0, -10)
+    pane.Icon:SetPoint("TOP", 0, -14)
     pane.Name = pane:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-    pane.Name:SetPoint("TOP", 0, -50)
+    pane.Name:SetPoint("TOP", 0, -56)
     pane.Sub = pane:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    pane.Sub:SetPoint("TOP", 0, -70)
+    pane.Sub:SetPoint("TOP", 0, -78)
     pane.Sub:SetWidth(PANE_WIDTH - 16)
     pane.Heading = pane:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    pane.Heading:SetPoint("TOP", 0, -80)
+    pane.Heading:SetPoint("TOP", 0, -104)
     pane.Heading:SetText(L.ALTS_CHARACTERS)
     pane.Hint = pane:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     pane.Hint:SetPoint("BOTTOMLEFT", 8, 8)

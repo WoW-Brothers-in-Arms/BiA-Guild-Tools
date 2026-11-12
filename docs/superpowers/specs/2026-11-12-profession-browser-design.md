@@ -80,7 +80,7 @@ The main picker and the login hint are small dialogs: they get the new frame and
 |---|---|
 | Window frame, title, close button | `DefaultPanelTemplate` (`SharedUIPanelTemplates.xml`, a panel without portrait) with a `UIPanelCloseButtonDefaultAnchors` close button, as the character window uses |
 | Section header bar | atlas `common-button-list-collapseExpand`, state icon `common-button-list-minus` / `-plus`, text `GameFontNormalLeft`, height 28 (from `Camelot/ReputationFrame.xml`) |
-| Row highlight (selected, hover) | atlases `charactercreate-customize-dropdown-linemouseover-side` / `-middle` |
+| Row highlight (selected, hover) | plain colour (selected `#4b4a47`, hover white at 8 %). The atlas `charactercreate-customize-dropdown-linemouseover-middle` was tried and shows as a solid white bar when stretched over a row |
 | Checkbox | atlases `checkbox-minimal`, `checkmark-minimal` |
 | Search box | `SearchBoxTemplate` |
 | Item and reagent icons | the item's icon (`C_Item.GetItemIconByID`) with a 1 px border in the quality colour (`C_Item.GetItemQualityColor`) |
@@ -405,6 +405,13 @@ atlases exist in the live client, icons, quality colours and reagent names loadi
 tooltips, and the tab on the guild window.
 
 ## Assumptions still to confirm in game
+
+**Confirmed in game on 2026-11-12 (phase 1, screenshots of both windows):** `DefaultPanelTemplate` with
+the `UIPanelCloseButtonDefaultAnchors` close button, the section-bar atlas `common-button-list-collapseExpand`
+with its plus and minus icons, `MinimalCheckboxTemplate`, `SearchBoxTemplate`, the font
+`GameFontNormalHuge`, the class icons `classicon-<class>` and the status icons
+`Interface\\FriendsFrame\\StatusIcon-Online` / `-Offline` all exist and look right. The row-highlight
+atlas does not work for rows (see the asset table).
 
 Seen in the Forever UI source or in today's probes, but not yet exercised the way this design uses
 them. Each has a fallback, so a wrong assumption costs a feature detail, not the tool:
