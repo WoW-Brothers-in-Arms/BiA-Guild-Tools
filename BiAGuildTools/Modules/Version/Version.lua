@@ -262,7 +262,7 @@ end
 local function CreateWindow()
     local f = ns.CreateWindow("BiAGuildToolsVersionFrame", { width = 540, height = 540, db = M.db })
     f.Header = ns.AddHeader(f, { icon = "Interface\\AddOns\\BiAGuildTools\\Media\\IconVersions", title = L.VER_WINDOW_TITLE,
-        online = { db = M.db, onChange = function() RefreshWindow() end } })
+        online = { db = M.db, onChange = function() RefreshWindow() end }, sync = function() Sync.Hello(true) end })
     f.List = ns.AddSectionList(f, { top = ns.UI.CONTENT_TOP, bottom = ns.UI.PANE_MARGIN, rowType = "Button",
         rowHeight = ROW_HEIGHT, isHeader = function(row) return row.kind == "header" end, initHeader = InitHeader,
         initRow = InitRow })

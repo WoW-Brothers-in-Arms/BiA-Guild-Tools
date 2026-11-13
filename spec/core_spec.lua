@@ -198,6 +198,25 @@ describe("Core", function()
             end
         end
 
+        it("Addon Versions and Guild Recipes have a button that syncs right away", function()
+            local game = windowGame()
+            game:advance(30) -- the status after login is out
+            for tool, name in pairs({ version = "BiAGuildToolsVersionFrame", recipes = "BiAGuildToolsRecipesFrame" }) do
+                game:slash(tool)
+                local button = frame(game, name).Header.Sync
+                local before = #game:sentWith("BiaSync")
+                button.scripts.OnClick(button)
+                local sent = game:sentWith("BiaSync")
+                assert.equal(before + 1, #sent, tool)
+                assert.matches("^S|2|1|", sent[#sent], nil, tool) -- your status, asking for everyone's
+                assert.is_false(button:IsEnabled())
+                game:advance(16)
+                assert.is_true(button:IsEnabled())
+                game:slash(tool) -- closes it again
+            end
+            assert.same({}, game.errors)
+        end)
+
         it("open with /bia alts, /bia version and /bia recipes, close with Esc and remember where they were dragged", function()
             local game = windowGame()
             -- The roster's one member has no data: open that section, so its rows are painted.

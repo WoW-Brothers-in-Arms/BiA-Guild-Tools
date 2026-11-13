@@ -155,15 +155,48 @@ UI.CONTENT_TOP = -104
 UI.PANE_MARGIN = 14
 
 -- The header every list window has: a large icon, the window's name, one line of key figures, on the
--- right "Only online" and a search box, and an ornament line below.
+-- right "Only online", a search box and a refresh button, and an ornament line below.
 -- opts: icon (texture), title, search = function(text) (optional; called with the trimmed text while
 --       typing), online = { db, onChange } (optional; keeps db.onlyOnline, then calls onChange),
 --       left (optional; distance from the window's left edge, default UI.PANE_MARGIN – more when a
---       rail stands left of the header).
--- header:SetIcon(texture, tint), header:SetTitle(text), header:SetStats(text); header.Search, header.Online.
+--       rail stands left of the header), sync = function() (optional; a refresh button left of the
+--       other controls that runs it, then rests for UI.SYNC_COOLDOWN seconds).
+-- header:SetIcon(texture, tint), header:SetTitle(text), header:SetStats(text); header.Search, header.Online,
+-- header.Sync.
 -- With a tint ({ r, g, b }) the icon is one of the addon's white line symbols, drawn smaller in that
 -- colour inside a gold frame.
 local CONTROLS_Y = 6 -- search box and checkbox sit midway between the title bar and the ornament line
+UI.SYNC_COOLDOWN = 15 -- seconds; others answer a request for their status at most that often (Sync.lua)
+
+-- The header's refresh button (see ns.AddHeader).
+-- anchor: the leftmost control so far, nil if none.
+local function AddSyncButton(h, anchor, onClick)
+    local button, templated = UI.TryFrame("Button", nil, h, "RefreshButtonTemplate")
+    button:SetSize(28, 28)
+    if not templated then
+        button:SetNormalTexture("Interface\\Buttons\\UI-RefreshButton")
+        button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    end
+    if anchor then
+        button:SetPoint("RIGHT", anchor, "LEFT", -12, 0)
+    else
+        button:SetPoint("RIGHT", h, "RIGHT", 0, CONTROLS_Y)
+    end
+    button:SetMotionScriptsWhileDisabled(true) -- the tooltip also while it rests
+    button:SetScript("OnClick", function(self)
+        onClick()
+        self:Disable()
+        ns.After(UI.SYNC_COOLDOWN, function() self:Enable() end)
+    end)
+    button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(L.UI_SYNC, 1, 1, 1)
+        GameTooltip:AddLine(self:IsEnabled() and L.UI_SYNC_TIP or L.UI_SYNC_WAIT, nil, nil, nil, true)
+        GameTooltip:Show()
+    end)
+    button:SetScript("OnLeave", GameTooltip_Hide)
+    return button
+end
 function ns.AddHeader(f, opts)
     local h = CreateFrame("Frame", nil, f)
     h:SetPoint("TOPLEFT", opts.left or UI.PANE_MARGIN, -34) -- its ornament line ends flush with the list and the card below
@@ -219,7 +252,9 @@ function ns.AddHeader(f, opts)
         end
         box:HookScript("OnTextChanged", function(self) opts.search(strtrim(self:GetText() or "")) end)
         h.Search = box
+        right = box
     end
+    if opts.sync then h.Sync = AddSyncButton(h, right ~= h and right or nil, opts.sync) end
 
     local line = UI.Fill(h, "ARTWORK", COLORS.border)
     line:SetHeight(1)

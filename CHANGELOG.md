@@ -11,6 +11,7 @@ and CurseForge and stops if it is missing.
 - Guild Recipes: you no longer need to open a profession window. The addon brings the list of all recipes with their categories along and reads your recipes for every crafting profession right after login, also on alts. The reminder to open a profession window is gone.
 - Guild Recipes: sharing recipes takes far fewer addon messages – a character with all recipes of Leatherworking, Tailoring, Cooking and First Aid now needs 2 messages instead of 18. Since every addon brings the full recipe list, only one bit per recipe is sent.
 - This changes how Guild Recipes talks to other players: players on 1.3.0 and on this version don't see each other's recipes until both have updated.
+- Guild Recipes and Addon Versions: a refresh button in the window's header syncs right away – it sends your data and asks the guild members online for theirs (like `/bia recipes sync`). After a click it rests for 15 seconds.
 - Fixed: Markers – moving the mouse over the panel's symbols in combat brought up the game's "AddOn blocked" dialog.
 
 ## 1.3.0 (2026-11-12)

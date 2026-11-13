@@ -43,7 +43,7 @@ local NOT_IN_GAME = { SetCheckedAtlas = true, SetHighlightAtlas2 = true }
 -- isRegion: a texture or font string (not a frame). protected: forced protection (the regions of a
 -- protected frame are protected too).
 local function NewFrame(game, name, template, isRegion, protected)
-    local frame = { name = name, events = {}, scripts = {}, shown = true, isRegion = isRegion,
+    local frame = { name = name, template = template or false, events = {}, scripts = {}, shown = true, isRegion = isRegion,
         protected = protected or (template ~= nil and template:match("^Secure") ~= nil) }
     -- Like the game: anchoring and sizing are protected functions on a protected frame or region;
     -- addon code calling them in combat is blocked. Recorded in game.blocked.
@@ -59,6 +59,9 @@ local function NewFrame(game, name, template, isRegion, protected)
     function frame:IsShown() return self.shown end
     function frame:SetChecked(on) self.checked = on and true or false end
     function frame:GetChecked() return self.checked end
+    function frame:Enable() self.disabled = false end
+    function frame:Disable() self.disabled = true end
+    function frame:IsEnabled() return rawget(self, "disabled") ~= true end
     function frame:SetPoint(...)
         -- like the game: a secure (protected) frame can't be anchored to a texture or font string,
         -- nor to a frame whose own anchors lead to one

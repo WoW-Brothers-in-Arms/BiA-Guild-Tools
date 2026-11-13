@@ -438,7 +438,7 @@ end
 local function CreateWindow()
     local f = ns.CreateWindow("BiAGuildToolsRecipesFrame", { width = 940, height = 540, db = M.db })
     f.Header = ns.AddHeader(f, { icon = ICON, title = L.RCP_TITLE, search = M.SetSearch,
-        online = { db = M.db, onChange = Refresh }, left = CONTENT_LEFT })
+        online = { db = M.db, onChange = Refresh }, left = CONTENT_LEFT, sync = function() ns.Sync.Hello(true) end })
 
     f.Rail = CreateFrame("Frame", nil, f)
     f.Rail:SetPoint("TOPLEFT", RAIL_X, RAIL_TOP)

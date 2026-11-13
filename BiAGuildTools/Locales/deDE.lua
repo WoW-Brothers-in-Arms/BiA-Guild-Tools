@@ -141,6 +141,9 @@ L.ALTS_HINT_OFFICER = "Offiziere: Rechtsklick auf einen Charakter, um ihn zuzuwe
 L.UI_ONLY_ONLINE = "Nur online"
 L.UI_NO_HITS = "Nichts gefunden für „%s“."
 L.UI_RESET_SEARCH = "Suche zurücksetzen"
+L.UI_SYNC = "Jetzt abgleichen"
+L.UI_SYNC_TIP = "Sendet deine Daten und fragt die Gildenmitglieder, die online sind, nach ihren."
+L.UI_SYNC_WAIT = "Gerade abgeglichen – in ein paar Sekunden wieder möglich."
 
 L.RCP_TITLE = "Gildenrezepte"
 L.RCP_DESC = "Welche Rezepte Gildenmitglieder können, mit Zutaten und Herstellern"

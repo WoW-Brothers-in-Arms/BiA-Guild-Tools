@@ -61,6 +61,25 @@ describe("UI", function()
         assert.equal("bob", searched)
     end)
 
+    it("puts the refresh button left of the other controls and rests it after a click", function()
+        local game, ns = start()
+        local f = ns.CreateWindow("TestWin", { width = 500, height = 300 })
+        local synced = 0
+        local h = ns.AddHeader(f, { icon = "icon", title = "T", search = function() end,
+            online = { db = {}, onChange = function() end }, sync = function() synced = synced + 1 end })
+        assert.equal("RefreshButtonTemplate", h.Sync.template)
+        assert.equal(h.Search, h.Sync.point[2])
+        h.Sync.scripts.OnClick(h.Sync)
+        assert.equal(1, synced)
+        assert.is_false(h.Sync:IsEnabled())
+        game:advance(ns.UI.SYNC_COOLDOWN)
+        assert.is_true(h.Sync:IsEnabled())
+        local only = ns.AddHeader(f, { icon = "icon", title = "T", online = { db = {}, onChange = function() end },
+            sync = function() end })
+        assert.equal(only.Online, only.Sync.point[2])
+        assert.is_nil(rawget(ns.AddHeader(f, { icon = "icon", title = "T" }), "Sync"))
+    end)
+
     it("starts the only-online box from the saved choice", function()
         local _, ns = start()
         local f = ns.CreateWindow("TestWin", { width = 500, height = 300 })
