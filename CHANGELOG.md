@@ -7,6 +7,8 @@ and CurseForge and stops if it is missing.
 ## Unreleased
 
 - Guild Recipes: recipes of professions you don't have yourself are now grouped under their real categories (e.g. "Cloaks", "Everyday Meals") instead of all landing in "Other". The game names categories only of your own professions; the addon now brings the names of all categories along (English and German).
+- Guild Recipes: categories are listed in the same order as in the game's profession window, "Other" always last.
+- Guild Recipes: you no longer need to open a profession window. The addon brings the list of all recipes with their categories along and reads your recipes for every crafting profession right after login, also on alts. The reminder to open a profession window is gone.
 - Fixed: Markers – moving the mouse over the panel's symbols in combat brought up the game's "AddOn blocked" dialog.
 
 ## 1.3.0 (2026-11-12)

@@ -61,6 +61,17 @@ function D.CategoryName(id)
     return isGerman and names[2] or names[1]
 end
 
+-- The place of a recipe category in the game's profession window (lower first), nil if unknown.
+function D.CategoryOrder(id)
+    local names = D.CATEGORIES and D.CATEGORIES[id]
+    if names then return names[3] end
+    if C_TradeSkillUI and C_TradeSkillUI.GetCategoryInfo then
+        local ok, info = pcall(C_TradeSkillUI.GetCategoryInfo, id)
+        if ok and type(info) == "table" and type(info.uiOrder) == "number" then return info.uiOrder end
+    end
+    return nil
+end
+
 function D.ProfessionIcon(id)
     local p = D.PROFESSIONS[id]
     return p and p.icon or "Interface\\Icons\\INV_Misc_QuestionMark"

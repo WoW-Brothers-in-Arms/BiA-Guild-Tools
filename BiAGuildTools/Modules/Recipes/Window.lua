@@ -49,6 +49,7 @@ local T, Spell, Item = C_TradeSkillUI or {}, C_Spell or {}, C_Item or {}
 local NAMES = {
     profession = function(skill) return Text(D.ProfessionName(skill)) end,
     category = function(id) return Text(D.CategoryName(id)) end,
+    categoryOrder = D.CategoryOrder,
     recipe = function(id)
         local info = Try(T.GetRecipeInfo, id)
         return type(info) == "table" and Text(info.name) or Text(Try(Spell.GetSpellName, id))

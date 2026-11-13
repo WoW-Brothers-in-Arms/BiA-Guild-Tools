@@ -2,12 +2,12 @@ local Wow = require("support.wow")
 
 local TESTER, OTHER = "Player-1-0000AAAA", "Player-1-0000BBBB"
 
--- A client whose profession window, known spells and professions the test controls:
---   game.window = { ready, linked, profession, recipes = { [id] = { categoryID, learned, isDummyRecipe } } }
+-- A client whose known spells and professions the test controls:
 --   game.known[id] = true (IsPlayerSpell), game.skills = { skillLine, ... }
+-- Recipe IDs are real ones from the addon's table: Leatherworking 3760 and 9198 (Cloaks, 2552),
+-- 2149 (Leather Boots, 2560); Cooking 2538 (Everyday Meals, 2632).
 local function Game(opts)
     opts = opts or {}
-    local window = opts.window or { ready = false, recipes = {} }
     local known, skills = opts.known or {}, opts.skills or { 165, 185 }
     local game
     local globals
@@ -27,94 +27,45 @@ local function Game(opts)
         GetProfessionInfo = function(i) return "name", "icon", 1, 300, 0, 0, skills[i] end,
         IsPlayerSpell = function(id) return known[id] == true end,
         GetServerTime = function() return game.clock end,
-        C_TradeSkillUI = {
-            IsTradeSkillReady = function() return window.ready end,
-            IsTradeSkillLinked = function() return window.linked or false end,
-            GetAllRecipeIDs = function()
-                local ids = {}
-                for id in pairs(window.recipes) do ids[#ids + 1] = id end
-                table.sort(ids)
-                return ids
-            end,
-            GetRecipeInfo = function(id)
-                local r = window.recipes[id]
-                return r and { categoryID = r[1], learned = r[2], isDummyRecipe = r[3] } or nil
-            end,
-            GetProfessionInfoByRecipeID = function() return { professionID = window.profession or 165 } end,
-        },
     }
     for k, v in pairs(opts.globals or {}) do globals[k] = v end
     game = Wow.new({ player = opts.player, savedVariables = opts.saved, globals = globals })
-    game.window, game.known, game.skills = window, known, skills
+    game.known, game.skills = known, skills
     return game
 end
 
 local function M(game) return game.ns.modules.recipes end
 local function db(game) return game:DB().modules.recipes end
 
-local function leatherWindow()
-    return { ready = true, recipes = { [3760] = { 2552, true }, [9198] = { 2552, false }, [2149] = { 2560, true } } }
-end
-
--- Logged in with the profession window opened once.
+-- Logged in long enough for the first reading; the character knows 3760 and 2149.
 local function scanned(opts)
     opts = opts or {}
-    opts.window = opts.window or leatherWindow()
+    opts.known = opts.known or { [3760] = true, [2149] = true }
     local game = Game(opts)
     game:login()
-    game:fire("TRADE_SKILL_SHOW")
-    game:advance(1)
+    game:advance(11)
     return game
 end
 
 describe("Guild Recipes", function()
     describe("capturing your recipes", function()
-        it("learns the catalogue and your recipes from your profession window", function()
-            local game = scanned()
-            assert.same({ [3760] = 2552, [9198] = 2552, [2149] = 2560 }, db(game).catalog[165])
+        it("reads your recipes with their categories without any window", function()
+            local game = Game({ known = { [3760] = true, [2149] = true } })
+            game:login()
+            assert.is_nil(M(game).OwnRecord())
+            game:advance(11)
             assert.same({ [165] = { [2552] = { 3760 }, [2560] = { 2149 } } }, M(game).OwnRecord().profs)
             assert.equal("Tester-Realm", M(game).OwnRecord().name)
         end)
 
-        it("ignores a linked window, a window that isn't ready and a foreign profession", function()
-            for _, change in ipairs({ { linked = true }, { ready = false }, { profession = 164 } }) do
-                local window = leatherWindow()
-                for k, v in pairs(change) do window[k] = v end
-                local game = scanned({ window = window })
-                assert.same({}, db(game).catalog)
-                assert.is_nil(M(game).OwnRecord())
-            end
-        end)
-
-        it("skips dummy recipes", function()
-            local window = leatherWindow()
-            window.recipes[777] = { 2552, true, true }
-            local game = scanned({ window = window })
-            assert.is_nil(db(game).catalog[165][777])
-            assert.same({ 3760 }, M(game).OwnRecord().profs[165][2552])
-        end)
-
-        it("keeps your recipes when the window reports nothing", function()
-            local game = scanned()
-            local before = M(game).OwnRecord().h
-            for _, recipe in pairs(game.window.recipes) do recipe[2] = false end
-            game:fire("TRADE_SKILL_LIST_UPDATE")
-            game:advance(1)
-            assert.equal(before, M(game).OwnRecord().h)
-            game.window.recipes = {}
-            game:fire("TRADE_SKILL_LIST_UPDATE")
-            game:advance(1)
-            assert.equal(before, M(game).OwnRecord().h)
-            assert.is_number(db(game).catalog[165][3760])
-        end)
-
-        it("finds an alt's recipes without a window", function()
-            local game = Game({ known = { [3760] = true },
-                saved = { modules = { recipes = { catalog = { [165] = { [3760] = 2552, [9198] = 2552 } } } } } })
+        it("sorts your old recipes into the addon's categories and forgets the old catalogue", function()
+            local old = { [165] = { [0] = { 3760 }, [2552] = { 2149 } } } -- as 1.3.0 might have stored them
+            local game = Game({ saved = { modules = { recipes = { catalog = { [165] = { [3760] = 0 } },
+                members = { [TESTER] = { name = "Tester-Realm", t = 5, h = "1", seen = 1700000000, profs = old } } } } } })
             game:login()
-            assert.is_nil(M(game).OwnRecord())
             game:advance(11)
-            assert.same({ [165] = { [2552] = { 3760 } } }, M(game).OwnRecord().profs)
+            assert.same({ [165] = { [2552] = { 3760 }, [2560] = { 2149 } } }, M(game).OwnRecord().profs)
+            assert.is_nil(db(game).catalog)
         end)
 
         it("adds a recipe when it is learned and tells what was added", function()
@@ -129,9 +80,8 @@ describe("Guild Recipes", function()
         end)
 
         it("drops a profession you unlearned, but not during the first seconds", function()
-            local both = { [165] = { [2552] = { 3760 } }, [185] = { [90] = { 2538 } } }
+            local both = { [165] = { [2552] = { 3760 } }, [185] = { [2632] = { 2538 } } }
             local game = Game({ skills = { 185 }, known = { [2538] = true }, saved = { modules = { recipes = {
-                catalog = { [185] = { [2538] = 90 } },
                 members = { [TESTER] = { name = "Tester-Realm", t = 5, h = "1", seen = 1700000000, profs = both } },
             } } } })
             game:login()
@@ -139,33 +89,20 @@ describe("Guild Recipes", function()
             M(game).ScanKnown()
             assert.is_table(M(game).OwnRecord().profs[165])
             game:advance(11)
-            assert.same({ [185] = { [90] = { 2538 } } }, M(game).OwnRecord().profs)
+            assert.same({ [185] = { [2632] = { 2538 } } }, M(game).OwnRecord().profs)
         end)
 
         it("sets a new revision only when the recipes change", function()
             local game = scanned()
             local t = M(game).OwnRecord().t
             game.clock = game.clock + 500
-            game:fire("TRADE_SKILL_LIST_UPDATE")
+            game:fire("SKILL_LINES_CHANGED")
             game:advance(1)
             assert.equal(t, M(game).OwnRecord().t)
-            game.window.recipes[9198][2] = true
-            game:fire("TRADE_SKILL_LIST_UPDATE")
+            game.known[9198] = true
+            game:fire("SKILL_LINES_CHANGED")
             game:advance(1)
             assert.equal(t + 500, M(game).OwnRecord().t)
-        end)
-
-        it("reminds you once to open a profession window you never opened", function()
-            local game = Game({ skills = { 165, 393 } })
-            game:login()
-            game:advance(31)
-            assert.matches("Open your Leatherworking window once", game:chatText(), 1, true)
-            assert.is_nil(game:chatText():find("Skinning", 1, true))
-
-            local opened = Game({ skills = { 165 }, saved = { modules = { recipes = { catalog = { [165] = { [3760] = 2552 } } } } } })
-            opened:login()
-            opened:advance(31)
-            assert.is_nil(opened:chatText():find("window once", 1, true))
         end)
 
         it("forgets records of members who left the guild", function()
@@ -186,10 +123,10 @@ describe("Guild Recipes", function()
             assert.equal(before, M(game).OwnRecord().h)
         end)
 
-        it("never loses a recipe to a scan without the window", function()
+        it("never loses a recipe when the game doesn't answer for it", function()
             local game = scanned()
             game:advance(20)
-            game.known[3760] = true -- the game answers for one of the two known recipes only
+            game.known[2149] = nil -- the game answers for one of the two known recipes only
             M(game).ScanKnown()
             assert.same({ [165] = { [2552] = { 3760 }, [2560] = { 2149 } } }, M(game).OwnRecord().profs)
         end)
@@ -207,9 +144,7 @@ describe("Guild Recipes", function()
         it("does nothing while the tool is off", function()
             local game = scanned({ saved = { enabled = { recipes = false } } })
             game:advance(40)
-            assert.same({}, db(game).catalog)
             assert.is_nil(M(game).OwnRecord())
-            assert.is_nil(game:chatText():find("window once", 1, true))
         end)
     end)
     describe("messages", function()
@@ -431,18 +366,14 @@ describe("Guild Recipes", function()
             end
             return n
         end
-        -- Tester has opened the leatherworking window; Other is a guild mate without recipes.
+        -- Tester knows two leatherworking recipes; Other is a guild mate without recipes.
         local function pair(testerSaved, otherSaved, otherOff)
-            local tester = { player = T, game = Game({ player = T, saved = testerSaved, window = leatherWindow(),
+            local tester = { player = T, game = Game({ player = T, saved = testerSaved,
                 known = { [3760] = true, [2149] = true } }) }
             local other = { player = O, game = Game({ player = O, saved = otherSaved, skills = {} }) }
             start(tester)
             start(other)
             if otherOff then other.game:slash("recipes off") end
-            if not testerSaved then
-                tester.game:fire("TRADE_SKILL_SHOW")
-                tester.game:advance(1)
-            end
             return tester, other, run(tester, other, 90)
         end
 

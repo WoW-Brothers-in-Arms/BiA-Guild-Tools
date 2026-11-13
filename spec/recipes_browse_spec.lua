@@ -59,6 +59,21 @@ describe("RecipeBrowse", function()
         assert.same({ recipes = 3, crafters = 3, reachable = 2 }, m.stats)
     end)
 
+    it("orders categories as the game does, those without an order by name, and Other last", function()
+        local i = input({ onlyOnline = false })
+        i.members[RODOC].profs[165][2553] = { 5 }   -- "Aprons": no order, so after the ordered ones
+        i.members[RODOC].profs[165][99] = { 6 }     -- no name: Other
+        i.members[RODOC].profs[165][2554] = { 7 }   -- "Zebra Hats": order 1, first
+        local base = i.names.category
+        i.names.category = function(id) return ({ [2553] = "Aprons", [2554] = "Zebra Hats" })[id] or base(id) end
+        i.names.categoryOrder = function(id) return ({ [2552] = 300, [2560] = 1100, [2554] = 1 })[id] end
+        local headers = {}
+        for _, r in ipairs(Build(i).rows) do
+            if r.kind == "header" then headers[#headers + 1] = r.text end
+        end
+        assert.same({ "Zebra Hats", "Cloaks", "Boots", "Aprons", "Other" }, headers)
+    end)
+
     it("chooses the first recipe unless one is chosen, and lists its crafters", function()
         assert.equal("Handstitched Boots", Build(input()).detail.name)
         local m = Build(input({ recipe = 3760 }))

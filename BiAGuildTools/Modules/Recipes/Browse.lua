@@ -8,7 +8,8 @@
 --     groupOf       function(guid) -> { main, alts } or nil; optional (alt data of the Alts tool)
 --     professionsOf function(guid) -> { skill, ... } or nil; optional (for the "unknown" line)
 --     isProfession  function(skill) -> bool; optional: other skill lines in a record are left out
---     names         { profession = fn(skill), category = fn(id), recipe = fn(id) } -> text or nil
+--     names         { profession = fn(skill), category = fn(id), recipe = fn(id) } -> text or nil, and
+--                   categoryOrder = fn(id) -> number or nil (optional): the game's order of categories
 --     otherText     name of the section for all categories without a name (its category is "other")
 --     skill, recipe the chosen profession and recipe (either may be nil or no longer listed)
 --     search        text; plain, case does not matter
@@ -19,7 +20,8 @@
 --     professions = { { skill, name, crafters, selected }, ... }   sorted by name
 --     skill, name   the profession shown (the chosen one if listed, else the first; nil if none)
 --     stats = { recipes, crafters, reachable }                    of that profession, after the filters
---     rows = { { kind = "header", category, text, count, expanded },
+--     rows = { { kind = "header", category, text, count, expanded },   categories in the game's order
+--                                                                    (those without one by name), "other" last
 --              { kind = "recipe", id, name, reach, total, selected, band }, ... }
 --     detail = { id, name, category, crafters = { { guid, label, classFile, reachable, status, on, band } } }
 --              for the chosen recipe (the first listed one if that isn't listed); nil without recipes
@@ -117,7 +119,7 @@ function B.Build(input)
         local text = names.category(cat)
         local entry
         if text then
-            entry = { category = cat, text = text, recipes = {} }
+            entry = { category = cat, text = text, order = names.categoryOrder and names.categoryOrder(cat), recipes = {} }
         else
             other = other or { category = "other", text = input.otherText or "?", recipes = {}, isOther = true }
             entry = other
@@ -142,6 +144,9 @@ function B.Build(input)
     end
     if other and #other.recipes > 0 then cats[#cats + 1] = other end
     table.sort(cats, function(a, b)
+        if a.isOther ~= b.isOther then return b.isOther == true end
+        if (a.order ~= nil) ~= (b.order ~= nil) then return a.order ~= nil end
+        if a.order ~= b.order then return a.order < b.order end
         if a.text ~= b.text then return a.text < b.text end
         return tostring(a.category) < tostring(b.category)
     end)

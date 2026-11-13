@@ -42,6 +42,13 @@ describe("Professions", function()
             assert.equal("Umhänge (Client)", game.ns.ProfessionData.CategoryName(2552))
             assert.equal("Lederstiefel", game.ns.ProfessionData.CategoryName(2560))
         end)
+
+        it("know the game's order of categories", function()
+            local D = Wow.new().ns.ProfessionData
+            assert.equal(300, D.CategoryOrder(2552))   -- Cloaks
+            assert.equal(1100, D.CategoryOrder(2560))  -- Leather boots
+            assert.is_nil(D.CategoryOrder(99999))
+        end)
     end)
 
     describe("sending", function()

@@ -83,7 +83,7 @@ Shows which characters belong to the same player. You only pick your main: the a
 
 Shows who in the guild can craft what. Every member with the addon shares the recipes they know; you pick a profession and see its recipes by category, and for the chosen recipe the reagents and everyone who can craft it. **Only members who use the addon show up.**
 
-- Your recipes are read when you open a profession window. After that the addon also picks up alts with the same profession and newly learned recipes without the window. Until you have opened a profession once, a line in chat after login reminds you.
+- Your recipes are read right after login, for every crafting profession and on every character, without opening a profession window. The addon brings the list of all recipes and their categories along (from the game's own data); newly learned recipes are picked up at once.
 - `/bia recipes`: open the window – professions on the left, recipes in the middle, the chosen recipe's item, reagents and crafters on the right. A crafter counts as reachable when any character of that player is online ("online on …"). The guild window also gets a second tab on its right edge that opens and closes it.
 - `/bia recipes sync`: request fresh data from the guild
 - `/bia recipes status`: how many members and recipes are stored
@@ -130,14 +130,15 @@ luarocks --lua-version=5.1 --local install luacheck
 git config core.hooksPath .githooks
 ```
 
-The last line turns on `.githooks/pre-push`: it runs `scripts/check.sh` whenever a release tag (`v*`) is pushed and stops the push if a check fails. Other pushes are not checked. When the addon starts using a new game global, add it to `read_globals` in `.luacheckrc`.
+The last line turns on `.githooks/pre-push`: it runs `scripts/check-game-data.sh` and `scripts/check.sh` whenever a release tag (`v*`) is pushed and stops the push if a check fails. Other pushes are not checked. When the addon starts using a new game global, add it to `read_globals` in `.luacheckrc`.
 
 ## Releasing a new version
 
 While working, add player-facing changes to `CHANGELOG.md` under `## Unreleased`. Then:
 
-1. Bump `## Version:` in `BiAGuildTools/BiAGuildTools.toc`, rename `## Unreleased` in `CHANGELOG.md` to the version (e.g. `## 1.1.0 (2026-11-12)`) and commit
-2. Create and push a tag: `git tag v1.1.0 && git push origin main v1.1.0` – the pre-push hook runs the checks first (see above)
+1. If Forever's client has a new build since the last release (`Version` of product `wowf` in `/Applications/World of Warcraft/.build.info`), refresh the recipe tables: `python3 scripts/make-recipe-data.py <build>`. They come from the game's own tables on wago.tools; the pre-push hook stops a release whose tables don't match the installed client.
+2. Bump `## Version:` in `BiAGuildTools/BiAGuildTools.toc`, rename `## Unreleased` in `CHANGELOG.md` to the version (e.g. `## 1.1.0 (2026-11-12)`) and commit
+3. Create and push a tag: `git tag v1.1.0 && git push origin main v1.1.0` – the pre-push hook runs the checks first (see above)
 
 The workflow `.github/workflows/release.yml` checks that the tag matches the TOC version and that `CHANGELOG.md` has a section for it, builds the zip and creates the GitHub release with that section as release notes. It then uploads the same zip to CurseForge with the same changelog. Tags containing `beta` or `alpha` (e.g. `v1.2.0-beta1`) become beta or alpha files there.
 
@@ -170,6 +171,8 @@ BiAGuildTools/
 spec/                     ← busted tests (not part of the release zip)
 └── support/wow.lua       ← fake WoW client for the tests
 scripts/check.sh          ← luacheck + busted
+scripts/check-game-data.sh ← recipe tables made from the installed client build?
+scripts/make-recipe-data.py ← recipe tables (Modules/Professions/Categories.lua, Recipes.lua) from the game's data
 .githooks/pre-push        ← runs the checks before a release tag is pushed
 ```
 

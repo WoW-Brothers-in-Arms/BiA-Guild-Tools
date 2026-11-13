@@ -22,6 +22,7 @@ RosterTabs.lua
 # Modules
 Modules\Professions\Data.lua
 Modules\Professions\Categories.lua
+Modules\Professions\Recipes.lua
 Modules\Professions\Professions.lua
 Modules\Alts\Groups.lua
 Modules\Alts\Alts.lua

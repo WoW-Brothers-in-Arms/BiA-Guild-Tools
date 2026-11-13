@@ -1,13 +1,9 @@
 -- Recipes.lua: the tool "Guild Recipes". Reads the recipes this character knows, shares them with the
 -- guild and keeps everyone's (Store.lua). The window is in Window.lua.
 --
--- Reading your recipes takes two steps, so that after one visit to a profession window everything
--- else works without it:
---   catalogue – while your own profession window is open the game lists all recipes of that profession
---               with their category. That list is kept for the whole account (db.catalog).
---   known     – for every profession with a catalogue the game tells per recipe whether this character
---               knows it (IsPlayerSpell), window or not. So alts and newly learned recipes are picked
---               up without opening the window again.
+-- Your recipes are read without any window: the addon brings every recipe of each crafting profession
+-- with its category (ProfessionData.RECIPES, from the game's own tables), and the game tells per recipe
+-- whether this character knows it (IsPlayerSpell).
 local _, ns = ...
 local L = ns.L
 local D = ns.ProfessionData
@@ -18,8 +14,7 @@ local After = ns.After
 local M = ns:NewModule("recipes", {
     title = L.RCP_TITLE,
     desc = L.RCP_DESC,
-    -- catalog[skillLine][recipeID] = categoryID
-    defaults = { members = {}, catalog = {}, onlyOnline = true },
+    defaults = { members = {}, onlyOnline = true },
     slashAllowsEmpty = true, -- /bia recipes without argument opens the window
 })
 
@@ -72,18 +67,6 @@ local function IsKnown(id)
     return C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(id) and true or false
 end
 
--- ids grouped by their category in the catalogue: { [categoryID] = { id, ... } }.
-local function ByCategory(catalog, ids)
-    local cats = {}
-    for _, id in ipairs(ids) do
-        local cat = catalog[id] or 0
-        cats[cat] = cats[cat] or {}
-        table.insert(cats[cat], id)
-    end
-    for _, list in pairs(cats) do table.sort(list) end
-    return cats
-end
-
 -- The recipes in `now` that `before` lacks, as a record; nil if `before` has one that `now` lacks
 -- (then it isn't a plain addition).
 local function Additions(before, now)
@@ -133,97 +116,60 @@ local function SaveOwn(profs)
     M.StoreChanged()
 end
 
--- Rebuilds this character's record. windowSkill, windowLearned: what an open profession window just
--- told about one profession; the others are read with IsPlayerSpell from their catalogue.
-local function Rebuild(windowSkill, windowLearned)
+-- Rebuilds this character's record from the game's answers. Right after login the game may not answer
+-- for every recipe yet, and recipes are only lost together with their profession: what it reports is
+-- added to what was known.
+local function Rebuild()
     local own = M.OwnRecord()
-    local profs = C.Merge(type(own) == "table" and type(own.profs) == "table" and own.profs or {}, {})
+    local old = type(own) == "table" and type(own.profs) == "table" and own.profs or {}
+    local profs = {}
     local skills = OwnSkills()
     for skill in pairs(skills) do
-        local catalog = M.db.catalog[skill]
-        if catalog then
-            if skill == windowSkill then
-                -- The window is the authority; but finding nothing is no proof (data may still be loading).
-                if #windowLearned > 0 then profs[skill] = ByCategory(catalog, windowLearned) end
-            else
-                -- Without the window the game may not answer for every recipe yet, and recipes are only
-                -- lost together with their profession: add what it reports to what was known.
-                local known = {}
-                for id in pairs(catalog) do
-                    if #known < C.MAX_RECIPES and IsKnown(id) then known[#known + 1] = id end
-                end
-                if #known > 0 then
-                    local merged = C.Merge({ [skill] = profs[skill] or {} }, { [skill] = ByCategory(catalog, known) })
-                    if C.WithinLimits(merged) then profs[skill] = merged[skill] end
+        local had = {}
+        for _, ids in pairs(old[skill] or {}) do
+            for _, id in ipairs(ids) do had[id] = true end
+        end
+        local cats, count = {}, 0
+        for cat, ids in pairs(D.RECIPES[skill] or {}) do
+            for _, id in ipairs(ids) do -- ascending, so every list stays sorted
+                if count < C.MAX_RECIPES and (had[id] or IsKnown(id)) then
+                    cats[cat] = cats[cat] or {}
+                    table.insert(cats[cat], id)
+                    count = count + 1
                 end
             end
         end
+        if count > 0 then profs[skill] = cats end
     end
     -- A profession you no longer have – but right after login the game may not list all of them yet,
     -- and a list without any profession is more likely a hiccup than the truth.
-    if next(skills) ~= nil and loginAt and GetTime() - loginAt >= SETTLE_SECONDS then
-        for skill in pairs(profs) do
-            if not skills[skill] then profs[skill] = nil end
+    if next(skills) == nil or not loginAt or GetTime() - loginAt < SETTLE_SECONDS then
+        for skill, cats in pairs(old) do
+            if not profs[skill] and D.RECIPES[skill] then profs[skill] = cats end
         end
     end
+    if not C.WithinLimits(profs) then return end
     SaveOwn(profs)
 end
 
 function M.ScanKnown()
     if not M:IsEnabled() then return end
-    Rebuild(nil, nil)
+    Rebuild()
 end
 
--- Reads the open profession window: the profession's catalogue and what this character knows of it.
--- Returns the profession's skill line, nil if the window isn't yours or isn't ready.
-function M.ScanWindow()
-    local T = C_TradeSkillUI
-    if not M:IsEnabled() or not T or not T.GetAllRecipeIDs or not T.GetRecipeInfo then return nil end
-    if T.IsTradeSkillReady and not T.IsTradeSkillReady() then return nil end
-    for _, check in ipairs({ "IsTradeSkillLinked", "IsTradeSkillGuild", "IsTradeSkillGuildMember", "IsNPCCrafting" }) do
-        if T[check] and T[check]() then return nil end -- somebody else's recipes
-    end
-    local ids = T.GetAllRecipeIDs()
-    if type(ids) ~= "table" or #ids == 0 then return nil end
-    local info = T.GetProfessionInfoByRecipeID and T.GetProfessionInfoByRecipeID(ids[1])
-    if type(info) ~= "table" then return nil end
-    local parent = info.parentProfessionID
-    local skill = type(parent) == "number" and parent > 0 and parent or info.professionID
-    if type(skill) ~= "number" or not OwnSkills()[skill] then return nil end
-
-    local catalog, learned, count = {}, {}, 0
-    for _, id in ipairs(ids) do
-        local recipe = T.GetRecipeInfo(id)
-        if type(recipe) == "table" and recipe.isDummyRecipe ~= true then
-            catalog[id] = type(recipe.categoryID) == "number" and recipe.categoryID or 0
-            count = count + 1
-            if recipe.learned and #learned < C.MAX_RECIPES then learned[#learned + 1] = id end
-        end
-    end
-    if count == 0 then return nil end
-    M.db.catalog[skill] = catalog
-    Rebuild(skill, learned)
-    return skill
-end
-
--- Several window events in a row (the list updates while it loads) lead to one scan.
+-- Learning a recipe, a profession or a new rank: one scan a moment later for several events in a row.
 local scanPending = false
-local function QueueScan(fn)
+local function QueueScan()
     if scanPending then return end
     scanPending = true
     After(0.5, function()
         scanPending = false
-        fn()
+        M.ScanKnown()
     end)
 end
 
-M:RegisterEvent("TRADE_SKILL_SHOW", function() QueueScan(M.ScanWindow) end)
-M:RegisterEvent("TRADE_SKILL_LIST_UPDATE", function() QueueScan(M.ScanWindow) end)
-M:RegisterEvent("NEW_RECIPE_LEARNED", function(recipeID)
-    for _, catalog in pairs(M.db.catalog) do
-        if catalog[recipeID] then return QueueScan(M.ScanKnown) end
-    end
-end)
+M:RegisterEvent("NEW_RECIPE_LEARNED", QueueScan)
+M:RegisterEvent("SKILL_LINES_CHANGED", QueueScan)
 
 ---------------------------------------------------------------------------
 -- Messages. Numbers are base 36, <guid> is the character's GUID without "Player-".
@@ -427,18 +373,6 @@ end, {
 ---------------------------------------------------------------------------
 -- Lifecycle
 ---------------------------------------------------------------------------
--- One chat line per session for crafting professions whose window was never opened on this account.
-local function Hint()
-    if not M:IsEnabled() then return end
-    local names = {}
-    for skill in pairs(OwnSkills()) do
-        if not M.db.catalog[skill] or next(M.db.catalog[skill]) == nil then names[#names + 1] = D.ProfessionName(skill) end
-    end
-    if #names == 0 then return end
-    table.sort(names)
-    M:Print(L.RCP_HINT_OPEN:format(table.concat(names, ", ")))
-end
-
 local lastPrune
 local function Prune()
     if not M:IsEnabled() then return end
@@ -458,7 +392,7 @@ end)
 
 function M:OnLogin()
     loginAt = GetTime()
+    M.db.catalog = nil -- the recipe list of the profession windows of 1.3.0; the addon brings its own now
     After(SETTLE_SECONDS, M.ScanKnown)
     After(15, Prune)
-    After(30, Hint)
 end
