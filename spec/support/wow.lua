@@ -40,10 +40,19 @@ end
 local NOT_IN_GAME = { SetCheckedAtlas = true, SetHighlightAtlas2 = true }
 
 -- A frame that remembers its events and scripts. Any other method is a no-op.
--- isRegion: a texture or font string (not a frame).
-local function NewFrame(game, name, template, isRegion)
+-- isRegion: a texture or font string (not a frame). protected: forced protection (the regions of a
+-- protected frame are protected too).
+local function NewFrame(game, name, template, isRegion, protected)
     local frame = { name = name, events = {}, scripts = {}, shown = true, isRegion = isRegion,
-        protected = template ~= nil and template:match("^Secure") ~= nil }
+        protected = protected or (template ~= nil and template:match("^Secure") ~= nil) }
+    -- Like the game: anchoring and sizing are protected functions on a protected frame or region;
+    -- addon code calling them in combat is blocked. Recorded in game.blocked.
+    local function Guard(self, fn)
+        local inCombat = rawget(game.env, "InCombatLockdown")
+        if rawget(self, "protected") and inCombat and inCombat() then
+            table.insert(game.blocked, fn)
+        end
+    end
     function frame:Show() self.shown = true end
     function frame:Hide() self.shown = false end
     function frame:SetShown(on) self.shown = on and true or false end
@@ -53,6 +62,7 @@ local function NewFrame(game, name, template, isRegion)
     function frame:SetPoint(...)
         -- like the game: a secure (protected) frame can't be anchored to a texture or font string,
         -- nor to a frame whose own anchors lead to one
+        Guard(self, "SetPoint")
         local relativeTo = select(2, ...)
         if self.protected then
             local seen, r = {}, relativeTo
@@ -83,7 +93,11 @@ local function NewFrame(game, name, template, isRegion)
         self.frameRefs[label] = ref
     end
     function frame:GetText() return self.text end
-    function frame:ClearAllPoints() self.point = nil end
+    function frame:ClearAllPoints() Guard(self, "ClearAllPoints") self.point = nil end
+    function frame:SetAllPoints() Guard(self, "SetAllPoints") end
+    function frame:SetSize() Guard(self, "SetSize") end
+    function frame:SetWidth() Guard(self, "SetWidth") end
+    function frame:SetHeight() Guard(self, "SetHeight") end
     function frame:SetClipsChildren(on) self.clips = on and true or false end
     if template == "RightSideTabTemplate" then -- the side tab template's icon texture
         frame.Icon = { SetTexture = function(self, texture) self.texture = texture end }
@@ -100,8 +114,9 @@ local function NewFrame(game, name, template, isRegion)
         end
     end
     function frame:GetName() return self.name end
-    function frame:CreateFontString() return NewFrame(game, nil, nil, true) end -- font strings and textures: plain fakes
-    function frame:CreateTexture() return NewFrame(game, nil, nil, true) end
+    -- font strings and textures: plain fakes, protected when their frame is
+    function frame:CreateFontString() return NewFrame(game, nil, nil, true, self.protected) end
+    function frame:CreateTexture() return NewFrame(game, nil, nil, true, self.protected) end
     -- Any other method is a no-op – except names that look right but don't exist in the game.
     setmetatable(frame, { __index = function(_, key)
         if NOT_IN_GAME[key] then return nil end
@@ -127,7 +142,7 @@ function Wow.new(opts)
     local player = opts.player or { name = "Tester", realm = "Realm", guid = "Player-1-0000AAAA" }
     local game = {
         frames = {}, chat = {}, sent = {}, timers = {}, now = 1000, clock = 1700000000,
-        inGuild = opts.inGuild ~= false, errors = {},
+        inGuild = opts.inGuild ~= false, errors = {}, blocked = {},
     }
 
     local env = {}

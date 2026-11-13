@@ -34,18 +34,30 @@ local function Rgb(hex)
     return { tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255 }
 end
 
--- Four edge textures around a frame; returns a function that colours them (and sets their width).
+-- Four 1 px edge textures, inset px from the frame's edges.
+local function Ring(frame, layer, inset)
+    local e = {}
+    for i = 1, 4 do e[i] = frame:CreateTexture(nil, layer) end
+    e[1]:SetPoint("TOPLEFT", inset, -inset) e[1]:SetPoint("TOPRIGHT", -inset, -inset) e[1]:SetHeight(1)
+    e[2]:SetPoint("BOTTOMLEFT", inset, inset) e[2]:SetPoint("BOTTOMRIGHT", -inset, inset) e[2]:SetHeight(1)
+    e[3]:SetPoint("TOPLEFT", inset, -inset) e[3]:SetPoint("BOTTOMLEFT", inset, inset) e[3]:SetWidth(1)
+    e[4]:SetPoint("TOPRIGHT", -inset, -inset) e[4]:SetPoint("BOTTOMRIGHT", -inset, inset) e[4]:SetWidth(1)
+    return e
+end
+
+-- A 1 or 2 px border around a frame; returns a function that colours it and sets its width.
+-- The textures are anchored once here: on a secure button anchoring and sizing them are protected
+-- (blocked in combat), so the returned function only colours and shows/hides them.
 local function Border(frame, layer)
-    local edges = {}
-    for i = 1, 4 do edges[i] = frame:CreateTexture(nil, layer or "BORDER") end
+    layer = layer or "BORDER"
+    local outer, inner = Ring(frame, layer, 0), Ring(frame, layer, 1)
     return function(color, width)
-        width = width or 1
-        local e = edges
-        e[1]:ClearAllPoints() e[1]:SetPoint("TOPLEFT") e[1]:SetPoint("TOPRIGHT") e[1]:SetHeight(width)
-        e[2]:ClearAllPoints() e[2]:SetPoint("BOTTOMLEFT") e[2]:SetPoint("BOTTOMRIGHT") e[2]:SetHeight(width)
-        e[3]:ClearAllPoints() e[3]:SetPoint("TOPLEFT") e[3]:SetPoint("BOTTOMLEFT") e[3]:SetWidth(width)
-        e[4]:ClearAllPoints() e[4]:SetPoint("TOPRIGHT") e[4]:SetPoint("BOTTOMRIGHT") e[4]:SetWidth(width)
-        for _, t in ipairs(e) do t:SetColorTexture(color[1], color[2], color[3], 1) end
+        local wide = (width or 1) >= 2
+        for i = 1, 4 do
+            outer[i]:SetColorTexture(color[1], color[2], color[3], 1)
+            inner[i]:SetColorTexture(color[1], color[2], color[3], 1)
+            inner[i]:SetShown(wide)
+        end
     end
 end
 

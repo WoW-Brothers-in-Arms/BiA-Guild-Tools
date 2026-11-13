@@ -230,6 +230,31 @@ describe("Markers", function()
         end)
     end)
 
+    describe("in combat", function()
+        -- Anchoring and sizing a secure button's textures is protected: doing it in combat raises the
+        -- game's "blocked" dialog.
+        it("highlights a symbol on mouseover without protected calls", function()
+            local game, M = start({ leader = true })
+            local p = M.panel
+            game.group.combat = true
+            for _, b in ipairs({ p.targets[1], p.targets[8], p.clearAll, p.ground[1], p.clearGround,
+                p.switchTarget, p.switchGround }) do
+                b.scripts.OnEnter(b)
+                b.scripts.OnLeave(b)
+            end
+            assert.same({}, game.blocked)
+        end)
+
+        it("repaints the panel without protected calls", function()
+            local game, M = start({ leader = true, targetIcon = 2 })
+            game.group.combat = true
+            game.group.targetIcon = 5
+            M.panel:Refresh()
+            M.panel.scripts.OnUpdate(M.panel, 1)
+            assert.same({}, game.blocked)
+        end)
+    end)
+
     it("builds its panel at login without an error", function()
         local game = start({ leader = true })
         assert.same({}, game.errors)
