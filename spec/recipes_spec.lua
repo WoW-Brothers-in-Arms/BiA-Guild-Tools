@@ -515,23 +515,26 @@ describe("Guild Recipes", function()
 
         it("follows the chosen profession, recipe, search and category", function()
             local game = open({ modules = { recipes = { members = {
-                [OTHER] = record({ [165] = { [2552] = { 3760, 9198 } }, [333] = { [7] = { 7421 } } }) } } } })
+                [OTHER] = record({ [165] = { [2552] = { 3760, 9198 }, [9] = { 2149 } }, [333] = { [7] = { 7421 } } }) } } } })
             local m = M(game).WindowModel()
             assert.equal(333, m.skill) -- "Enchanting" comes first
             M(game).SelectProfession(165)
             assert.equal(165, db(game).skill)
             m = M(game).WindowModel()
-            assert.same({ "#", "#3760", "#9198" }, kinds(m.rows))
-            assert.equal("Other", m.rows[1].text) -- the fake client names no category
+            assert.same({ "#", "#3760", "#9198", "#", "#2149" }, kinds(m.rows))
+            assert.equal("Cloaks", m.rows[1].text) -- the fake client names none: the addon's table does
+            assert.equal("Other", m.rows[4].text)  -- an ID nobody knows
             assert.equal(3760, m.detail.id)
             M(game).SelectRecipe(9198)
             assert.equal(9198, M(game).WindowModel().detail.id)
             M(game).SetSearch("#91")
             assert.same({ "#", "#9198" }, kinds(M(game).WindowModel().rows))
             M(game).SetSearch("")
-            M(game).ToggleCategory("other") -- the section of categories the client can't name
+            M(game).ToggleCategory(2552)
+            assert.is_true(db(game).collapsed[2552])
+            M(game).ToggleCategory("other") -- the section of categories nobody can name
             assert.is_true(db(game).collapsed.other)
-            assert.same({ "#" }, kinds(M(game).WindowModel().rows))
+            assert.same({ "#", "#" }, kinds(M(game).WindowModel().rows))
         end)
 
         it("names the crafter's main and lists members whose recipes are unknown", function()

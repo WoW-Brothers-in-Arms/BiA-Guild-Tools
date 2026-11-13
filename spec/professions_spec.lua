@@ -26,6 +26,24 @@ describe("Professions", function()
         assert.is_false(D.IsCrafting(99999))
     end)
 
+    describe("category names", function()
+        it("come from the addon's table when the client doesn't know the category", function()
+            local de = Wow.new({ locale = "deDE", globals = { C_TradeSkillUI = { GetCategoryInfo = function() end } } })
+            assert.equal("Alltägliche Mahlzeiten", de.ns.ProfessionData.CategoryName(2632))
+            local en = Wow.new({ locale = "enUS" })
+            assert.equal("Cloaks", en.ns.ProfessionData.CategoryName(2552))
+            assert.is_nil(en.ns.ProfessionData.CategoryName(99999))
+        end)
+
+        it("come from the client when it knows the category", function()
+            local game = Wow.new({ locale = "deDE", globals = { C_TradeSkillUI = {
+                GetCategoryInfo = function(id) return id == 2552 and { name = "Umhänge (Client)" } or nil end,
+            } } })
+            assert.equal("Umhänge (Client)", game.ns.ProfessionData.CategoryName(2552))
+            assert.equal("Lederstiefel", game.ns.ProfessionData.CategoryName(2560))
+        end)
+    end)
+
     describe("sending", function()
         it("reports a checksum of your professions in the status after login instead of sending them", function()
             local game = Wow.new({ globals = WithProfessions() })

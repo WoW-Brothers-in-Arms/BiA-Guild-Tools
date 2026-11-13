@@ -6,6 +6,8 @@ and CurseForge and stops if it is missing.
 
 ## Unreleased
 
+- Guild Recipes: recipes of professions you don't have yourself are now grouped under their real categories (e.g. "Cloaks", "Everyday Meals") instead of all landing in "Other". The game names categories only of your own professions; the addon now brings the names of all categories along (English and German).
+
 ## 1.3.0 (2026-11-12)
 
 - New tool **Fishing Pole**: cast Fishing without a fishing pole and the tool puts one on from your bags – cast Fishing again to fish. A movable **Switch back** button puts your weapons from before back on, also in combat (`/bia fishing back`).

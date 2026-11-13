@@ -48,6 +48,19 @@ function D.ProfessionName(id)
     return isGerman and p.de or p.en
 end
 
+-- The name of a recipe category in the player's language: what the client says, else the addon's own
+-- table (Categories.lua). The client names categories only of professions the character has itself.
+-- nil for an ID neither knows.
+function D.CategoryName(id)
+    if C_TradeSkillUI and C_TradeSkillUI.GetCategoryInfo then
+        local ok, info = pcall(C_TradeSkillUI.GetCategoryInfo, id)
+        if ok and type(info) == "table" and type(info.name) == "string" and info.name ~= "" then return info.name end
+    end
+    local names = D.CATEGORIES and D.CATEGORIES[id]
+    if not names then return nil end
+    return isGerman and names[2] or names[1]
+end
+
 function D.ProfessionIcon(id)
     local p = D.PROFESSIONS[id]
     return p and p.icon or "Interface\\Icons\\INV_Misc_QuestionMark"
