@@ -173,13 +173,15 @@ M:RegisterEvent("SKILL_LINES_CHANGED", QueueScan)
 
 ---------------------------------------------------------------------------
 -- Messages. Numbers are base 36, <guid> is the character's GUID without "Player-".
---   D|1|<guid>|<t>|<h>|<i>/<n>|<chunk>   chunk i of n of that character's record text (Codec.lua)
---   N|1|<guid>|<t>|<h>|<additions>       the owner learned recipes: a record of just those; t and h are
+--   D|2|<guid>|<t>|<h>|<i>/<n>|<chunk>   chunk i of n of that character's record text (Codec.lua)
+--   N|2|<guid>|<t>|<h>|<additions>       the owner learned recipes: a record of just those; t and h are
 --                                        the whole record's new revision and checksum
--- Who needs a record learns it from the status of Sync.lua (key "r": "<t>.<h>"): whoever has another
+-- Who needs a record learns it from the status of Sync.lua (key "rb": "<t>.<h>"): whoever has another
 -- checksum stored asks, and the owner sends. Only the owner's own messages are accepted.
+-- Format 1 (1.3.0, status key "r") wrote recipe IDs and categories instead of bits; it is no longer read
+-- or answered, and the new key keeps 1.3.0 from asking for records it can't read.
 ---------------------------------------------------------------------------
-local PREFIX, PROTOCOL = "BiaRcp", "1"
+local PREFIX, PROTOCOL = "BiaRcp", "2"
 local MAX_MESSAGE = 250
 
 -- Outgoing messages leave one per second. One the game refuses stays first in line and is tried again.
@@ -301,13 +303,16 @@ local function OnData(rest, senderGuid)
     if parts.count < n then return end
     arriving[key] = nil
     local text = C.Join(parts)
-    local profs = S.TextChecksum(text) == h and C.DecodeRecord(text) or nil
+    local profs, skipped
+    if S.TextChecksum(text) == h then profs, skipped = C.DecodeRecord(text) end
     if not profs then
         M:Debug("record of %s dropped: damaged", senderGuid)
         return
     end
+    if skipped then M:Debug("record of %s has recipes this addon doesn't know yet", senderGuid) end
     local member = ns.Roster()[senderGuid]
-    if S.Put(M.db.members, senderGuid, member and member.name or senderGuid, t, profs, time(), GuildName()) then
+    if S.Put(M.db.members, senderGuid, member and member.name or senderGuid, t, profs, time(), GuildName(), h,
+        skipped and D.DATA_BUILD or nil) then
         M.StoreChanged()
     end
 end
@@ -315,8 +320,9 @@ end
 local function OnAdditions(rest, senderGuid)
     local short, tText, h, text = rest:match("^([^|]+)|([^|]+)|(%d+)|(.+)$")
     if not short or "Player-" .. short ~= senderGuid then return end
-    local t, additions = C.Num(tText), C.DecodeRecord(text)
-    if not t or not additions then return end
+    local t = C.Num(tText)
+    local additions, skipped = C.DecodeRecord(text)
+    if not t or not additions or skipped then return end -- skipped: the next status asks for the whole record
     if S.Add(M.db.members, senderGuid, t, h, additions, time()) then M.StoreChanged() end
 end
 
@@ -330,7 +336,7 @@ M:RegisterComm(PREFIX, function(text, channel, sender)
 end)
 
 ns.Sync.Register(M, {
-    key = "r",
+    key = "rb",
     stamp = function()
         local record = M.OwnRecord()
         if type(record) ~= "table" then return nil end
@@ -338,7 +344,7 @@ ns.Sync.Register(M, {
     end,
     -- Their stamp says what they have; if that is what we stored, it is still current.
     has = function(stamp, guid)
-        return S.Confirm(M.db.members, guid, stamp:match("%.(%d+)$") or "", time())
+        return S.Confirm(M.db.members, guid, stamp:match("%.(%d+)$") or "", time(), D.DATA_BUILD)
     end,
     send = SendRecord,
 })
@@ -393,6 +399,10 @@ end)
 function M:OnLogin()
     loginAt = GetTime()
     M.db.catalog = nil -- the recipe list of the profession windows of 1.3.0; the addon brings its own now
+    -- Checksums stored by 1.3.0 are of its text format: your own is set anew before your status goes out
+    -- (the others' no longer match their owners' status and are asked for once).
+    local own = M.OwnRecord()
+    if type(own) == "table" and type(own.profs) == "table" then own.h = S.Checksum(own.profs) end
     After(SETTLE_SECONDS, M.ScanKnown)
     After(15, Prune)
 end

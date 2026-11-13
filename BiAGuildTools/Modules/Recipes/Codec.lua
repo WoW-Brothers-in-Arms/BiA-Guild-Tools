@@ -3,11 +3,14 @@
 --
 --   profs = { [skillLine] = { [categoryID] = { recipeID, ... } } }   -- recipe IDs sorted, no doubles
 --
--- As text, numbers are base 36. Professions are sorted by skill line and joined with ";", each
--- "<skill>:<categories>"; categories are sorted by ID and joined with ",", each "<cat>=<ids>"; the
--- recipe IDs are sorted and written as the first ID followed by the differences to the one before,
--- joined with ".". Example: "4l:1yw=2wg.472,1z4=1np" – Leatherworking (165) with two recipes in
--- category 2552 and one in 2560. Sorting makes equal records equal text, so checksums can be compared.
+-- Every addon brings the same list of each profession's recipes (ProfessionData.RECIPE_ORDER, which
+-- only grows) and their categories (ProfessionData.RECIPES), so a record travels as one bit per recipe
+-- of that list: set if the character knows it. Six bits make one character of BITS (the list's first
+-- recipe is the lowest bit of the first character), trailing "0"s are left out. Professions are sorted
+-- by skill line (base 36) and joined with ";", each "<skill>:<bits>". Example: "4l:0002" – Leatherworking
+-- (165) knowing the 20th recipe of its list. Equal records are equal text, so checksums can be compared.
+--
+-- A receiver whose list is shorter (an older addon) skips the bits beyond it: DecodeRecord tells.
 local _, ns = ...
 
 local C = {}
@@ -16,8 +19,10 @@ ns.RecipeCodec = C
 C.MAX_PROFS = 12      -- professions in one record
 C.MAX_RECIPES = 1500  -- recipes of one profession
 C.MAX_CHUNKS = 80     -- messages one record may take
+C.MAX_BITS = 1000     -- characters of one profession's bits (6000 recipes)
 
 local DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz"
+local BITS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_"
 
 function C.Text(n)
     if n == 0 then return "0" end
@@ -43,22 +48,50 @@ local function SortedKeys(t)
     return keys
 end
 
+-- Lookups built from the shipped lists at first use: place[skill][recipeID] = place in the list,
+-- category[skill][recipeID] = categoryID.
+local place, category
+local function Lookups()
+    if place then return end
+    local D = ns.ProfessionData
+    place, category = {}, {}
+    for skill, ids in pairs(D.RECIPE_ORDER or {}) do
+        place[skill] = {}
+        for i, id in ipairs(ids) do place[skill][id] = i end
+    end
+    for skill, cats in pairs(D.RECIPES or {}) do
+        category[skill] = {}
+        for cat, ids in pairs(cats) do
+            for _, id in ipairs(ids) do category[skill][id] = cat end
+        end
+    end
+end
+
+-- Recipes missing from the shipped list can't be written and are left out.
 function C.EncodeRecord(profs)
+    Lookups()
     local out = {}
     for _, skill in ipairs(SortedKeys(profs)) do
-        local cats = {}
-        for _, cat in ipairs(SortedKeys(profs[skill])) do
-            local ids = {}
-            for i, id in ipairs(profs[skill][cat]) do ids[i] = id end
-            table.sort(ids)
-            local parts, last = {}, 0
+        local places, values, last = place[skill] or {}, {}, 0
+        for _, ids in pairs(profs[skill]) do
             for _, id in ipairs(ids) do
-                parts[#parts + 1] = C.Text(id - last)
-                last = id
+                local i = places[id]
+                if i then
+                    local char, bit = math.floor((i - 1) / 6) + 1, 2 ^ ((i - 1) % 6)
+                    local value = values[char] or 0
+                    if math.floor(value / bit) % 2 == 0 then values[char] = value + bit end
+                    if char > last then last = char end
+                end
             end
-            cats[#cats + 1] = C.Text(cat) .. "=" .. table.concat(parts, ".")
         end
-        out[#out + 1] = C.Text(skill) .. ":" .. table.concat(cats, ",")
+        if last > 0 then
+            local chars = {}
+            for char = 1, last do
+                local value = (values[char] or 0) + 1
+                chars[char] = BITS:sub(value, value)
+            end
+            out[#out + 1] = C.Text(skill) .. ":" .. table.concat(chars)
+        end
     end
     return table.concat(out, ";")
 end
@@ -73,39 +106,45 @@ local function Split(text, sep)
     return pieces
 end
 
--- The record a text stands for, nil if the text is damaged or too large.
+-- The record a text stands for, nil if the text is damaged or too large. Second result: true if bits
+-- were skipped because this addon doesn't know their recipe (its list is older than the sender's).
 function C.DecodeRecord(text)
     if type(text) ~= "string" then return nil end
-    if text == "" then return {} end
-    local profs, count = {}, 0
+    if text == "" then return {}, false end
+    Lookups()
+    local order = ns.ProfessionData.RECIPE_ORDER or {}
+    local profs, seen, count, skipped = {}, {}, 0, false
     for _, prof in ipairs(Split(text, ";") or {}) do
-        local skillText, catsText = prof:match("^([^:]+):(.+)$")
+        local skillText, bits = prof:match("^([^:]+):([0-9a-zA-Z%-_]+)$")
         local skill = C.Num(skillText)
-        if not skill or profs[skill] then return nil end
+        if not skill or seen[skill] or #bits > C.MAX_BITS or bits:sub(-1) == "0" then return nil end
+        seen[skill] = true
         count = count + 1
         if count > C.MAX_PROFS then return nil end
-        local cats, recipes = {}, 0
-        for _, catPart in ipairs(Split(catsText, ",") or {}) do
-            local catText, idsText = catPart:match("^([^=]+)=(.+)$")
-            local cat = C.Num(catText)
-            if not cat or cats[cat] then return nil end
-            local ids, last = {}, 0
-            for _, diffText in ipairs(Split(idsText, ".") or {}) do
-                local diff = C.Num(diffText)
-                if not diff or diff == 0 then return nil end
-                last = last + diff
-                ids[#ids + 1] = last
+        local list, cats, out, recipes = order[skill] or {}, category[skill] or {}, {}, 0
+        for char = 1, #bits do
+            local value = BITS:find(bits:sub(char, char), 1, true) - 1
+            for bit = 1, 6 do
+                if value % 2 == 1 then
+                    local id = list[(char - 1) * 6 + bit]
+                    local cat = id and cats[id]
+                    if cat then
+                        out[cat] = out[cat] or {}
+                        table.insert(out[cat], id)
+                        recipes = recipes + 1
+                    else
+                        skipped = true
+                    end
+                end
+                value = math.floor(value / 2)
             end
-            if #ids == 0 then return nil end
-            recipes = recipes + #ids
-            if recipes > C.MAX_RECIPES then return nil end
-            cats[cat] = ids
         end
-        if next(cats) == nil then return nil end
-        profs[skill] = cats
+        if recipes > C.MAX_RECIPES then return nil end
+        for _, ids in pairs(out) do table.sort(ids) end
+        if next(out) ~= nil then profs[skill] = out end
     end
     if count == 0 then return nil end
-    return profs
+    return profs, skipped
 end
 
 -- Pieces of at most `room` bytes; always at least one.

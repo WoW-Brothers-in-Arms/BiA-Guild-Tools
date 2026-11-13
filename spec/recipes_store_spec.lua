@@ -34,6 +34,23 @@ describe("RecipeStore", function()
         assert.equal(7000, m[A].seen)
     end)
 
+    it("asks again for a record with recipes our addon didn't know, once it brings another list", function()
+        local m = {}
+        assert.is_true(S.Put(m, A, "Anna-Realm", 100, profs, 5000, nil, "77", "1.0"))
+        assert.same({ "77", "1.0" }, { m[A].h, m[A].d })
+        assert.is_true(S.Confirm(m, A, "77", 6000, "1.0"))
+        assert.is_false(S.Confirm(m, A, "77", 6000, "1.1"))
+        assert.is_true(S.Put(m, A, "Anna-Realm", 100, profs, 7000, nil, "77")) -- now read completely
+        assert.is_nil(m[A].d)
+        assert.is_true(S.Confirm(m, A, "77", 8000, "1.1"))
+    end)
+
+    it("takes the categories of a record sent again unchanged", function()
+        local m = { [A] = { name = "Anna-Realm", t = 100, h = S.Checksum(profs), seen = 1, profs = { [165] = { [0] = { 3760 } } } } }
+        assert.is_false(S.Put(m, A, "Anna-Realm", 100, profs, 5000))
+        assert.same(profs, m[A].profs)
+    end)
+
     it("adds newly learned recipes when the checksum fits", function()
         local m = {}
         S.Put(m, A, "Anna-Realm", 100, profs, 5000)

@@ -4,13 +4,15 @@
 #                                                     their order in the game's profession window
 #   BiAGuildTools/Modules/Professions/Recipes.lua     every recipe of the crafting professions with its
 #                                                     category
+#   BiAGuildTools/Modules/Professions/RecipeOrder.lua each recipe's place in the bitmaps of addon messages;
+#                                                     only grows (see below)
 # The game client names categories and tells a recipe's category only for a profession whose window is
 # open; with these tables the addon needs neither.
 #
 # Run it for every new Forever client build before publishing (the release's pre-push check compares
 # the build with the installed client, see scripts/check-game-data.sh):
 #   python3 scripts/make-recipe-data.py 1.60.1.70938
-import csv, io, os, sys, urllib.request
+import csv, io, os, re, sys, urllib.request
 
 BUILD = sys.argv[1]
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "BiAGuildTools", "Modules", "Professions")
@@ -38,6 +40,19 @@ def lua(text):
 def write(filename, lines):
     with open(os.path.join(OUT, filename), "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
+
+
+def id_lines(ids, indent):
+    """The IDs as Lua list items, wrapped at WIDTH."""
+    out, line = [], indent
+    for spell in ids:
+        part = " %d," % spell
+        if len(line) + len(part) > WIDTH:
+            out.append(line)
+            line = indent
+        line += part
+    out.append(line)
+    return out
 
 
 def header(filename, what):
@@ -86,16 +101,46 @@ for skill in sorted(recipes):
         ids = sorted(by_cat[cat])
         count += len(ids)
         lines.append("        [%d] = {" % cat)
-        line = "           "
-        for spell in ids:
-            part = " %d," % spell
-            if len(line) + len(part) > WIDTH:
-                lines.append(line)
-                line = "           "
-            line += part
-        lines.append(line)
+        lines += id_lines(ids, "           ")
         lines.append("        },")
     lines.append("    },")
 lines.append("}")
 write("Recipes.lua", lines)
-print("build %s: %d categories, %d recipes in %d professions" % (BUILD, len(en), count, len(recipes)))
+
+# Order: addon messages send a player's recipes as one bit per recipe (Modules/Recipes/Codec.lua), so
+# every addon version must agree on each recipe's place. The list only grows: recipes keep their place,
+# also when the game drops them, and new ones are added at the end, ascending.
+order, skill = {}, None
+path = os.path.join(OUT, "RecipeOrder.lua")
+if os.path.exists(path):
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            m = re.match(r"    \[(\d+)\] = \{", line)
+            if m:
+                skill = int(m.group(1))
+                order[skill] = []
+            elif skill is not None and line.startswith("        "):
+                order[skill] += [int(x) for x in re.findall(r"\d+", line)]
+added = 0
+for skill in recipes:
+    listed = order.setdefault(skill, [])
+    new = sorted(set(recipes[skill]) - set(listed))
+    listed += new
+    added += len(new)
+lines = [
+    "-- RecipeOrder.lua: each recipe's place in the bitmaps of addon messages (Modules/Recipes/Codec.lua),",
+    "-- { [skillLine] = { recipeID, ... } }. Every addon version must agree on it, so the list only grows: new",
+    "-- recipes are added at the end, dropped ones keep their place.",
+    "-- Kept up to date by scripts/make-recipe-data.py; don't edit.",
+    "local _, ns = ...",
+    "",
+    "ns.ProfessionData.RECIPE_ORDER = {",
+]
+for skill in sorted(order):
+    lines.append("    [%d] = {" % skill)
+    lines += id_lines(order[skill], "       ")
+    lines.append("    },")
+lines.append("}")
+write("RecipeOrder.lua", lines)
+print("build %s: %d categories, %d recipes in %d professions, %d new in the order" % (BUILD, len(en), count,
+                                                                                    len(recipes), added))

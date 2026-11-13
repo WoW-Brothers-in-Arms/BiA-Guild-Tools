@@ -164,7 +164,7 @@ describe("Guild Recipes", function()
         it("stores a guild mate's record", function()
             local game = online()
             local text, h = valid(game)
-            game:receive("BiaRcp", ("D|1|1-0000BBBB|a|%s|1/1|%s"):format(h, text), "Other Realm")
+            game:receive("BiaRcp", ("D|2|1-0000BBBB|a|%s|1/1|%s"):format(h, text), "Other Realm")
             local record = db(game).members[OTHER]
             assert.same(PROFS, record.profs)
             assert.same({ "Other-Realm", 10, tostring(h) }, { record.name, record.t, record.h })
@@ -174,18 +174,18 @@ describe("Guild Recipes", function()
             local game = online()
             local text, h = valid(game)
             local bad = {
-                { ("D|1|1-0000BBBB|a|1|1/1|%s"):format(text) },                      -- wrong checksum
-                { ("D|1|1-0000BBBB|a|%s|1/zzzz|%s"):format(h, text) },               -- far too many chunks
-                { ("D|1|1-0000BBBB|a|%s|0/1|%s"):format(h, text) },
-                { ("D|1|1-0000BBBB|a|%s|2/1|%s"):format(h, text) },
-                { "D|1|1-0000BBBB|a|1|x" },
+                { ("D|2|1-0000BBBB|a|1|1/1|%s"):format(text) },                      -- wrong checksum
+                { ("D|2|1-0000BBBB|a|%s|1/zzzz|%s"):format(h, text) },               -- far too many chunks
+                { ("D|2|1-0000BBBB|a|%s|0/1|%s"):format(h, text) },
+                { ("D|2|1-0000BBBB|a|%s|2/1|%s"):format(h, text) },
+                { "D|2|1-0000BBBB|a|1|x" },
                 { ("D|9|1-0000BBBB|a|%s|1/1|%s"):format(h, text) },                  -- another format version
-                { ("D|1|1-0000BBBB|A!|%s|1/1|%s"):format(h, text) },
-                { ("D|1|1-0000BBBB|a|%s|1/1|%s"):format(game.ns.Hash("4l:x"), "4l:x") }, -- text that is no record
-                { ("D|1|1-0000AAAA|a|%s|1/1|%s"):format(h, text) },                  -- a record for you, sent by Other
-                { ("D|1|1-0000FFFF|a|%s|1/1|%s"):format(h, text), "Stranger Realm" }, -- not in the guild roster
-                { ("D|1|1-0000BBBB|a|%s|1/1|%s"):format(h, text), "Other Realm", "WHISPER" },
-                { "N|1|1-0000BBBB|a|1|4l:1yw=2wg" },                                 -- nothing stored to add to
+                { ("D|2|1-0000BBBB|A!|%s|1/1|%s"):format(h, text) },
+                { ("D|2|1-0000BBBB|a|%s|1/1|%s"):format(game.ns.Hash("4l:1yw=2wg"), "4l:1yw=2wg") }, -- text that is no record
+                { ("D|2|1-0000AAAA|a|%s|1/1|%s"):format(h, text) },                  -- a record for you, sent by Other
+                { ("D|2|1-0000FFFF|a|%s|1/1|%s"):format(h, text), "Stranger Realm" }, -- not in the guild roster
+                { ("D|2|1-0000BBBB|a|%s|1/1|%s"):format(h, text), "Other Realm", "WHISPER" },
+                { "N|2|1-0000BBBB|a|1|4l:0002" },                                 -- nothing stored to add to
                 { "garbage" }, { "" },
             }
             for _, m in ipairs(bad) do
@@ -202,7 +202,7 @@ describe("Guild Recipes", function()
             local text, h = valid(game)
             local parts = { text:sub(1, 3), text:sub(4, 6), text:sub(7) }
             for _, i in ipairs({ 3, 1, 1, 2 }) do
-                game:receive("BiaRcp", ("D|1|1-0000BBBB|a|%s|%d/3|%s"):format(h, i, parts[i]), "Other Realm")
+                game:receive("BiaRcp", ("D|2|1-0000BBBB|a|%s|%d/3|%s"):format(h, i, parts[i]), "Other Realm")
             end
             assert.same(PROFS, db(game).members[OTHER].profs)
         end)
@@ -210,25 +210,25 @@ describe("Guild Recipes", function()
         it("drops a record with a missing chunk and keeps the old one", function()
             local game = online()
             local text, h = valid(game)
-            game:receive("BiaRcp", ("D|1|1-0000BBBB|a|%s|1/1|%s"):format(h, text), "Other Realm")
+            game:receive("BiaRcp", ("D|2|1-0000BBBB|a|%s|1/1|%s"):format(h, text), "Other Realm")
             local newer = game.ns.RecipeCodec.EncodeRecord({ [165] = { [2552] = { 3760, 9198 } } })
             local h2 = game.ns.Hash(newer)
             local parts = { newer:sub(1, 4), newer:sub(5, 8), newer:sub(9) }
-            game:receive("BiaRcp", ("D|1|1-0000BBBB|b|%s|1/3|%s"):format(h2, parts[1]), "Other Realm")
-            game:receive("BiaRcp", ("D|1|1-0000BBBB|b|%s|3/3|%s"):format(h2, parts[3]), "Other Realm")
+            game:receive("BiaRcp", ("D|2|1-0000BBBB|b|%s|1/3|%s"):format(h2, parts[1]), "Other Realm")
+            game:receive("BiaRcp", ("D|2|1-0000BBBB|b|%s|3/3|%s"):format(h2, parts[3]), "Other Realm")
             game:advance(80) -- given up after 75 seconds without a new chunk
-            game:receive("BiaRcp", ("D|1|1-0000BBBB|b|%s|2/3|%s"):format(h2, parts[2]), "Other Realm")
+            game:receive("BiaRcp", ("D|2|1-0000BBBB|b|%s|2/3|%s"):format(h2, parts[2]), "Other Realm")
             assert.same(PROFS, db(game).members[OTHER].profs)
         end)
 
         it("adds recipes a guild mate learned, sent as one short message", function()
             local game = online()
             local text, h = valid(game)
-            game:receive("BiaRcp", ("D|1|1-0000BBBB|a|%s|1/1|%s"):format(h, text), "Other Realm")
+            game:receive("BiaRcp", ("D|2|1-0000BBBB|a|%s|1/1|%s"):format(h, text), "Other Realm")
             local after = { [165] = { [2552] = { 3760, 9198 }, [2560] = { 2149 } } }
             local Cd = game.ns.RecipeCodec
             local adds = Cd.EncodeRecord({ [165] = { [2552] = { 9198 }, [2560] = { 2149 } } })
-            game:receive("BiaRcp", ("N|1|1-0000BBBB|b|%s|%s"):format(game.ns.Hash(Cd.EncodeRecord(after)), adds), "Other Realm")
+            game:receive("BiaRcp", ("N|2|1-0000BBBB|b|%s|%s"):format(game.ns.Hash(Cd.EncodeRecord(after)), adds), "Other Realm")
             assert.same(after, db(game).members[OTHER].profs)
             assert.equal(11, db(game).members[OTHER].t)
         end)
@@ -238,7 +238,7 @@ describe("Guild Recipes", function()
             local text, h = valid(game)
             local parts = { text:sub(1, 3), text:sub(4, 6), text:sub(7) }
             for i = 1, 3 do
-                game:receive("BiaRcp", ("D|1|1-0000BBBB|a|%s|%d/3|%s"):format(h, i, parts[i]), "Other Realm")
+                game:receive("BiaRcp", ("D|2|1-0000BBBB|a|%s|%d/3|%s"):format(h, i, parts[i]), "Other Realm")
                 game:advance(40)
             end
             assert.same(PROFS, db(game).members[OTHER].profs)
@@ -253,7 +253,7 @@ describe("Guild Recipes", function()
                 return send(prefix, ...)
             end
             for _ = 1, 4 do
-                game:receive("BiaSync", "Q|2|r|1-0000AAAA", "Other Realm")
+                game:receive("BiaSync", "Q|2|rb|1-0000AAAA", "Other Realm")
                 game:advance(40)
             end
             blocked = false
@@ -280,11 +280,11 @@ describe("Guild Recipes", function()
             local function questions()
                 local n = 0
                 for _, msg in ipairs(game:sentWith("BiaSync")) do
-                    if msg:match("^Q|2|r|") then n = n + 1 end
+                    if msg:match("^Q|2|rb|") then n = n + 1 end
                 end
                 return n
             end
-            for i = 1, 14 do game:receive("BiaSync", "S|2|0|r=a.123", ("M%02d Realm"):format(i)) end
+            for i = 1, 14 do game:receive("BiaSync", "S|2|0|rb=a.123", ("M%02d Realm"):format(i)) end
             game:advance(9)
             assert.is_true(questions() <= 8, questions() .. " questions within 9 seconds")
             game:advance(40)
@@ -322,7 +322,7 @@ describe("Guild Recipes", function()
         it("answers /bia recipes status and sync", function()
             local game = online()
             local text, h = valid(game)
-            game:receive("BiaRcp", ("D|1|1-0000BBBB|a|%s|1/1|%s"):format(h, text), "Other Realm")
+            game:receive("BiaRcp", ("D|2|1-0000BBBB|a|%s|1/1|%s"):format(h, text), "Other Realm")
             game:slash("recipes status")
             assert.matches("1 members, 1 recipes", game:chatText(), 1, true)
             local statuses = #game:sentWith("BiaSync")
@@ -380,7 +380,7 @@ describe("Guild Recipes", function()
         it("a guild mate gets your recipes", function()
             local tester, other, wire = pair()
             assert.same(M(tester.game).OwnRecord().profs, db(other.game).members[TESTER].profs)
-            assert.equal(1, count(wire, "^Tester: D|1|"))
+            assert.equal(1, count(wire, "^Tester: D|2|"))
             assert.same({}, tester.game.errors)
             assert.same({}, other.game.errors)
         end)
@@ -388,14 +388,14 @@ describe("Guild Recipes", function()
         it("an unchanged record is not sent again at the next login", function()
             local first, firstOther = pair()
             local _, _, wire = pair(first.game:DB(), firstOther.game:DB())
-            assert.equal(0, count(wire, ": [DN]|1|"))
-            assert.equal(0, count(wire, ": Q|2|r|"))
+            assert.equal(0, count(wire, ": [DN]|2|"))
+            assert.equal(0, count(wire, ": Q|2|rb|"))
         end)
 
         it("a guild mate who was offline asks for your recipes at their next login", function()
             local first = pair()
             local tester, other, wire = pair(first.game:DB(), nil)
-            assert.equal(1, count(wire, "^Other: Q|2|r|"))
+            assert.equal(1, count(wire, "^Other: Q|2|rb|"))
             assert.same(M(tester.game).OwnRecord().profs, db(other.game).members[TESTER].profs)
         end)
 
@@ -404,8 +404,8 @@ describe("Guild Recipes", function()
             tester.game.known[9198] = true
             tester.game:fire("NEW_RECIPE_LEARNED", 9198)
             local wire = run(tester, other, 20)
-            assert.equal(1, count(wire, "^Tester: N|1|"))
-            assert.equal(0, count(wire, "^Tester: D|1|"))
+            assert.equal(1, count(wire, "^Tester: N|2|"))
+            assert.equal(0, count(wire, "^Tester: D|2|"))
             assert.same({ 3760, 9198 }, db(other.game).members[TESTER].profs[165][2552])
         end)
 
@@ -417,14 +417,40 @@ describe("Guild Recipes", function()
             assert.same({ 3760 }, db(other.game).members[TESTER].profs[165][2552])
             tester.game:slash("recipes sync")
             local wire = run(tester, other, 60)
-            assert.equal(1, count(wire, "^Other: Q|2|r|"))
+            assert.equal(1, count(wire, "^Other: Q|2|rb|"))
             assert.same({ 3760, 9198 }, db(other.game).members[TESTER].profs[165][2552])
+        end)
+
+        it("a guild mate with an older recipe list gets the rest once their addon is updated", function()
+            local known = { [3760] = true, [9198] = true }
+            local tester = { player = T, game = Game({ player = T, known = known }) }
+            local other = { player = O, game = Game({ player = O, skills = {} }) }
+            local D = other.game.ns.ProfessionData
+            assert.equal(9198, D.RECIPE_ORDER[165][84])
+            for i = #D.RECIPE_ORDER[165], 84, -1 do D.RECIPE_ORDER[165][i] = nil end -- doesn't know 9198 yet
+            D.DATA_BUILD = "older"
+            start(tester)
+            start(other)
+            run(tester, other, 90)
+            assert.same({ [165] = { [2552] = { 3760 } } }, db(other.game).members[TESTER].profs)
+            -- Still the same addon: the record counts as current, nothing is asked again.
+            other.game:slash("recipes sync")
+            assert.equal(0, count(run(tester, other, 60), "^Other: Q|2|rb|"))
+            -- Updated addon: asked once more, now complete.
+            tester = { player = T, game = Game({ player = T, known = known, saved = tester.game:DB() }) }
+            other = { player = O, game = Game({ player = O, skills = {}, saved = other.game:DB() }) }
+            start(tester)
+            start(other)
+            local wire = run(tester, other, 90)
+            assert.equal(1, count(wire, "^Other: Q|2|rb|"))
+            assert.same({ [165] = { [2552] = { 3760, 9198 } } }, db(other.game).members[TESTER].profs)
+            assert.same({}, other.game.errors)
         end)
 
         it("stores nothing while the tool is off", function()
             local _, other, wire = pair(nil, nil, true)
             assert.is_nil(db(other.game).members[TESTER])
-            assert.equal(0, count(wire, "^Other: Q|2|r|"))
+            assert.equal(0, count(wire, "^Other: Q|2|rb|"))
         end)
     end)
     describe("window", function()

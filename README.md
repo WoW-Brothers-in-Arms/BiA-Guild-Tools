@@ -136,7 +136,7 @@ The last line turns on `.githooks/pre-push`: it runs `scripts/check-game-data.sh
 
 While working, add player-facing changes to `CHANGELOG.md` under `## Unreleased`. Then:
 
-1. If Forever's client has a new build since the last release (`Version` of product `wowf` in `/Applications/World of Warcraft/.build.info`), refresh the recipe tables: `python3 scripts/make-recipe-data.py <build>`. They come from the game's own tables on wago.tools; the pre-push hook stops a release whose tables don't match the installed client.
+1. If Forever's client has a new build since the last release (`Version` of product `wowf` in `/Applications/World of Warcraft/.build.info`), refresh the recipe tables: `python3 scripts/make-recipe-data.py <build>`. They come from the game's own tables on wago.tools; the pre-push hook stops a release whose tables don't match the installed client. `RecipeOrder.lua` fixes each recipe's place in the recipe messages between players: the script only appends new recipes to it, so never edit or re-sort it by hand.
 2. Bump `## Version:` in `BiAGuildTools/BiAGuildTools.toc`, rename `## Unreleased` in `CHANGELOG.md` to the version (e.g. `## 1.1.0 (2026-11-12)`) and commit
 3. Create and push a tag: `git tag v1.1.0 && git push origin main v1.1.0` – the pre-push hook runs the checks first (see above)
 
@@ -172,7 +172,7 @@ spec/                     ← busted tests (not part of the release zip)
 └── support/wow.lua       ← fake WoW client for the tests
 scripts/check.sh          ← luacheck + busted
 scripts/check-game-data.sh ← recipe tables made from the installed client build?
-scripts/make-recipe-data.py ← recipe tables (Modules/Professions/Categories.lua, Recipes.lua) from the game's data
+scripts/make-recipe-data.py ← recipe tables (Modules/Professions/Categories.lua, Recipes.lua, RecipeOrder.lua) from the game's data
 .githooks/pre-push        ← runs the checks before a release tag is pushed
 ```
 
