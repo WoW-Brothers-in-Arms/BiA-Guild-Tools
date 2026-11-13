@@ -4,7 +4,7 @@ New entries go under `## Unreleased`. Before tagging a release, rename that head
 (e.g. `## 1.1.0 (2026-11-12)`) – the release workflow uses that section as release notes on GitHub
 and CurseForge and stops if it is missing.
 
-## Unreleased
+## 1.4.0 (2026-11-13)
 
 - Guild Recipes: recipes of professions you don't have yourself are now grouped under their real categories (e.g. "Cloaks", "Everyday Meals") instead of all landing in "Other". The game names categories only of your own professions; the addon now brings the names of all categories along (English and German).
 - Guild Recipes: categories are listed in the same order as in the game's profession window, "Other" always last.
