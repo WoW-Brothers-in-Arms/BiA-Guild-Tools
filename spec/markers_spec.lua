@@ -195,6 +195,19 @@ describe("Markers", function()
             assert.is_true(M.db.locked)
         end)
 
+        it("drags the panel by its tab while unlocked and saves where it was left", function()
+            local game, M = start()
+            local p, moved = M.panel, 0
+            p.StartMoving = function() moved = moved + 1 end
+            p.tab.scripts.OnDragStart(p.tab)
+            assert.equal(0, moved) -- locked
+            game:slash("marker unlock")
+            p.tab.scripts.OnDragStart(p.tab)
+            p.tab.scripts.OnDragStop(p.tab)
+            assert.equal(1, moved)
+            assert.is_table(M.db.position)
+        end)
+
         it("puts the panel back to its starting place", function()
             local game, M = start(nil, { savedVariables = { modules = { markers = { position = { point = "LEFT", x = 1, y = 2 } } } } })
             game:slash("marker reset")
@@ -238,7 +251,7 @@ describe("Markers", function()
             local p = M.panel
             game.group.combat = true
             for _, b in ipairs({ p.targets[1], p.targets[8], p.clearAll, p.ground[1], p.clearGround,
-                p.switchTarget, p.switchGround }) do
+                p.switchTarget, p.switchGround, p.tab }) do
                 b.scripts.OnEnter(b)
                 b.scripts.OnLeave(b)
             end

@@ -6,6 +6,8 @@ and CurseForge and stops if it is missing.
 
 ## Unreleased
 
+- Markers: the panel has a tab on its left side to drag it by – easier than finding the narrow edge between the buttons. Right-click on the tab opens the menu (move / lock).
+
 ## 1.4.0 (2026-11-13)
 
 - Guild Recipes: recipes of professions you don't have yourself are now grouped under their real categories (e.g. "Cloaks", "Everyday Meals") instead of all landing in "Other". The game names categories only of your own professions; the addon now brings the names of all categories along (English and German).

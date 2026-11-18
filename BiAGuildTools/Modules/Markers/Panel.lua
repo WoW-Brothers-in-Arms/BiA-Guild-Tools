@@ -2,8 +2,9 @@
 -- One row:  Target/Ground switch | 8 symbols | all off | ready check, pull timer
 -- The switch picks what the 8 symbols and "all off" act on: target markers or ground markers.
 -- The symbol the target carries has a gold frame; a ground marker that lies has a green dot.
--- Right-click on a target symbol takes the marker off the target. Right-click on the frame: "Move" /
--- "Lock". Right-click on the pull button: its duration.
+-- Right-click on a target symbol takes the marker off the target. Right-click on the frame or the tab:
+-- "Move" / "Lock". Right-click on the pull button: its duration.
+-- The tab on the panel's left side is the handle to drag it by (the buttons cover nearly all of it).
 -- Target and ground markers are protected, so their buttons are secure buttons running the game's
 -- own actions ("raidtarget", "worldmarker"). The two sets sit in two secure rows on the same spot;
 -- the switch buttons show one and hide the other in a secure snippet, which also works in combat.
@@ -15,6 +16,7 @@ local COLORS = UI.COLORS
 
 local MEDIA = "Interface\\AddOns\\" .. ADDON .. "\\Media\\"
 local SIZE, GAP, PAD, SEP, SWITCH = 26, 2, 4, 7, 36
+local TAB = 12 -- width of the tab to drag the panel by
 local NUM = 8
 
 local TARGET_NAMES = { L.MARKERS_STAR, L.MARKERS_CIRCLE, L.MARKERS_DIAMOND, L.MARKERS_TRIANGLE,
@@ -276,13 +278,14 @@ function ns.CreateMarkerPanel(M)
     Tooltip(f.pull, L.MARKERS_PULL, function() return L.MARKERS_TIP_PULL:format(M.db.pull) end)
 
     -- Moving and locking.
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", function(self)
+    function f:StartDrag()
         if not M.db.locked and not M.InCombat() then
             self.dragging = true
             self:StartMoving()
         end
-    end)
+    end
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", function(self) self:StartDrag() end)
     function f:StopDrag()
         if not self.dragging then return end
         self.dragging = false
@@ -323,10 +326,53 @@ function ns.CreateMarkerPanel(M)
         if button == "RightButton" then self:OpenMenu() end
     end)
 
+    -- The tab: a strip on the left edge with grip dots, to drag the panel by. A plain frame (not
+    -- secure), anchored once; it overlaps the panel's border so the two borders meet.
+    local tab = CreateFrame("Frame", nil, f)
+    tab:SetSize(TAB, PAD * 2 + SIZE)
+    tab:SetPoint("TOPRIGHT", f, "TOPLEFT", 2, 0)
+    tab:EnableMouse(true)
+    UI.Fill(tab, "BACKGROUND", COLORS.ground):SetAllPoints()
+    tab.SetFrame = Border(tab)
+    tab.dots = {}
+    for row = 1, 3 do
+        for col = 1, 2 do
+            local d = UI.Fill(tab, "ARTWORK", COLORS.symbol)
+            d:SetSize(2, 2)
+            d:SetPoint("CENTER", tab, "CENTER", (col - 1.5) * 4 - 1, (2 - row) * 5)
+            tab.dots[#tab.dots + 1] = d
+        end
+    end
+    tab:RegisterForDrag("LeftButton")
+    tab:SetScript("OnDragStart", function() f:StartDrag() end)
+    tab:SetScript("OnDragStop", function() f:StopDrag() end)
+    tab:SetScript("OnMouseUp", function(self, button)
+        if button == "RightButton" then f:OpenMenu(self) end
+    end)
+    tab:SetScript("OnEnter", function(self)
+        self.hover = true
+        f:ApplyLock()
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:SetText(L.MARKERS_TITLE)
+        GameTooltip:AddLine(M.db.locked and L.MARKERS_TIP_TAB_LOCKED or L.MARKERS_TIP_TAB, 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    tab:SetScript("OnLeave", function(self)
+        self.hover = false
+        f:ApplyLock()
+        if GameTooltip_Hide then GameTooltip_Hide() end
+    end)
+    f.tab = tab
+
     function f:ApplyLock()
         local moving = not M.db.locked
         self.SetFrame(moving and COLORS.gold or COLORS.border, 2)
         self.Hint:SetShown(moving)
+        local edge = (moving or self.tab.hover) and COLORS.gold or COLORS.border
+        self.tab.SetFrame(edge, 2)
+        local dot = (moving or self.tab.hover) and COLORS.gold or COLORS.symbol
+        for _, d in ipairs(self.tab.dots) do d:SetColorTexture(dot[1], dot[2], dot[3], 1) end
     end
 
     -- Painting the state.
