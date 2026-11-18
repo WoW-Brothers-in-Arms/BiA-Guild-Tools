@@ -165,6 +165,8 @@ L.RCP_EMPTY = "Noch keine Rezepte. Sie erscheinen, sobald Gildenmitglieder mit d
 L.RCP_TAB_TOOLTIP = "BiA Gildenrezepte"
 L.RCP_NOT_IN_GUILD = "Du bist in keiner Gilde."
 L.RCP_MORE = "+ %d weitere"
+L.RCP_WHISPER_TEXT = "Hallo! Kannst du mir bitte %s herstellen?"
+L.RCP_WHISPER_TIP = "%s anflüstern"
 
 -- Markierungspanel
 L.MARKERS_TITLE = "Markierungen"

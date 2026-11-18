@@ -23,7 +23,7 @@ Made with the user on 2026-11-12:
 
 - **Main use is browsing by profession.** A filter box narrows the list of the chosen profession by
   name; there is no search across professions.
-- **Display only.** No whisper on click, no chat links.
+- **Display only**, with one exception (added later, issue #10): a small speech bubble on a reachable crafter's line opens the chat input with a whisper to the character the player is online on, the request for the item filled in. Nothing is sent automatically.
 - **Crafters show as "Character (Main)"** when the crafting character is an alt. An entry counts as
   online when any character of that player is online.
 - **List on the left, details on the right.** A recipe row shows how many members can craft it; the
@@ -462,7 +462,7 @@ Each step leaves the addon working and all tests green.
 
 ## Out of scope
 
-- Actions on crafters (whisper, links), a search by reagent, costs, cooldowns, specialisations.
+- Further actions on crafters (links), a search by reagent, costs, cooldowns, specialisations.
 - A search across all professions and a "nobody can craft this yet" view.
 - A line in item tooltips elsewhere in the game ("craftable in the guild by …").
 - Recipes of members without the addon. The line "Profession known, recipes unknown" also names only

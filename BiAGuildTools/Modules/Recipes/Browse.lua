@@ -15,6 +15,7 @@
 --     search        text; plain, case does not matter
 --     onlyOnline    only crafters who can be reached now, and only recipes one of them knows
 --     collapsed     { [category] = true } (category: an ID, or "other")
+--     me            your own full name (optional): you are never offered as someone to whisper
 --   }
 --   model = {
 --     professions = { { skill, name, crafters, selected }, ... }   sorted by name
@@ -23,13 +24,14 @@
 --     rows = { { kind = "header", category, text, count, expanded },   categories in the game's order
 --                                                                    (those without one by name), "other" last
 --              { kind = "recipe", id, name, reach, total, selected, band }, ... }
---     detail = { id, name, category, crafters = { { guid, label, classFile, reachable, status, on, band } } }
+--     detail = { id, name, category, crafters = { { guid, label, classFile, reachable, status, on, whisper, band } } }
 --              for the chosen recipe (the first listed one if that isn't listed); nil without recipes
 --     unknown = { name, ... }   members who have the profession but no recipes of it here
 --   }
 -- A crafter is reachable when the character, or any character of the same player, is online.
 -- status: "online" (the crafter itself), "onlineOn" (the player is on another character: `on`), "offline".
 -- label: the character's name, for an alt followed by " (<main>)".
+-- whisper: the full name of the character the player is online on (nil when offline, or when it is you).
 local _, ns = ...
 
 local B = {}
@@ -39,21 +41,29 @@ local function Plain(roster, guid)
     return ns.PlainName(roster[guid].name)
 end
 
--- label, reachable, status, on for one crafter.
+-- The full name to whisper for a character that is online, nil for yourself.
+local function WhisperTo(input, guid)
+    local name = input.roster[guid].name
+    if name ~= input.me then return name end
+end
+
+-- label, reachable, status, on, whisper for one crafter.
 local function Person(input, guid)
     local roster = input.roster
     local group = input.groupOf and input.groupOf(guid) or nil
     local label = Plain(roster, guid)
     if group and group.main ~= guid and roster[group.main] then label = label .. " (" .. Plain(roster, group.main) .. ")" end
-    if roster[guid].online then return label, true, "online", nil end
+    if roster[guid].online then return label, true, "online", nil, WhisperTo(input, guid) end
     if group then
         local chars = { group.main }
         for _, alt in ipairs(group.alts or {}) do chars[#chars + 1] = alt end
         for _, char in ipairs(chars) do
-            if roster[char] and roster[char].online then return label, true, "onlineOn", Plain(roster, char) end
+            if roster[char] and roster[char].online then
+                return label, true, "onlineOn", Plain(roster, char), WhisperTo(input, char)
+            end
         end
     end
-    return label, false, "offline", nil
+    return label, false, "offline", nil, nil
 end
 
 function B.Build(input)
@@ -62,8 +72,9 @@ function B.Build(input)
     local function PersonOf(guid)
         local p = people[guid]
         if not p then
-            local label, reachable, status, on = Person(input, guid)
-            p = { guid = guid, label = label, classFile = roster[guid].classFile, reachable = reachable, status = status, on = on }
+            local label, reachable, status, on, whisper = Person(input, guid)
+            p = { guid = guid, label = label, classFile = roster[guid].classFile, reachable = reachable, status = status, on = on,
+                whisper = whisper }
             people[guid] = p
         end
         return p
@@ -178,7 +189,7 @@ function B.Build(input)
         local crafters = {}
         for _, person in ipairs(pick.crafters) do
             crafters[#crafters + 1] = { guid = person.guid, label = person.label, classFile = person.classFile,
-                reachable = person.reachable, status = person.status, on = person.on }
+                reachable = person.reachable, status = person.status, on = person.on, whisper = person.whisper }
         end
         table.sort(crafters, function(a, b)
             if a.reachable ~= b.reachable then return a.reachable end

@@ -6,6 +6,7 @@ and CurseForge and stops if it is missing.
 
 ## Unreleased
 
+- Guild Recipes: a small speech bubble next to every crafter who is online opens a whisper to them, with "Hi! Could you please craft [item] for me?" already typed in (German: "Hallo! Kannst du mir bitte [Item] herstellen?"). Nothing is sent until you press Enter. If the crafter is an alt and the player is online on another character, the whisper goes there.
 - Fixed: the Reagent Bag tool could bring up the game's "AddOn tried to call a forbidden function" dialog – e.g. on right-clicking a potion in your bags or buying bank slots. It opened the reagent bag from addon code, which tainted the game's bag windows. Now it puts the keys of "Toggle Backpack" (e.g. B) on the game's own "Open All Bags", which includes the reagent bag. A click on the backpack button no longer opens the reagent bag.
 - Markers: the panel has a tab on its left side to drag it by – easier than finding the narrow edge between the buttons. Right-click on the tab opens the menu (move / lock).
 

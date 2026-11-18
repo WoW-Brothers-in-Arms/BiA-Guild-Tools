@@ -28,7 +28,7 @@ read_globals = {
     "Settings", "PlaySound", "SOUNDKIT", "Enum",
 
     -- Frames, UI
-    "CreateFrame", "UIParent", "UISpecialFrames", "DEFAULT_CHAT_FRAME", "GameTooltip", "GameTooltip_Hide",
+    "CreateFrame", "UIParent", "UISpecialFrames", "DEFAULT_CHAT_FRAME", "ChatFrameUtil", "ChatFrame_OpenChat", "GameTooltip", "GameTooltip_Hide",
     "Menu", "MenuUtil", "IsShiftKeyDown", "InCombatLockdown", "CreateDataProvider", "CreateScrollBoxListLinearView", "ScrollUtil", "ScrollBoxConstants",
     "ScrollBoxListMixin", "HIGHLIGHT_FONT_COLOR", "NORMAL_FONT_COLOR", "RAID_CLASS_COLORS",
     "C_Texture", "GameFontNormalHuge", "LOCALIZED_CLASS_NAMES_MALE", "CreateAnchor", "IsPlayerSpell", "C_SpellBook", "C_Spell", "C_Item", "ITEM_QUALITY_COLORS",

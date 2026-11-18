@@ -64,7 +64,7 @@ function M.WindowModel()
         groupOf = alts and alts:IsEnabled() and alts.GroupOf or nil,
         professionsOf = professions and professions:IsEnabled() and professions.ProfessionsOf or nil,
         skill = M.db.skill, recipe = chosenRecipe, search = search, onlyOnline = M.db.onlyOnline,
-        collapsed = M.db.collapsed or {},
+        collapsed = M.db.collapsed or {}, me = ns.PlayerFullName(),
     })
     -- noHits: the search text while it matches no recipe of the profession.
     model.noHits = search and search ~= "" and #model.rows == 0 and search or nil
@@ -99,6 +99,26 @@ local function Output(recipeID)
     local itemID = type(data) == "table" and type(data.itemID) == "number" and data.itemID > 0 and data.itemID or nil
     local icon, quality = ItemInfo(itemID)
     return itemID, icon or Try(Spell.GetSpellTexture, recipeID), quality
+end
+
+---------------------------------------------------------------------------
+-- Whisper a crafter
+---------------------------------------------------------------------------
+-- Opens the chat input with "/w <name> " and the request for the recipe's item (its link, else the
+-- recipe's name). Nothing is sent: the player can change the text and sends it with Enter.
+function M.Whisper(name, recipeID, recipeName)
+    local itemID = Output(recipeID)
+    local link
+    if itemID and Item.GetItemInfo then
+        local ok, _, itemLink = pcall(Item.GetItemInfo, itemID)
+        link = ok and Text(itemLink) or nil
+    end
+    local text = L.RCP_WHISPER_TEXT:format(link or recipeName)
+    if ChatFrameUtil and ChatFrameUtil.SendTellWithMessage then
+        ChatFrameUtil.SendTellWithMessage(name, text)
+    elseif ChatFrame_OpenChat then
+        ChatFrame_OpenChat(("/w %s %s"):format(name, text))
+    end
 end
 
 -- { { itemID, count }, ... } – what a recipe needs; empty if the client doesn't tell.
@@ -283,7 +303,40 @@ local function PaneLine(pane)
     line.Text:SetWordWrap(false)
     line:SetScript("OnEnter", function(self) ShowItemTooltip(self, self.itemID) end)
     line:SetScript("OnLeave", GameTooltip_Hide)
+
+    -- A small speech bubble at the right end of a crafter's line: whisper them.
+    local whisper = CreateFrame("Button", nil, line)
+    whisper:SetSize(18, 18)
+    whisper:SetPoint("RIGHT", -4, 0)
+    whisper:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIcon-Chat-Up")
+    whisper:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIcon-Chat-Down")
+    whisper:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+    whisper:SetScript("OnClick", function(self)
+        local c = self.crafter
+        if c then M.Whisper(c.whisper, c.recipeID, c.recipeName) end
+    end)
+    whisper:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(L.RCP_WHISPER_TIP:format(ns.PlainName(self.crafter.whisper)), 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    whisper:SetScript("OnLeave", GameTooltip_Hide)
+    whisper:Hide()
+    line.Whisper = whisper
     return line
+end
+
+-- Shows the whisper button on a line (crafter = { whisper, recipeID, recipeName }) or hides it (nil);
+-- the note on the right makes room for it.
+local function SetWhisper(line, crafter)
+    line.Whisper.crafter = crafter
+    line.Whisper:SetShown(crafter ~= nil)
+    line.Note:ClearAllPoints()
+    if crafter then
+        line.Note:SetPoint("RIGHT", line.Whisper, "LEFT", -4, 0)
+    else
+        line.Note:SetPoint("RIGHT", -6, 0)
+    end
 end
 
 -- Places line number i of the pane at y (below the pane's top) and returns it.
@@ -338,6 +391,7 @@ local function PaintDetail(pane, model)
             line.Text:SetText(name or ("#" .. reagent.itemID))
             line.Text:SetTextColor(qr, qg, qb)
             line.Note:SetText("")
+            SetWhisper(line, nil)
             ns.SetZebra(line, i % 2 == 0)
             y = y + LINE_HEIGHT
         end
@@ -362,6 +416,7 @@ local function PaintDetail(pane, model)
         line.Text:SetTextColor(1, 1, 1)
         line.Note:SetText(STATUS[crafter.status](crafter))
         if crafter.reachable then line.Note:SetTextColor(1, 1, 1) else line.Note:SetTextColor(GREY[1], GREY[2], GREY[3]) end
+        SetWhisper(line, crafter.whisper and { whisper = crafter.whisper, recipeID = detail.id, recipeName = detail.name } or nil)
         ns.SetZebra(line, crafter.band)
         y = y + LINE_HEIGHT
     end
@@ -374,6 +429,7 @@ local function PaintDetail(pane, model)
         line.Text:SetText(L.RCP_MORE:format(#detail.crafters - shown))
         line.Text:SetTextColor(GREY[1], GREY[2], GREY[3])
         line.Note:SetText("")
+        SetWhisper(line, nil)
         ns.SetZebra(line, false)
     end
 end

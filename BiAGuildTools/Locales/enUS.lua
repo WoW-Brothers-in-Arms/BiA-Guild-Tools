@@ -165,6 +165,8 @@ L.RCP_EMPTY = "No recipes yet. They appear once guild members with the addon are
 L.RCP_TAB_TOOLTIP = "BiA Guild Recipes"
 L.RCP_NOT_IN_GUILD = "You are not in a guild."
 L.RCP_MORE = "+ %d more"
+L.RCP_WHISPER_TEXT = "Hi! Could you please craft %s for me?"
+L.RCP_WHISPER_TIP = "Whisper %s"
 
 -- Marker panel
 L.MARKERS_TITLE = "Markers"

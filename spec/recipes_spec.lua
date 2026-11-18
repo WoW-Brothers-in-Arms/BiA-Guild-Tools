@@ -511,6 +511,27 @@ describe("Guild Recipes", function()
             assert.same({}, M(game).WindowModel().unknown)
         end)
 
+        it("opens a whisper to the crafter with the request filled in, without sending it", function()
+            local tells = {}
+            local function whisperGame(item)
+                return Game({ skills = {}, globals = {
+                    ChatFrameUtil = { SendTellWithMessage = function(name, text) table.insert(tells, { name, text }) end },
+                    SendChatMessage = function() error("must not send") end,
+                    C_TradeSkillUI = { GetRecipeOutputItemData = function() return item and { itemID = item } end },
+                    C_Item = { GetItemInfo = function(id)
+                        if id == 4237 then return "Handstitched Boots", "|cffffffff|Hitem:4237|h[Handstitched Boots]|h|r" end
+                    end },
+                } })
+            end
+
+            M(whisperGame(4237)).Whisper("Other-Realm", 2149, "Handstitched Boots")
+            assert.same({ "Other-Realm", "Hi! Could you please craft |cffffffff|Hitem:4237|h[Handstitched Boots]|h|r for me?" }, tells[1])
+
+            -- no item (an enchantment) or the client doesn't know it yet: the recipe's name
+            M(whisperGame(nil)).Whisper("Other-Realm", 7421, "Enchant Bracer")
+            assert.same({ "Other-Realm", "Hi! Could you please craft Enchant Bracer for me?" }, tells[2])
+        end)
+
         it("only lists reachable crafters by default", function()
             local members = { { "Tester-Realm", TESTER }, { "Other-Realm", OTHER, online = false } }
             local game = Game({ skills = {}, roster = members,

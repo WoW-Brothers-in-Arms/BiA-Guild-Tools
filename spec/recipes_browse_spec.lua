@@ -85,6 +85,18 @@ describe("RecipeBrowse", function()
         assert.equal(TWINK, m.detail.crafters[1].guid)
     end)
 
+    it("names the character to whisper: the one the player is online on, never yourself", function()
+        local whisper = {}
+        for i, c in ipairs(Build(input({ recipe = 3760 })).detail.crafters) do whisper[i] = c.whisper or false end
+        assert.same({ "Bob-Realm", "Rodoc-Realm" }, whisper)
+
+        whisper = {}
+        for i, c in ipairs(Build(input({ recipe = 2149, me = "Rodoc-Realm" })).detail.crafters) do
+            whisper[i] = c.whisper or false
+        end
+        assert.same({ false, false }, whisper) -- Rodoc is you, Alrik is offline
+    end)
+
     it("lists reachable crafters first", function()
         local seen = {}
         for i, c in ipairs(Build(input({ recipe = 2149 })).detail.crafters) do seen[i] = c.label .. ":" .. c.status end
