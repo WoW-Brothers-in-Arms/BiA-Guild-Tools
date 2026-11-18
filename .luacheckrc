@@ -47,8 +47,8 @@ read_globals = {
 
     -- Bags and bank
     "BankFrame", "C_Bank", "C_Container", "C_Item", "GetContainerNumSlots", "GetContainerItemInfo",
-    "GetItemInfoInstant", "UseContainerItem", "NUM_BAG_SLOTS", "IsBagOpen", "OpenBag", "CloseBag",
-    "ToggleBackpack", "CHARACTER_BANK_DEPOSIT_BUTTON_LABEL",
+    "GetItemInfoInstant", "UseContainerItem", "NUM_BAG_SLOTS", "GetBindingKey", "SetOverrideBinding", "ClearOverrideBindings",
+    "CHARACTER_BANK_DEPOSIT_BUTTON_LABEL",
 
     -- Equipment
     "GetInventoryItemID", "GetInventoryItemLink", "UnitChannelInfo",

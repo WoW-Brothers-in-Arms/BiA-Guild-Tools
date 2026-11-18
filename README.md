@@ -91,7 +91,7 @@ Shows who in the guild can craft what. Every member with the addon shares the re
 
 ### Reagent Bag (`/bia bags`)
 
-Opens and closes the reagent bag together with your backpack. In WoW: Forever, **B** is bound to "Toggle Backpack" by default, which opens only the backpack (or the combined bags) but not the reagent bag; only "Open All Bags" (**Shift-B**) includes it. This tool adds the reagent bag to "Toggle Backpack", so **B**, **F12** and a click on the backpack button open it too. Your key bindings stay as they are.
+Opens and closes the reagent bag together with your backpack. In WoW: Forever, **B** is bound to "Toggle Backpack" by default, which opens only the backpack (or the combined bags) but not the reagent bag; only "Open All Bags" (**Shift-B**) includes it. This tool puts the keys of "Toggle Backpack" (e.g. **B**, **F12**) on "Open All Bags" while you have a reagent bag, so they open it too. It uses a temporary override binding: your saved key bindings stay as they are, and `/bia bags off` gives the keys back. A click on the backpack button still opens only the backpack.
 
 - `/bia bags on` / `off`: turn it on or off
 

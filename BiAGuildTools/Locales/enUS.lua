@@ -76,7 +76,7 @@ L.BANK_HELP_DEPOSIT = "move trade goods from your bags into the open bank"
 
 -- Reagent bag
 L.BAGS_TITLE = "Reagent Bag"
-L.BAGS_DESC = "Opens and closes the reagent bag together with your backpack (B, F12, backpack button)"
+L.BAGS_DESC = "Opens and closes the reagent bag together with your backpack (the keys of \"Toggle Backpack\", e.g. B)"
 L.BAGS_UNKNOWN_COMMAND = "Unknown command. Help: %s"
 
 -- Alts

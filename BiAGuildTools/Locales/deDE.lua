@@ -76,7 +76,7 @@ L.BANK_HELP_DEPOSIT = "Handwerkswaren aus den Taschen in die offene Bank legen"
 
 -- Reagent bag
 L.BAGS_TITLE = "Reagenzientasche"
-L.BAGS_DESC = "Öffnet und schließt die Reagenzientasche zusammen mit dem Rucksack (B, F12, Rucksack-Symbol)"
+L.BAGS_DESC = "Öffnet und schließt die Reagenzientasche zusammen mit dem Rucksack (mit der Rucksack-Taste, z. B. B)"
 L.BAGS_UNKNOWN_COMMAND = "Unbekannter Befehl. Hilfe: %s"
 
 -- Twinks
